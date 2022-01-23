@@ -29,7 +29,7 @@ import java.util.stream.Stream;
 @EqualsAndHashCode(callSuper = true)
 public class CrcModel extends CrcDescription {
 
-    public static final byte[] CHECK_BUFF = "123456789".getBytes();
+    public static final String CHECK_BUFF = "123456789";
 
     @Getter public  final String name;
     @Getter public  final Long check;
@@ -43,7 +43,7 @@ public class CrcModel extends CrcDescription {
         super(_config(Objects.requireNonNull(model, "CRC_model_t::new - model is null")));
         this.name = name == null ? super.toString() : name;
         this.crcDescription = model;
-        this.check = Optional.ofNullable(check).orElseGet(() -> new CrcModel(null, model, -1L).getCRC().update(CHECK_BUFF).getCrc());
+        this.check = Optional.ofNullable(check).orElseGet(() -> new CrcModel(null, model, -1L).getCRC().update(CHECK_BUFF.getBytes()).getCrc());
     }
 
     @Override
@@ -61,6 +61,7 @@ public class CrcModel extends CrcDescription {
         return crcDescription.isRefot();
     }
 
+    @Override
     public @Nonnull CRC getCRC() {
         CRC result = new CRC(this);
         _init();
@@ -103,6 +104,7 @@ public class CrcModel extends CrcDescription {
      * @param len initial processed length
      * @return created CRC
      */
+    @Override
     public @Nonnull CRC getCRC(long crc, int len) {
         CRC result = new CRC(this, crc, len);
         _init();

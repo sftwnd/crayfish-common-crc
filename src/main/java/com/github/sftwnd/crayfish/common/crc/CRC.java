@@ -21,7 +21,7 @@ import static com.github.sftwnd.crayfish.common.crc.CrcModel.crc_general_combine
  * @author Andrey D. Shindarev
  */
 @EqualsAndHashCode
-public final class CRC implements Cloneable {
+public final class CRC {
 
     @Getter private final CrcModel model;
     @SuppressWarnings("squid:S1700")
@@ -63,12 +63,11 @@ public final class CRC implements Cloneable {
     }
 
     /**
-     * Clone CRC
+     * Copy CRC
      * @return copy of current CRC
      */
-    @Override
     @Generated
-    public CRC clone() {
+    public CRC copy() {
         return new CRC(this);
     }
 

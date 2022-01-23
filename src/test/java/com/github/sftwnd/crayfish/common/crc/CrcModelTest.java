@@ -71,7 +71,7 @@ class CrcModelTest {
     void testCrcBytewise() {
         getModels().filter(m -> m.getCheck() != null).forEach(m -> {
             m._init();
-            long crc = m.crcBytewise(m.init, CHECK_BUFF, 0, 9);
+            long crc = m.crcBytewise(m.init, CHECK_BUFF.getBytes(), 0, 9);
             assertEquals(m.getCheck().longValue(), crc, "Update crc by '123456789' buffer has to be equals check value");
             crc = m.crcBytewise(m.init, null, 0, 9);
             assertEquals(m.init, crc, "Update crc by null buffer has got to return init value");
@@ -128,7 +128,7 @@ class CrcModelTest {
     void testGetCRCBuff() {
         getModels().filter(m -> m.getCheck()!= null).forEach(
                 m -> {
-                    CRC crc = m.getCRC(CHECK_BUFF);
+                    CRC crc = m.getCRC(CHECK_BUFF.getBytes());
                     assertSame(m, Optional.of(crc).map(CRC::getModel).orElse(null), "Wrong model in the CRC, created by getCRC(crc, len)");
                     assertEquals(m.getCheck(), Optional.of(crc).map(CRC::getCrc).orElse(null), "Wrong crc in the CRC, created by getCRC('123456789')");
                 }
@@ -139,7 +139,7 @@ class CrcModelTest {
     void testGetCRCBuffLen() {
         getModels().forEach(
                 m -> {
-                    CRC crc = m.getCRC(CHECK_BUFF, CHECK_BUFF.length);
+                    CRC crc = m.getCRC(CHECK_BUFF.getBytes(), CHECK_BUFF.length());
                     assertSame(m, Optional.of(crc).map(CRC::getModel).orElse(null), "Wrong model in the CRC, created by getCRC(crc, len)");
                     assertEquals(m.getCheck(), Optional.of(crc).map(CRC::getCrc).orElse(null), "Wrong crc in the CRC, created by getCRC('123456789', 9)");
                 }
@@ -150,7 +150,7 @@ class CrcModelTest {
     void testGetCRCBuffOffsetLen() {
         getModels().filter(m -> m.getCheck() != null).forEach(
                 m -> {
-                    CRC crc = m.getCRC(CHECK_BUFF, 0, CHECK_BUFF.length);
+                    CRC crc = m.getCRC(CHECK_BUFF.getBytes(), 0, CHECK_BUFF.length());
                     assertSame(m, Optional.of(crc).map(CRC::getModel).orElse(null), "Wrong model in the CRC, created by getCRC(crc, len)");
                     assertEquals(m.getCheck(), Optional.of(crc).map(CRC::getCrc).orElse(null), "Wrong crc in the CRC, created by getCRC('123456789', 0, 9)");
                 }
@@ -190,18 +190,18 @@ class CrcModelTest {
     @Test
     void testCombine() {
         getModels().filter(m -> m.getCheck() != null).forEach( m -> {
-            for (int i=0; i<CHECK_BUFF.length; i++) {
+            for (int i=0; i<CHECK_BUFF.getBytes().length; i++) {
                 long crc = crc_general_combine(
-                               m.getCRC(CHECK_BUFF, 0, i).crc,
-                               m.getCRC(CHECK_BUFF, i, CHECK_BUFF.length -i).crc,
-                        CHECK_BUFF.length -i,
+                               m.getCRC(CHECK_BUFF.getBytes(), 0, i).crc,
+                               m.getCRC(CHECK_BUFF.getBytes(), i, CHECK_BUFF.length() -i).crc,
+                        CHECK_BUFF.length() -i,
                                m.getWidth(), m.getInit(), m.getPoly(), m.getXorot(), m.isRefot());
                 assertEquals(m.getCheck().longValue(), crc, "Combine crc of byte sequence '123456789' splitted in position "+i+" has to be equals check value");
             }
             assertEquals(
                     m.getCheck().longValue(),
                     crc_general_combine(
-                            m.getCRC(CHECK_BUFF).crc, -1, -1,
+                            m.getCRC(CHECK_BUFF.getBytes()).crc, -1, -1,
                             m.getWidth(), m.getInit(), m.getPoly(), m.getXorot(), m.isRefot()),
                          "Combine crc to crc with negative length has to return nonchanged crc value");
         });
