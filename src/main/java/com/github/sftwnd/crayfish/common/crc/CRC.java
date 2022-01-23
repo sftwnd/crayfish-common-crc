@@ -153,13 +153,5 @@ public final class CRC implements Cloneable {
     public String toString() {
         return this.getModel().toString()+"[crc:"+getCrc()+",len:"+getLength()+"]";
     }
-
-    public static void main(String[] args) {
-        CrcDescription crcDescription = new CrcDescription(16, 0xC867, 0xFFFF, false, false, 0x0);
-        System.out.println(CrcModel.getModels().count());
-        CrcModel crcModel = CrcModel.construct("OOPS",crcDescription);
-        System.out.println(CrcModel.getModels().count());
-        System.out.println(CrcModel.lookUp("CRC-16/ARC"));
-        System.out.println(CrcModel.lookUp("ARC"));
-    }
+    
 }
