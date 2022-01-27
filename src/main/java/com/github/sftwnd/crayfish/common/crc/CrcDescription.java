@@ -51,12 +51,12 @@ public class CrcDescription {
     }
 
     @SuppressWarnings({
-            // squil:S116 Field names should comply with a naming convention
+            // java:S116 Field names should comply with a naming convention
             // Names of original C algorithm methods has been saved
-            "squid:S116",
-            // squid:S3077 Non-primitive fields should not be "volatile"
+            "java:S116",
+            // java:S3077 Non-primitive fields should not be "volatile"
             // table items are not mutable and use of table is controlled in CrcModel carefully
-            "squid:S3077"
+            "java:S3077"
     })
     protected volatile long[] table_byte = null;
 

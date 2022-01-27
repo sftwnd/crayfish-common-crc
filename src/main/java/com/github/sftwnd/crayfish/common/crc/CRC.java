@@ -24,7 +24,7 @@ import static com.github.sftwnd.crayfish.common.crc.CrcModel.crc_general_combine
 public final class CRC {
 
     @Getter private final CrcModel model;
-    @SuppressWarnings("squid:S1700")
+    @SuppressWarnings("java:S1700")
     long crc;
     @Getter private int length;
 

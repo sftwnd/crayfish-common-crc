@@ -25,7 +25,7 @@ import java.util.stream.Stream;
 /**
  * Registered predefined CrcModel for CrcDescription
  */
-@SuppressWarnings({"squid:S100", "squid:S107"})
+@SuppressWarnings({"java:S100", "java:S107"})
 @EqualsAndHashCode(callSuper = true)
 public class CrcModel extends CrcDescription {
 
@@ -132,7 +132,7 @@ public class CrcModel extends CrcDescription {
      * Process the model data for th calculation.
      * constants will be eguals of originl values, but variables - changed
      */
-    @SuppressWarnings("squid:S3358")
+    @SuppressWarnings("java:S3358")
     private static CrcDescription _config(@Nonnull final CrcDescription model) {
         return new CrcDescription(
                        model.width,
@@ -160,8 +160,7 @@ public class CrcModel extends CrcDescription {
         return table;
     }
 
-    // Sonar-у не нравится количество if, но они тут осмысленно поставлены
-    @SuppressWarnings({"squid:S3776", "squid:S125"})
+    @SuppressWarnings({"java:S3776", "java:S125"})
     private long createBitwiseValue(int k) {
         /* if requested, return the initial CRC: if (k < 0) return init; */
         long poly = this.poly;
