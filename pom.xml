@@ -9,6 +9,9 @@
     <version>1.0.0-SNAPSHOT</version>
 
     <name>CrayFish :: COMMON :: Crc</name>
+    <description>
+        Generic Java language CRC implementation (includes CRC16, CRC32, CRC64, etc). With more than 170 predefined CRC like: CRC-32/ISO-HDLC, CRC-64/ECMA-182,...
+    </description>
     <url>https://github.com/sftwnd/crayfish-common-crc</url>
 
     <licenses>
