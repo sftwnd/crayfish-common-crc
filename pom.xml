@@ -149,6 +149,14 @@
                     </execution>
                 </executions>
             </plugin>
+            <plugin>
+                <artifactId>maven-release-plugin</artifactId>
+                <configuration>
+                    <mavenExecutorId>forked-path</mavenExecutorId>
+                    <useReleaseProfile>false</useReleaseProfile>
+                    <arguments>-Psign-artifacts -P!sonatype-oss-release</arguments>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 
