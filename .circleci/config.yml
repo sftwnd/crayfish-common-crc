@@ -1,0 +1,12 @@
+executors:
+  openjdk8:
+    docker:
+      - image: 'cimg/openjdk:8.0'
+orbs:
+  maven: circleci/maven@1.3.0
+version: 2.1
+workflows:
+  maven_test:
+    jobs:
+      - maven/test:
+          executor: openjdk8
