@@ -130,7 +130,7 @@ public class CrcModel extends CrcDescription {
 
     /**
      * Process the model data for th calculation.
-     * constants will be eguals of originl values, but variables - changed
+     * constants will be equals of original values, but variables - changed
      */
     @SuppressWarnings("java:S3358")
     private static CrcDescription _config(@Nonnull final CrcDescription model) {

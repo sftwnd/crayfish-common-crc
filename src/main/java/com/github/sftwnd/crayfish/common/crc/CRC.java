@@ -132,7 +132,7 @@ public final class CRC {
     /**
      * Combine current CRC with CRC on next buffer
      * @param crc CRC of the next buffer
-     * @return current CRC, combinet with CRC of parameter
+     * @return current CRC, combined with CRC of parameter
      */
     public CRC combine(CRC crc) {
         Optional.ofNullable(crc)
