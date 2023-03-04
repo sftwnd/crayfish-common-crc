@@ -12,8 +12,10 @@ import java.util.Optional;
 
 import static com.github.sftwnd.crayfish.common.crc.CrcModel.CHECK_BUFF;
 import static com.github.sftwnd.crayfish.common.crc.CrcModel.CKSUM;
+import static com.github.sftwnd.crayfish.common.crc.CrcModel.CRC32_AIXM;
 import static com.github.sftwnd.crayfish.common.crc.CrcModel.CRC32_CKSUM;
 import static com.github.sftwnd.crayfish.common.crc.CrcModel.CRC32_POSIX;
+import static com.github.sftwnd.crayfish.common.crc.CrcModel.CRC32_Q;
 import static com.github.sftwnd.crayfish.common.crc.CrcModel.CRC4_G_704;
 import static com.github.sftwnd.crayfish.common.crc.CrcModel.CRC4_ITU;
 import static com.github.sftwnd.crayfish.common.crc.CrcModel.CRC64_GO_ISO;
@@ -27,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CrcModelTest {
@@ -165,9 +168,13 @@ class CrcModelTest {
 
     @Test
     void testConstruct() {
-        assertSame(CRC64_GO_ISO, construct(null, CRC64_GO_ISO, 0L), "Result for construct(name, known model, length) has to return known model");
+        assertSame(CRC64_GO_ISO, construct(null, CRC64_GO_ISO, 0L), "Result for construct(null name, known model, length) has to return known model");
+        assertSame(CRC64_GO_ISO, construct(null, CRC64_GO_ISO, null), "Result for construct(null name, known model, length) has to return known model");
+        assertSame(CRC64_GO_ISO, construct("CRC-64/GO-ISO", CRC64_GO_ISO, null), "Result for construct(name, known model, length) has to return known model");
+        assertSame(CRC32_AIXM, construct("CRC-32/AIXM", CRC32_Q, null), "Result for construct(name, wrong model, length) has to return model by name");
         assertSame(CRC64_GO_ISO, construct(CRC64_GO_ISO, 0L), "Result for construct(known model, length) has to return known model");
         assertSame(CRC64_GO_ISO, construct(CRC64_GO_ISO), "Result for construct(known model, length) has to return known model");
+        assertThrows(NullPointerException.class, () -> construct(null), "Result for construct(null) has to throws NPE");
         CrcDescription description = new CrcDescription(27, 0x800069, 0x0, true, true, 0x0);
         assertEquals(description, construct("###", description, null).getCrcDescription(), "Result for construct(name, model, length) has to return model");
         assertSame(CRC4_G_704, CrcModel.construct(CRC4_G_704.getName(), CRC4_ITU.getCrcDescription(), CRC4_ITU.getCheck()), "Result of construct(known name, knodn description, check) has to be same with model(known name). Model: '"+CRC4_G_704.getName()+"'.");

@@ -4,11 +4,11 @@
  */
 package com.github.sftwnd.crayfish.common.crc;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
 import lombok.EqualsAndHashCode;
 import lombok.Generated;
 import lombok.Getter;
 
-import javax.annotation.Nonnull;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -32,7 +32,7 @@ public final class CRC {
      * Construct CRC as copy of CRC
      * @param crc CRC value as base to create current object
      */
-    CRC(@Nonnull final CRC crc) {
+    CRC(@NonNull final CRC crc) {
         Objects.requireNonNull(crc, "CRC::new - crc is null");
         this.model = crc.model;
         this.crc = crc.crc;
@@ -45,7 +45,7 @@ public final class CRC {
      * @param crc crc value
      * @param length length of calculated buffer
      */
-    CRC(@Nonnull final CrcModel model, long crc, int length) {
+    CRC(@NonNull final CrcModel model, long crc, int length) {
         if (length < 0) {
             throw new IllegalArgumentException("CRC::new - length less than 0");
         }
@@ -58,7 +58,7 @@ public final class CRC {
      * Construct CRC for defined model
      * @param model CrcModel to use as base for current object
      */
-    CRC(@Nonnull final CrcModel model) {
+    CRC(@NonNull final CrcModel model) {
         this(model, model.init, 0);
     }
 
