@@ -96,7 +96,7 @@ class CrcModelTest {
         Assertions.assertThrows(
                 IllegalArgumentException.class
                ,() -> CRC64_XZ.getCRC(0, -1)
-               ,"getCrc(length < 0) hhad to throw IllegalArgumentException"
+               ,"getCrc(length < 0) had to throw IllegalArgumentException"
         );
     }
 
