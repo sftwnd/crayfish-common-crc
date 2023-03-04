@@ -4,14 +4,13 @@
  */
 package com.github.sftwnd.crayfish.common.crc;
 
+import edu.umd.cs.findbugs.annotations.Nullable;
 import lombok.EqualsAndHashCode;
 import lombok.Generated;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.SneakyThrows;
 
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -39,7 +38,7 @@ public class CrcModel extends CrcDescription {
         this(name, new CrcDescription(width, poly, init, refin, refot, xorot), check);
     }
 
-    private CrcModel(@Nullable final String name, @Nonnull final CrcDescription model, @Nullable final Long check) {
+    private CrcModel(@Nullable final String name, @NonNull final CrcDescription model, @Nullable final Long check) {
         super(_config(Objects.requireNonNull(model, "CRC_model_t::new - model is null")));
         this.name = name == null ? super.toString() : name;
         this.crcDescription = model;
@@ -62,7 +61,7 @@ public class CrcModel extends CrcDescription {
     }
 
     @Override
-    public @Nonnull CRC getCRC() {
+    public @NonNull CRC getCRC() {
         CRC result = new CRC(this);
         _init();
         return result;
@@ -75,7 +74,7 @@ public class CrcModel extends CrcDescription {
      * @param len used buffer size
      * @return created CRC
      */
-    public @Nonnull CRC getCRC(byte[] buff, int offset, int len) {
+    public @NonNull CRC getCRC(byte[] buff, int offset, int len) {
         return getCRC().update(buff, offset, len);
     }
 
@@ -85,7 +84,7 @@ public class CrcModel extends CrcDescription {
      * @param len used buffer size
      * @return created CRC
      */
-    public @Nonnull CRC getCRC(byte[] buff, int len) {
+    public @NonNull CRC getCRC(byte[] buff, int len) {
         return getCRC(buff, 0, len);
     }
 
@@ -94,7 +93,7 @@ public class CrcModel extends CrcDescription {
      * @param buff buffer
      * @return created CRC
      */
-    public @Nonnull CRC getCRC(byte[] buff) {
+    public @NonNull CRC getCRC(byte[] buff) {
         return getCRC(buff, 0, buff == null ? 0 : buff.length);
     }
 
@@ -105,7 +104,7 @@ public class CrcModel extends CrcDescription {
      * @return created CRC
      */
     @Override
-    public @Nonnull CRC getCRC(long crc, int len) {
+    public @NonNull CRC getCRC(long crc, int len) {
         CRC result = new CRC(this, crc, len);
         _init();
         return result;
@@ -133,7 +132,7 @@ public class CrcModel extends CrcDescription {
      * constants will be equals of original values, but variables - changed
      */
     @SuppressWarnings("java:S3358")
-    private static CrcDescription _config(@Nonnull final CrcDescription model) {
+    private static CrcDescription _config(@NonNull final CrcDescription model) {
         return new CrcDescription(
                        model.width,
                        model.refin ? CrcModel.reflect(model.poly, model.width) : model.poly,
@@ -246,7 +245,7 @@ public class CrcModel extends CrcDescription {
      * Stream of all registered models
      * @return stream of models
      */
-    public static @Nonnull Stream<CrcModel> getModels() {
+    public static @NonNull Stream<CrcModel> getModels() {
         return getModels(null);
     }
 
@@ -268,7 +267,7 @@ public class CrcModel extends CrcDescription {
      * @param filter filter predicate for models
      * @return stream of models
      */
-    public static @Nonnull Stream<CrcModel> getModels(@Nullable final Predicate<? super CrcModel> filter) {
+    public static @NonNull Stream<CrcModel> getModels(@Nullable final Predicate<? super CrcModel> filter) {
         synchronized (models) {
             return Stream.concat(
                     Arrays.stream(CrcModel.class.getDeclaredFields())
@@ -303,7 +302,7 @@ public class CrcModel extends CrcDescription {
      * @param value Check value
      * @return registered model
      */
-    public static @Nonnull CrcModel construct(@Nullable final String name, @Nonnull final CrcDescription crcDescription, @Nullable final Long value) {
+    public static @NonNull CrcModel construct(@Nullable final String name, @NonNull final CrcDescription crcDescription, @Nullable final Long value) {
         return getModels(m -> Optional.of(Objects.requireNonNull(crcDescription, "CrcModel::construct - crcDescription is null"))
                 .filter(CrcModel.class::isInstance).map(CrcModel.class::cast)
                 .map(CrcModel::getCrcDescription)
@@ -314,7 +313,7 @@ public class CrcModel extends CrcDescription {
                 .orElseGet(() -> registerModel(name, crcDescription, value));
     }
 
-    private static CrcModel registerModel(@Nullable String name, @Nonnull CrcDescription crcDescription, @Nullable Long checkValue) {
+    private static CrcModel registerModel(@Nullable String name, @NonNull CrcDescription crcDescription, @Nullable Long checkValue) {
         CrcModel crcModel = new CrcModel(name, crcDescription, checkValue);
         synchronized (models) {
             models.add(crcModel);
@@ -328,7 +327,7 @@ public class CrcModel extends CrcDescription {
      * @param value Check value
      * @return registered model
      */
-    public static @Nonnull CrcModel construct(@Nonnull final CrcDescription crcDescription, @Nullable final Long value) {
+    public static @NonNull CrcModel construct(@NonNull final CrcDescription crcDescription, @Nullable final Long value) {
         return construct(null, crcDescription, value);
     }
 
@@ -337,7 +336,7 @@ public class CrcModel extends CrcDescription {
      * @param crcDescription CrcDescription
      * @return registered model
      */
-    public static @Nonnull CrcModel construct(@Nonnull final CrcDescription crcDescription) {
+    public static @NonNull CrcModel construct(@NonNull final CrcDescription crcDescription) {
         return construct(crcDescription, null);
     }
 
@@ -347,7 +346,7 @@ public class CrcModel extends CrcDescription {
      * @param crcDescription CrcDescription
      * @return registered model
      */
-    public static @Nonnull CrcModel construct(@Nullable final String name, @Nonnull final CrcDescription crcDescription) {
+    public static @NonNull CrcModel construct(@Nullable final String name, @NonNull final CrcDescription crcDescription) {
         return construct(name, crcDescription, null);
     }
 
