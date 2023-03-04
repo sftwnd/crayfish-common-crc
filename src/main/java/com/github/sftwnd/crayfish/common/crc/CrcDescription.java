@@ -4,12 +4,12 @@
  */
 package com.github.sftwnd.crayfish.common.crc;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
 import lombok.EqualsAndHashCode;
 import lombok.Generated;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
-import javax.annotation.Nonnull;
 import java.util.Objects;
 
 /**
@@ -27,7 +27,7 @@ public class CrcDescription {
     @Getter protected final long    xorot;
 
     @SuppressWarnings("CopyConstructorMissesField")
-    public CrcDescription(@Nonnull final CrcDescription model) {
+    public CrcDescription(@NonNull final CrcDescription model) {
         this(Objects.requireNonNull(model, "CRC_model_d::new - model is null").getWidth(),
              model.getPoly(), model.getInit(), model.isRefin(), model.isRefot(), model.getXorot());
     }
