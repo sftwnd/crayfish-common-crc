@@ -4,11 +4,11 @@
  */
 package com.github.sftwnd.crayfish.common.crc;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import lombok.EqualsAndHashCode;
 import lombok.Generated;
 import lombok.Getter;
-import lombok.NonNull;
 import lombok.SneakyThrows;
 
 import java.lang.reflect.Field;
