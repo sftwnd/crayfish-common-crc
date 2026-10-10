@@ -84,6 +84,45 @@ class CrcModelTest {
     }
 
     @Test
+    void testCrcBytewiseAllByteValues() {
+        getModels().forEach(m -> {
+            m._init();
+            for (int value = 0; value < 256; value++) {
+                byte[] buff = {(byte) value};
+                assertEquals(CrcReference.crc(m.getCrcDescription(), buff), m.crcBytewise(m.init, buff, 0, 1),
+                        "Model " + m + ": crc of the byte 0x" + Integer.toHexString(value) + " has to be equal to the bitwise calculated value");
+            }
+        });
+    }
+
+    @Test
+    void testCrcBytewiseNonReflectedInputReflectedOutput() {
+        // width <= 8 with refin = false and refot = true: the result of the narrow table lookup is reflected
+        CrcModel crc8 = construct("CRC-8/TEST-REFIN-FALSE-REFOUT-TRUE", new CrcDescription(8, 0x07, 0x00, false, true, 0x00));
+        CrcModel crc5 = construct("CRC-5/TEST-REFIN-FALSE-REFOUT-TRUE", new CrcDescription(5, 0x15, 0x1E, false, true, 0x03));
+        assertEquals(0x91L, crc8.getCRC(new byte[]{(byte) 0x80}).getCrc(), "Wrong crc of the byte 0x80 for model " + crc8);
+        assertEquals(0x2L, crc5.getCRC(new byte[]{(byte) 0x80}).getCrc(), "Wrong crc of the byte 0x80 for model " + crc5);
+        byte[] allValues = new byte[256];
+        for (int value = 0; value < allValues.length; value++) {
+            allValues[value] = (byte) value;
+        }
+        for (CrcModel m : new CrcModel[]{crc8, crc5}) {
+            for (int value = 0; value < 256; value++) {
+                byte[] buff = {(byte) value};
+                assertEquals(CrcReference.crc(m.getCrcDescription(), buff), m.getCRC(buff).getCrc(),
+                        "Model " + m + ": crc of the byte 0x" + Integer.toHexString(value) + " has to be equal to the bitwise calculated value");
+            }
+            long expected = CrcReference.crc(m.getCrcDescription(), allValues);
+            assertEquals(expected, m.getCRC(allValues).getCrc(),
+                    "Model " + m + ": crc of the bytes 0x00..0xFF has to be equal to the bitwise calculated value");
+            assertEquals(expected, m.getCRC(allValues, 0, 100).update(allValues, 100, 156).getCrc(),
+                    "Model " + m + ": crc of the bytes 0x00..0xFF updated in two parts has to be equal to the bitwise calculated value");
+            assertEquals(expected, m.getCRC(allValues, 0, 100).combine(m.getCRC(allValues, 100, 156)).getCrc(),
+                    "Model " + m + ": combined crc of two parts of the bytes 0x00..0xFF has to be equal to the bitwise calculated value");
+        }
+    }
+
+    @Test
     void testGetModelsByDescription() {
         getModels().forEach(
                 m -> {
