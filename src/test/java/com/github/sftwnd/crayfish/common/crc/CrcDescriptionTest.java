@@ -40,4 +40,27 @@ class CrcDescriptionTest {
         getModels().map(CrcModel::getCrcDescription).forEach(description -> assertDoesNotThrow(description::toString, "CrcDescription::toString hasn't got to throws exception"));
     }
 
+    @Test
+    void testEqualsAndHashCodeDoNotChangeOnFirstUse() {
+        CrcDescription unused = new CrcDescription(13, 0x1CF5, 0x1, true, true, 0x2);
+        CrcModel model = CrcModel.construct("CRC-13/TEST-EQUALS-HASHCODE", new CrcDescription(13, 0x1CF5, 0x1, true, true, 0x2));
+        model.getCRC().update("123456789".getBytes());
+        CrcDescription used = model.getCrcDescription();
+        assertNotNull(used.table_byte, "The lookup table of the used CrcDescription has to be built");
+        assertEquals(unused, used, "Used CrcDescription has to be equal to an unused one with the same parameters");
+        assertEquals(unused.hashCode(), used.hashCode(), "CrcDescription.hashCode() must not change after first use");
+    }
+
+    @Test
+    void testGetCRCDoesNotRegisterModelForKnownParameters() {
+        // README "Simple case": a new CrcDescription with the parameters of CRC-3/GSM for every calculation
+        long expected = CrcModel.CRC3_GSM.getCRC().update("StringA".getBytes()).getCrc();
+        long modelCount = getModels().count();
+        for (int i = 0; i < 100; i++) {
+            CrcDescription crcDescription = new CrcDescription(3, 0x3, 0x0, false, false, 0x7);
+            assertEquals(expected, crcDescription.getCRC().update("StringA".getBytes()).getCrc(), "Wrong CRC value for the parameters of CRC-3/GSM");
+            assertEquals(modelCount, getModels().count(), "CrcDescription.getCRC() must not register models for the parameters of a registered model");
+        }
+    }
+
 }

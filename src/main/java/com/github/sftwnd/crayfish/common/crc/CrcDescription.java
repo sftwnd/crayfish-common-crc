@@ -58,6 +58,8 @@ public class CrcDescription {
             // table items are not mutable and use of table is controlled in CrcModel carefully
             "java:S3077"
     })
+    // The lazily built lookup table is a cache, not a CRC parameter, so it is excluded from equals and hashCode
+    @EqualsAndHashCode.Exclude
     protected volatile long[] table_byte = null;
 
 }

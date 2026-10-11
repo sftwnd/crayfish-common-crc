@@ -8,10 +8,14 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Optional;
+import java.util.Set;
 
 import static com.github.sftwnd.crayfish.common.crc.CrcModel.CHECK_BUFF;
 import static com.github.sftwnd.crayfish.common.crc.CrcModel.CKSUM;
+import static com.github.sftwnd.crayfish.common.crc.CrcModel.CRC16_XMODEM;
 import static com.github.sftwnd.crayfish.common.crc.CrcModel.CRC32_AIXM;
 import static com.github.sftwnd.crayfish.common.crc.CrcModel.CRC32_CKSUM;
 import static com.github.sftwnd.crayfish.common.crc.CrcModel.CRC32_POSIX;
@@ -251,6 +255,30 @@ class CrcModelTest {
                             m.getWidth(), m.getInit(), m.getPoly(), m.getXorot(), m.isRefot()),
                          "Combine crc to crc with negative length has to return nonchanged crc value");
         });
+    }
+
+    @Test
+    void testConstructWithNewEqualDescription() {
+        // make sure that the lookup table of the predefined model is built
+        CRC16_XMODEM.getCRC();
+        long modelCount = getModels().count();
+        CrcModel model = construct(new CrcDescription(16, 0x1021, 0x0, false, false, 0x0));
+        assertSame(CRC16_XMODEM.getCrcDescription(), model.getCrcDescription(), "construct() has to return CRC-16/XMODEM or one of its aliases");
+        for (int i = 0; i < 10; i++) {
+            assertSame(model, construct(new CrcDescription(16, 0x1021, 0x0, false, false, 0x0)), "construct() has to return the same model for equal descriptions");
+        }
+        assertEquals(modelCount, getModels().count(), "construct() must not register models for the parameters of a registered model");
+    }
+
+    @Test
+    void testHashCodeDoesNotChangeOnFirstUse() {
+        CrcModel model = construct("CRC-16/TEST-HASHCODE", new CrcDescription(16, 0x8BB7, 0x1234, true, false, 0x0));
+        Set<CrcModel> models = new HashSet<>(Collections.singleton(model));
+        int hashCode = model.hashCode();
+        // the first use of the model builds its lookup table
+        model.getCRC().update(CHECK_BUFF.getBytes());
+        assertEquals(hashCode, model.hashCode(), "CrcModel.hashCode() must not change after first use");
+        assertTrue(models.contains(model), "CrcModel has to be found in a HashSet after first use");
     }
 
 }
