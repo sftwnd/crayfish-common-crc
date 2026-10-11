@@ -6,7 +6,6 @@ package com.github.sftwnd.crayfish.common.crc;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import lombok.EqualsAndHashCode;
-import lombok.Generated;
 import lombok.Getter;
 
 import java.util.Locale;
@@ -69,7 +68,6 @@ public final class CRC {
      * Copy CRC
      * @return copy of current CRC
      */
-    @Generated
     public CRC copy() {
         return new CRC(this);
     }

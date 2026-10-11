@@ -4,9 +4,11 @@
  */
 package com.github.sftwnd.crayfish.common.crc;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
@@ -30,7 +32,9 @@ import static com.github.sftwnd.crayfish.common.crc.CrcModel.getModels;
 import static com.github.sftwnd.crayfish.common.crc.CrcModel.lookUp;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CrcModelRegistryTest {
 
@@ -39,6 +43,33 @@ class CrcModelRegistryTest {
     // names and parameters depend on the run, so that every run registers new models,
     // also when the tests run repeatedly in the same JVM
     private static final AtomicInteger RUNS = new AtomicInteger();
+
+    // every test starts with the predefined models only
+    @AfterEach
+    void cleanUp() {
+        CrcModel.removeRegisteredModels();
+    }
+
+    @Test
+    void testRemoveRegisteredModels() throws IllegalAccessException {
+        Set<CrcModel> predefined = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (Field field : CrcModel.class.getDeclaredFields()) {
+            if (field.getType() == CrcModel.class && !field.isAnnotationPresent(Deprecated.class)) {
+                predefined.add((CrcModel) field.get(null));
+            }
+        }
+        int run = RUNS.incrementAndGet();
+        long modelCount = getModels().count();
+        String name = "CRC-21/TEST-REGISTRY-REMOVE-" + run;
+        CrcModel named = construct(name, new CrcDescription(21, 0x100001 + 4 * run, 0x0, false, false, 0x0));
+        CrcModel unnamed = new CrcDescription(21, 0x100003 + 4 * run, 0x0, false, false, 0x0).getCRC().getModel();
+        assertEquals(modelCount + 2, getModels().count(), "Two models have to be registered");
+        CrcModel.removeRegisteredModels();
+        assertNull(lookUp(name), "A removed model has not got to be found by the name");
+        assertEquals(0, getModels(m -> m == named || m == unnamed).count(), "Removed models have not got to be listed");
+        assertEquals(predefined.size(), getModels().count(), "Only the predefined models have to stay registered");
+        assertTrue(getModels().allMatch(predefined::contains), "All predefined models have to stay registered");
+    }
 
     @Test
     void testRegistrationWhileStreamIsUsed() {

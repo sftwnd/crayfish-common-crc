@@ -4,6 +4,7 @@
  */
 package com.github.sftwnd.crayfish.common.crc;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -38,6 +39,15 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CrcModelTest {
+
+    // a model in a private field of another class: castModel() cannot read it
+    private static final CrcModel PRIVATE_MODEL = CrcModel.CRC32;
+
+    // every test starts with the predefined models only
+    @AfterEach
+    void cleanUp() {
+        CrcModel.removeRegisteredModels();
+    }
 
     @Test
     void testPoly() {
@@ -132,8 +142,8 @@ class CrcModelTest {
         getModels().forEach(
                 m -> {
                     CrcModel model = getModels(mdl -> mdl.getCrcDescription().equals(m.getCrcDescription())).findFirst().orElse(null);
-                    assertNotNull(model, "getModels(byName: '"+m.getName()+"') result hasn't got to be null");
-                    assertEquals(m.getCrcDescription(), model.getCrcDescription(), "getModels(byName: '"+m.getName()+"').crcDescription value is wrong for model: "+m.getName());
+                    assertNotNull(model, "getModels(byDescription: '"+m.getName()+"') result hasn't got to be null");
+                    assertEquals(m.getCrcDescription(), model.getCrcDescription(), "getModels(byDescription: '"+m.getName()+"').crcDescription value is wrong for model: "+m.getName());
                 }
         );
     }
@@ -176,7 +186,7 @@ class CrcModelTest {
         getModels().filter(m -> m.getCheck()!= null).forEach(
                 m -> {
                     CRC crc = m.getCRC(CHECK_BUFF.getBytes());
-                    assertSame(m, Optional.of(crc).map(CRC::getModel).orElse(null), "Wrong model in the CRC, created by getCRC(crc, len)");
+                    assertSame(m, Optional.of(crc).map(CRC::getModel).orElse(null), "Wrong model in the CRC, created by getCRC('123456789')");
                     assertEquals(m.getCheck(), Optional.of(crc).map(CRC::getCrc).orElse(null), "Wrong crc in the CRC, created by getCRC('123456789')");
                 }
         );
@@ -187,7 +197,7 @@ class CrcModelTest {
         getModels().forEach(
                 m -> {
                     CRC crc = m.getCRC(CHECK_BUFF.getBytes(), CHECK_BUFF.length());
-                    assertSame(m, Optional.of(crc).map(CRC::getModel).orElse(null), "Wrong model in the CRC, created by getCRC(crc, len)");
+                    assertSame(m, Optional.of(crc).map(CRC::getModel).orElse(null), "Wrong model in the CRC, created by getCRC('123456789', 9)");
                     assertEquals(m.getCheck(), Optional.of(crc).map(CRC::getCrc).orElse(null), "Wrong crc in the CRC, created by getCRC('123456789', 9)");
                 }
         );
@@ -198,7 +208,7 @@ class CrcModelTest {
         getModels().filter(m -> m.getCheck() != null).forEach(
                 m -> {
                     CRC crc = m.getCRC(CHECK_BUFF.getBytes(), 0, CHECK_BUFF.length());
-                    assertSame(m, Optional.of(crc).map(CRC::getModel).orElse(null), "Wrong model in the CRC, created by getCRC(crc, len)");
+                    assertSame(m, Optional.of(crc).map(CRC::getModel).orElse(null), "Wrong model in the CRC, created by getCRC('123456789', 0, 9)");
                     assertEquals(m.getCheck(), Optional.of(crc).map(CRC::getCrc).orElse(null), "Wrong crc in the CRC, created by getCRC('123456789', 0, 9)");
                 }
         );
@@ -212,17 +222,17 @@ class CrcModelTest {
 
     @Test
     void testConstruct() {
-        assertSame(CRC64_GO_ISO, construct(null, CRC64_GO_ISO, 0L), "Result for construct(null name, known model, length) has to return known model");
-        assertSame(CRC64_GO_ISO, construct(null, CRC64_GO_ISO, null), "Result for construct(null name, known model, length) has to return known model");
-        assertSame(CRC64_GO_ISO, construct("CRC-64/GO-ISO", CRC64_GO_ISO, null), "Result for construct(name, known model, length) has to return known model");
-        assertSame(CRC32_AIXM, construct("CRC-32/AIXM", CRC32_Q, null), "Result for construct(name, wrong model, length) has to return model by name");
-        assertSame(CRC64_GO_ISO, construct(CRC64_GO_ISO, 0L), "Result for construct(known model, length) has to return known model");
-        assertSame(CRC64_GO_ISO, construct(CRC64_GO_ISO), "Result for construct(known model, length) has to return known model");
+        assertSame(CRC64_GO_ISO, construct(null, CRC64_GO_ISO, CRC64_GO_ISO.getCheck()), "Result for construct(null name, known model, check value) has to return known model");
+        assertSame(CRC64_GO_ISO, construct(null, CRC64_GO_ISO, null), "Result for construct(null name, known model, null check value) has to return known model");
+        assertSame(CRC64_GO_ISO, construct("CRC-64/GO-ISO", CRC64_GO_ISO, null), "Result for construct(name, known model, null check value) has to return known model");
+        assertSame(CRC32_AIXM, construct("CRC-32/AIXM", CRC32_Q, null), "Result for construct(name, model with the same parameters, null check value) has to return model by name");
+        assertSame(CRC64_GO_ISO, construct(CRC64_GO_ISO, CRC64_GO_ISO.getCheck()), "Result for construct(known model, check value) has to return known model");
+        assertSame(CRC64_GO_ISO, construct(CRC64_GO_ISO), "Result for construct(known model) has to return known model");
         assertThrows(NullPointerException.class, () -> construct(null), "Result for construct(null) has to throws NPE");
         CrcDescription description = new CrcDescription(27, 0x800069, 0x0, true, true, 0x0);
-        assertEquals(description, construct("###", description, null).getCrcDescription(), "Result for construct(name, model, length) has to return model");
-        assertSame(CRC4_G_704, CrcModel.construct(CRC4_G_704.getName(), CRC4_ITU.getCrcDescription(), CRC4_ITU.getCheck()), "Result of construct(known name, knodn description, check) has to be same with model(known name). Model: '"+CRC4_G_704.getName()+"'.");
-        assertSame(CRC4_ITU, CrcModel.construct(CRC4_ITU.getName(), CRC4_G_704.getCrcDescription(), CRC4_G_704.getCheck()), "Result of construct(known name, knodn description, check) has to be same with model(known name). Model: '"+CRC4_ITU.getName()+"'.");
+        assertEquals(description, construct("###", description, null).getCrcDescription(), "Result for construct(name, new description, null check value) has to return a model with the description");
+        assertSame(CRC4_G_704, CrcModel.construct(CRC4_G_704.getName(), CRC4_ITU.getCrcDescription(), CRC4_ITU.getCheck()), "Result of construct(known name, known description, check) has to be same with model(known name). Model: '"+CRC4_G_704.getName()+"'.");
+        assertSame(CRC4_ITU, CrcModel.construct(CRC4_ITU.getName(), CRC4_G_704.getCrcDescription(), CRC4_G_704.getCheck()), "Result of construct(known name, known description, check) has to be same with model(known name). Model: '"+CRC4_ITU.getName()+"'.");
         assertTrue(
                 Arrays.asList(CKSUM, CRC32_POSIX, CRC32_CKSUM).contains(
                         construct(null, CRC32_CKSUM.getCrcDescription(), null)
@@ -234,7 +244,7 @@ class CrcModelTest {
     void testConstructNameDescription() {
         CrcModel.getModels().forEach(m -> {
             CrcModel crcModel = CrcModel.construct(null, m.getCrcDescription());
-            assertEquals(m.getCheck(), crcModel.getCheck(), "CheckValue for he same CrcDescription has to be equals" );
+            assertEquals(m.getCheck(), crcModel.getCheck(), "CheckValue for the same CrcDescription has to be equal" );
         });
     }
 
@@ -338,6 +348,17 @@ class CrcModelTest {
                                   .replaceAll("[-/]", "_");
             assertEquals(expected, field.getName(), "The constant name has to be derived from the model name [" + name + "]");
         }
+    }
+
+    @Test
+    void testCastModel() throws NoSuchFieldException {
+        assertSame(CrcModel.CRC32_ISO_HDLC, CrcModel.castModel(CrcModel.class.getDeclaredField("CRC32_ISO_HDLC")), "The field of a predefined model has to give the model");
+        assertSame(CrcModel.PKZIP, CrcModel.castModel(CrcModel.class.getDeclaredField("PKZIP")), "The field of an alias has to give the alias");
+        assertNull(CrcModel.castModel(null), "No field has to give no model");
+        assertNull(CrcModel.castModel(CrcModel.class.getDeclaredField("CHECK_BUFF")), "A field of another type has to give no model");
+        assertNull(CrcModel.castModel(CrcModel.class.getDeclaredField("CRCB")), "A deprecated field has to give no model: the field that replaces it gives the model");
+        assertSame(CrcModel.CRC32, PRIVATE_MODEL, "The private field of the test has to contain a model");
+        assertNull(CrcModel.castModel(CrcModelTest.class.getDeclaredField("PRIVATE_MODEL")), "A field that cannot be read has to give no model");
     }
 
 }

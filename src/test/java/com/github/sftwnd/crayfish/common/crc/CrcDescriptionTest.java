@@ -4,6 +4,7 @@
  */
 package com.github.sftwnd.crayfish.common.crc;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.Optional;
@@ -12,6 +13,12 @@ import static com.github.sftwnd.crayfish.common.crc.CrcModel.getModels;
 import static org.junit.jupiter.api.Assertions.*;
 
 class CrcDescriptionTest {
+
+    // every test starts with the predefined models only
+    @AfterEach
+    void cleanUp() {
+        CrcModel.removeRegisteredModels();
+    }
 
     @Test
     void testGetCRC() {
@@ -42,6 +49,14 @@ class CrcDescriptionTest {
     @Test
     void testToString() {
         getModels().map(CrcModel::getCrcDescription).forEach(description -> assertDoesNotThrow(description::toString, "CrcDescription::toString hasn't got to throws exception"));
+    }
+
+    @Test
+    void testToStringFormat() {
+        assertEquals("CRC-32/P4C11DB7_IFFFFFFFF_RI_RO_XFFFFFFFF", new CrcDescription(32, 0x04C11DB7L, 0xFFFFFFFFL, true, true, 0xFFFFFFFFL).toString(),
+                "Wrong toString() of the CRC-32/ISO-HDLC parameters");
+        assertEquals("CRC-16/P1021_I0", new CrcDescription(16, 0x1021, 0x0, false, false, 0x0).toString(),
+                "Wrong toString() of the CRC-16/XMODEM parameters");
     }
 
     @Test

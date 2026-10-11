@@ -7,9 +7,7 @@ package com.github.sftwnd.crayfish.common.crc;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import lombok.EqualsAndHashCode;
-import lombok.Generated;
 import lombok.Getter;
-import lombok.SneakyThrows;
 
 import java.lang.reflect.Field;
 import java.util.Arrays;
@@ -253,9 +251,15 @@ public class CrcModel extends CrcDescription {
         return getModels(null);
     }
 
-    @Generated
-    @SneakyThrows
-    private static CrcModel castModel(Field field) {
+    // removes the models registered at run time, the predefined models stay: the tests start from the same registry
+    static void removeRegisteredModels() {
+        synchronized (models) {
+            models.clear();
+        }
+    }
+
+    // the model of a predefined model field, otherwise null; package-private for the tests
+    static CrcModel castModel(Field field) {
         // a deprecated field refers to the same model as the field that replaces it
         if (field != null && field.getType().equals(CrcModel.class) && !field.isAnnotationPresent(Deprecated.class)) {
             try {
@@ -301,7 +305,6 @@ public class CrcModel extends CrcDescription {
         }
     }
 
-    @Generated
     private static @NonNull String modelNameFirst(@NonNull final CrcModel model, @Nullable final String name) {
         return (model.getName().equals(name) ? "a" : "b") + model.getName();
     }
@@ -380,7 +383,6 @@ public class CrcModel extends CrcDescription {
         return construct(name, crcDescription, null);
     }
 
-    @Generated
     private static @NonNull CrcModel alias(@NonNull final String name, @NonNull CrcModel model) {
         return new CrcModel(name, model.getCrcDescription(), model.getCheck());
     }
