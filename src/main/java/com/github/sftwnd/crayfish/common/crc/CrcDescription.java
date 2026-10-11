@@ -60,6 +60,17 @@ public class CrcDescription {
              model.getPoly(), model.getInit(), model.isRefin(), model.isRefot(), model.getXorot());
     }
 
+    // the parameters of a checked description, processed for the calculation by CrcModel: the reflected values
+    // and the XOR of init with xorot keep the width, so they are not checked again
+    CrcDescription(@NonNull final CrcDescription model, final long poly, final long init, final boolean refot) {
+        this.width = model.width;
+        this.poly = poly;
+        this.init = init;
+        this.refin = model.refin;
+        this.refot = refot;
+        this.xorot = model.xorot;
+    }
+
     // a parameter with bits above the width gives wrong CRC values or fails later inside CrcModel
     private static void checkFits(final String parameter, final long value, final int width, final long mask) {
         if ((value & ~mask) != 0) {
@@ -87,17 +98,20 @@ public class CrcDescription {
 
     /**
      * Create CRC for these parameters.
-     * The CRC uses a model registered for the parameters: if no model is registered for them yet,
-     * a new model is registered (see {@link CrcModel#construct(CrcDescription)}).
+     * The CRC uses the model registered for the parameters, as {@link CrcModel#construct(CrcDescription)} returns it:
+     * for predefined parameters the primary predefined model. Since 1.1.0 no model is registered for parameters
+     * without a registered model: the CRC uses a model that {@link CrcModel#getModels()} and
+     * {@link CrcModel#lookUp(String)} do not know. To register the parameters, use
+     * {@link CrcModel#construct(CrcDescription)}
      * @return created CRC
      */
     public CRC getCRC() {
-        return CrcModel.construct(this).getCRC();
+        return CrcModel.modelFor(this).getCRC();
     }
 
     /**
      * Create CRC for these parameters, continuing the calculation from a known crc value.
-     * The model is looked up or registered as in {@link #getCRC()}.
+     * The model is looked up as in {@link #getCRC()}.
      * @param crc initial crc value: crc of the bytes processed so far. Bits above the CRC width are ignored,
      *            so a CRC-32 kept in an int can be passed as is. If len is 0, crc is ignored:
      *            a CRC without processed data has the crc of the empty message
@@ -106,7 +120,7 @@ public class CrcDescription {
      * @since 1.1.0
      */
     public CRC getCRC(long crc, long len) {
-        return CrcModel.construct(this).getCRC(crc, len);
+        return CrcModel.modelFor(this).getCRC(crc, len);
     }
 
     /**

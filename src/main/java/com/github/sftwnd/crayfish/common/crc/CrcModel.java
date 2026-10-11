@@ -12,6 +12,7 @@ import lombok.Getter;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -166,12 +167,10 @@ public class CrcModel extends CrcDescription {
     @SuppressWarnings("java:S3358")
     private static CrcDescription _config(@NonNull final CrcDescription model) {
         return new CrcDescription(
-                       model.width,
+                       model,
                        model.refin ? CrcModel.reflect(model.poly, model.width) : model.poly,
                        (model.refot ? CrcModel.reflect(model.init, model.width) : model.init) ^ model.xorot,
-                       model.refin,
-                       model.refot ^ model.refin,
-                       model.xorot
+                       model.refot ^ model.refin
                    );
     }
 
@@ -316,6 +315,79 @@ public class CrcModel extends CrcDescription {
             modelsByParameters.clear();
             predefinedModels.forEach(CrcModel::index);
         }
+        synchronized (unregisteredModels) {
+            unregisteredModels.clear();
+        }
+    }
+
+    // models for parameters without a registered model, used by CrcDescription.getCRC(): a bounded cache of the
+    // recently used ones, so that repeated calculations do not build the lookup table again, while the registry
+    // does not grow; the map is used while holding the lock on it
+    static final int UNREGISTERED_MODELS = 64;
+    private static final Map<CrcDescription, CrcModel> unregisteredModels = new RecentlyUsedModels();
+
+    private static final class RecentlyUsedModels extends LinkedHashMap<CrcDescription, CrcModel> {
+        private static final long serialVersionUID = 1L;
+
+        RecentlyUsedModels() {
+            super(16, 0.75f, true);
+        }
+
+        @Override
+        protected boolean removeEldestEntry(final Map.Entry<CrcDescription, CrcModel> eldest) {
+            return size() > UNREGISTERED_MODELS;
+        }
+    }
+
+    // the model used by CrcDescription.getCRC(): the registered model for the parameters (see construct()),
+    // otherwise a model that is not registered
+    static @NonNull CrcModel modelFor(@NonNull final CrcDescription crcDescription) {
+        Optional<CrcModel> registered = findModel(null, crcDescription);
+        if (registered.isPresent()) {
+            return registered.get();
+        }
+        CrcDescription parameters = parameters(crcDescription);
+        synchronized (unregisteredModels) {
+            CrcModel model = unregisteredModels.get(parameters);
+            if (model == null) {
+                // a copy, also as the key: the description of the caller is neither kept nor changed
+                model = new CrcModel(null, new CrcDescription(parameters), null);
+                unregisteredModels.put(model.getCrcDescription(), model);
+            }
+            return model;
+        }
+    }
+
+    // the number of models in the cache of CrcDescription.getCRC(), for the tests
+    static int unregisteredModelCount() {
+        synchronized (unregisteredModels) {
+            return unregisteredModels.size();
+        }
+    }
+
+    /**
+     * Create a model for the parameters without registering it: {@link #getModels()}, {@link #lookUp(String)}
+     * and {@link #construct(CrcDescription)} do not know it, and it is garbage collected like any other object.
+     * Every call creates a new model and calculates its check value
+     * @param name Name of model, null for a name made of the parameters
+     * @param crcDescription CrcDescription
+     * @return new model
+     * @since 1.1.0
+     */
+    public static @NonNull CrcModel unregistered(@Nullable final String name, @NonNull final CrcDescription crcDescription) {
+        Objects.requireNonNull(crcDescription, "CrcModel::unregistered - crcDescription is null");
+        // a copy: the description of the caller is neither kept nor changed
+        return new CrcModel(name, new CrcDescription(crcDescription), null);
+    }
+
+    /**
+     * Create a model for the parameters without registering it, see {@link #unregistered(String, CrcDescription)}
+     * @param crcDescription CrcDescription
+     * @return new model with a name made of the parameters
+     * @since 1.1.0
+     */
+    public static @NonNull CrcModel unregistered(@NonNull final CrcDescription crcDescription) {
+        return unregistered(null, crcDescription);
     }
 
     /**
