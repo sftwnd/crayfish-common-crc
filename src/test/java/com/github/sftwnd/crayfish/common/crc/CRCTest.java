@@ -15,9 +15,11 @@ import java.util.Set;
 import static com.github.sftwnd.crayfish.common.crc.CrcModel.CHECK_BUFF;
 import static com.github.sftwnd.crayfish.common.crc.CrcModel.getModels;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CRCTest {
 
@@ -131,6 +133,52 @@ class CRCTest {
         assertEquals(CrcModel.CRC32.getCheck(), CrcModel.CRC32.getCRC(buff, 0, 4).combine(CrcModel.PKZIP.getCRC(buff, 4, 5)).getCrc(),
                 "combine() with a CRC of an alias has to give the CRC of both parts");
         assertEquals(CrcModel.CRC32.getCheck(), CrcModel.CRC32.getCRC(buff).combine(null).getCrc(), "combine(null) has not got to change the CRC");
+    }
+
+    @Test
+    void testUpdateAt4GiB() {
+        byte[] tail = {0x31, 0x32};
+        getModels().forEach(m -> {
+            long crc2 = m.getCheck();
+            long crc3 = m.getCRC(tail).getCrc();
+            // two parts of 2 GiB - 1 byte and 2 bytes more: exactly 4 GiB, where an int length wraps to 0
+            CRC crc = m.getCRC(crc2, Integer.MAX_VALUE).combine(m.getCRC(crc3, Integer.MAX_VALUE)).update(tail);
+            long expected = m.getCRC(m.getCRC(crc2, Integer.MAX_VALUE).combine(crc3, Integer.MAX_VALUE), 1).update(tail).getCrc();
+            assertEquals(expected, crc.getCrc(), "Model " + m + ": the crc after exactly 4 GiB has to be the crc of the processed data");
+            assertThrows(ArithmeticException.class, crc::getLength, "Model " + m + ": getLength() of 4 GiB has to throw ArithmeticException");
+        });
+    }
+
+    @Test
+    void testCombineWithPartOf2GiB() {
+        int part = 1 << 30;
+        byte[] buff = CHECK_BUFF.getBytes();
+        getModels().forEach(m -> {
+            long crc2 = m.getCheck();
+            long crc3 = m.getCRC(buff, 0, 4).getCrc();
+            // two parts of 1 GiB: 2 GiB, more than an int length
+            CRC part2 = m.getCRC(crc2, part).combine(m.getCRC(crc3, part));
+            assertEquals(m.getCRC(crc2, part).combine(crc3, part), part2.getCrc(), "Model " + m + ": wrong crc of 2 GiB");
+            assertThrows(ArithmeticException.class, part2::getLength, "Model " + m + ": getLength() of 2 GiB has to throw ArithmeticException");
+            // "123456789" followed by the 2 GiB, the same as "123456789" followed by the two parts of 1 GiB
+            long expected = m.getCRC(m.getCRC(buff).combine(crc2, part), buff.length + part).combine(crc3, part);
+            assertEquals(expected, m.getCRC(buff).combine(part2).getCrc(), "Model " + m + ": combine() with a CRC of 2 GiB has to give the crc of both parts");
+        });
+    }
+
+    @Test
+    void testEqualsHashCodeAndToStringOf2GiB() {
+        int part = 1 << 30;
+        getModels().forEach(m -> {
+            CRC crc = m.getCRC(m.getCheck(), part).combine(m.getCRC(m.getCheck(), part));
+            CRC copy = crc.copy();
+            assertEquals(crc, copy, "Model " + m + ": a CRC of 2 GiB has to be equal to its copy");
+            assertEquals(crc.hashCode(), copy.hashCode(), "Model " + m + ": a CRC of 2 GiB and its copy have to have the same hash code");
+            assertNotEquals(crc, m.getCRC(crc.getCrc(), Integer.MAX_VALUE), "Model " + m + ": CRCs with different lengths have not got to be equal");
+            assertTrue(crc.toString().endsWith(",len:2147483648]"), "Model " + m + ": toString() has to show the length of 2 GiB: " + crc);
+            // the crc value given for a CRC without data is not used
+            assertEquals(m.getCRC(), m.getCRC(m.getCheck(), 0), "Model " + m + ": CRCs without data have to be equal");
+        });
     }
 
     @Test
