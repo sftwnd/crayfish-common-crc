@@ -46,7 +46,7 @@ public final class CRC {
      * Construct CRC for defined model with defined crc value and length.
      * The lookup table of the model is built if the model has not been used yet
      * @param model CRC model
-     * @param crc crc value
+     * @param crc crc value; bits above the CRC width are ignored
      * @param length length of calculated buffer
      */
     CRC(@NonNull final CrcModel model, long crc, int length) {
@@ -55,7 +55,8 @@ public final class CRC {
         }
         this.model = Objects.requireNonNull(model, "CRC::new - model is null");
         this.model._init();
-        this.crc = length == 0 ? this.model.init : crc;
+        // bits above the CRC width are ignored, for example the sign extension of a CRC-32 kept in an int
+        this.crc = length == 0 ? this.model.init : crc & CrcModel.widmask(this.model.getWidth());
         this.length = length;
     }
 
@@ -135,12 +136,13 @@ public final class CRC {
      * Combine current crc value with crc value of the next buffer.
      * Unlike {@link #combine(CRC)}, this method does not change the current CRC: it only returns the combined value.
      * The length of the next buffer is an int: for a next buffer of 2 GiB or more, use {@link #combine(CRC)}
-     * @param crc2 crc value of the next buffer
+     * @param crc2 crc value of the next buffer; bits above the CRC width are ignored,
+     *             so a CRC-32 kept in an int can be passed as is
      * @param len2 length of the next buffer
      * @return combined crc value
      */
     public long combine(long crc2, int len2) {
-        return combinedValue(crc2, len2);
+        return combinedValue(crc2 & CrcModel.widmask(model.getWidth()), len2);
     }
 
     // the length of the next buffer is a long, so that combine(CRC) works with buffers of 2 GiB and more

@@ -101,7 +101,9 @@ public class CrcModel extends CrcDescription {
 
     /**
      * Create CRC that continues the calculation from a known crc value
-     * @param crc initial crc value: crc of the bytes processed so far
+     * @param crc initial crc value: crc of the bytes processed so far. Bits above the CRC width are ignored,
+     *            so a CRC-32 kept in an int can be passed as is. If len is 0, crc is ignored:
+     *            a CRC without processed data has the crc of the empty message
      * @param len initial processed length: number of bytes processed so far
      * @return created CRC
      */

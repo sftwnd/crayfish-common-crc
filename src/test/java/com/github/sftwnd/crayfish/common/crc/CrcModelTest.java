@@ -175,7 +175,8 @@ class CrcModelTest {
                     int  lenVal = 47;
                     CRC crc = m.getCRC(crcVal, lenVal);
                     assertSame(m, Optional.of(crc).map(CRC::getModel).orElse(null), "Wrong model in the CRC, created by getCRC(crc, len)");
-                    assertEquals(crcVal, Optional.of(crc).map(CRC::getCrc).orElse(null), "Wrong crc in the CRC, created by getCRC(crc, len)");
+                    // 0x17 does not fit into the 3- and 4-bit models: the bits above the width are ignored
+                    assertEquals(crcVal & CrcModel.widmask(m.getWidth()), Optional.of(crc).map(CRC::getCrc).orElse(null), "Wrong crc in the CRC, created by getCRC(crc, len)");
                     assertEquals(lenVal, Optional.of(crc).map(CRC::getLength).orElse(null), "Wrong length in the CRC, created by getCRC(crc, len)");
                 }
         );

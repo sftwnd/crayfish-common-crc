@@ -40,10 +40,27 @@ class CrcDescriptionTest {
                     long crcVal = 0x17;
                     int  lenVal = 47;
                     CRC crc = m.getCrcDescription().getCRC(crcVal, lenVal);
-                    assertEquals(crcVal, Optional.ofNullable(crc).map(CRC::getCrc).orElse(null), "Wrong crc in the CRC, created by getCRC(crc, len)");
+                    // 0x17 does not fit into the 3- and 4-bit models: the bits above the width are ignored
+                    assertEquals(crcVal & CrcModel.widmask(m.getWidth()), Optional.ofNullable(crc).map(CRC::getCrc).orElse(null), "Wrong crc in the CRC, created by getCRC(crc, len)");
                     assertEquals(lenVal, Optional.ofNullable(crc).map(CRC::getLength).orElse(null), "Wrong length in the CRC, created by getCRC(crc, len)");
                 }
         );
+    }
+
+    @Test
+    void testWidthOutOfRange() {
+        for (int width : new int[]{0, -1, 65, Integer.MIN_VALUE, Integer.MAX_VALUE}) {
+            assertThrows(IllegalArgumentException.class, () -> new CrcDescription(width, 0x07, 0x0, false, false, 0x0),
+                    "A CrcDescription with the width " + width + " has to be rejected");
+        }
+        // the limits 1 and 64 are valid widths
+        byte[] buff = "123456789".getBytes();
+        for (CrcDescription description : new CrcDescription[]{
+                new CrcDescription(1, 0x1, 0x0, false, false, 0x0),
+                new CrcDescription(64, 0x42F0E1EBA9EA3693L, 0x0, false, false, 0x0)}) {
+            assertEquals(CrcReference.crc(description, buff), description.getCRC().update(buff).getCrc(),
+                    "Wrong crc for the width " + description.getWidth());
+        }
     }
 
     @Test
