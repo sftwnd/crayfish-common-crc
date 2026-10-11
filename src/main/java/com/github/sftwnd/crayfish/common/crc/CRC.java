@@ -20,13 +20,16 @@ import static com.github.sftwnd.crayfish.common.crc.CrcModel.crc_general_combine
  * @since 1.0.0
  * @author Andrey D. Shindarev
  */
-@EqualsAndHashCode
+// the fields are compared, not the getters: getLength() throws for 2 GiB and more,
+// and the crc field of a CRC without data always holds the crc of the empty message (see the constructor)
+@EqualsAndHashCode(doNotUseGetters = true)
 public final class CRC {
 
     @Getter private final CrcModel model;
     @SuppressWarnings("java:S1700")
     long crc;
-    @Getter private int length;
+    // number of processed bytes: a long, so that it neither turns negative at 2 GiB nor wraps to 0 at 4 GiB
+    private long length;
 
     /**
      * Construct CRC as copy of CRC
@@ -52,7 +55,7 @@ public final class CRC {
         }
         this.model = Objects.requireNonNull(model, "CRC::new - model is null");
         this.model._init();
-        this.crc = crc;
+        this.crc = length == 0 ? this.model.init : crc;
         this.length = length;
     }
 
@@ -79,6 +82,16 @@ public final class CRC {
      */
     public long getCrc() {
         return this.length == 0 ? model.init : this.crc;
+    }
+
+    /**
+     * Get the number of processed bytes
+     * @return number of processed bytes
+     * @throws ArithmeticException if 2 GiB or more have been processed: the number does not fit into an int.
+     *         The crc value is correct for any number of processed bytes
+     */
+    public int getLength() {
+        return Math.toIntExact(this.length);
     }
 
     /**
@@ -120,12 +133,18 @@ public final class CRC {
 
     /**
      * Combine current crc value with crc value of the next buffer.
-     * Unlike {@link #combine(CRC)}, this method does not change the current CRC: it only returns the combined value
+     * Unlike {@link #combine(CRC)}, this method does not change the current CRC: it only returns the combined value.
+     * The length of the next buffer is an int: for a next buffer of 2 GiB or more, use {@link #combine(CRC)}
      * @param crc2 crc value of the next buffer
      * @param len2 length of the next buffer
      * @return combined crc value
      */
     public long combine(long crc2, int len2) {
+        return combinedValue(crc2, len2);
+    }
+
+    // the length of the next buffer is a long, so that combine(CRC) works with buffers of 2 GiB and more
+    private long combinedValue(long crc2, long len2) {
         return crc_general_combine(
                   getCrc(), crc2, len2,
                   model.getWidth(), model.getInit(), model.getPoly(), model.getXorot(), model.isRefot()
@@ -146,7 +165,7 @@ public final class CRC {
         Optional.ofNullable(crc)
                 .filter(c -> c.length > 0)
                 .ifPresent(c -> {
-                         this.crc = combine(c.getCrc(), c.length);
+                         this.crc = combinedValue(c.getCrc(), c.length);
                          this.length += c.length;
                  });
         return this;
@@ -160,7 +179,7 @@ public final class CRC {
     @Override
     public String toString() {
         int digits = (model.getWidth() + 3) / 4;
-        return this.getModel().toString()+"[crc:0x"+String.format(Locale.ROOT, "%0" + digits + "x", getCrc())+",len:"+getLength()+"]";
+        return this.getModel().toString()+"[crc:0x"+String.format(Locale.ROOT, "%0" + digits + "x", getCrc())+",len:"+this.length+"]";
     }
     
 }

@@ -420,6 +420,11 @@ public class CrcModel extends CrcDescription {
     }
 
     protected static long crc_general_combine(long crc1, long crc2, int len2, int width, long init, long poly, long xorot, boolean reflect) {
+        return crc_general_combine(crc1, crc2, (long) len2, width, init, poly, xorot, reflect);
+    }
+
+    // len2 is a long: CRC.combine(CRC) combines with buffers of 2 GiB and more
+    static long crc_general_combine(long crc1, long crc2, long len2, int width, long init, long poly, long xorot, boolean reflect) {
         int n;
         long col;
         long[] even = new long[width];          /* even-power-of-two zeros operator */
