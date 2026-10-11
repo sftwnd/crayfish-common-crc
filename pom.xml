@@ -69,10 +69,12 @@
     </properties>
 
     <dependencies>
+        <!-- optional: NonNull/Nullable are CLASS-retention marker annotations, consumers need neither this jar
+             nor its dependency jsr305 (package javax.annotation) to compile or to run -->
         <dependency>
             <groupId>com.github.spotbugs</groupId>
             <artifactId>spotbugs-annotations</artifactId>
-            <scope>compile</scope>
+            <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
