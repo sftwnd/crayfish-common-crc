@@ -252,7 +252,8 @@ public class CrcModel extends CrcDescription {
     @Generated
     @SneakyThrows
     private static CrcModel castModel(Field field) {
-        if (field != null && field.getType().equals(CrcModel.class)) {
+        // a deprecated field refers to the same model as the field that replaces it
+        if (field != null && field.getType().equals(CrcModel.class) && !field.isAnnotationPresent(Deprecated.class)) {
             try {
                 return (CrcModel) field.get(0);
             } catch (IllegalAccessException iaex) {
@@ -280,14 +281,25 @@ public class CrcModel extends CrcDescription {
     }
 
     /**
-     * Look up Crc Model by the name
+     * Look up Crc Model by the name.
+     * The misspelled names "CCRC-5/G-704" and "CRC32_C " of the versions 1.0.0 and 1.0.1 are accepted as well:
+     * they return {@link #CRC5_G_704} and {@link #CRC32_C}
      * @param name Name of model
      * @return CrcModel for the name or null
      */
     public static @Nullable
     CrcModel lookUp(@Nullable final String name) {
         return name == null ? null
-                : getModels(m -> name.equals(m.getName())).findFirst().orElse(null);
+                : getModels(m -> name.equals(m.getName())).findFirst().orElseGet(() -> legacyModel(name));
+    }
+
+    // predefined models with a misspelled name in the versions 1.0.0 and 1.0.1
+    private static @Nullable CrcModel legacyModel(@NonNull final String name) {
+        switch (name) {
+            case "CCRC-5/G-704": return CRC5_G_704;
+            case "CRC32_C ":     return CRC32_C;
+            default:             return null;
+        }
     }
 
     @Generated
@@ -314,6 +326,11 @@ public class CrcModel extends CrcDescription {
     }
 
     private static CrcModel registerModel(@Nullable String name, @NonNull CrcDescription crcDescription, @Nullable Long checkValue) {
+        // a misspelled name of 1.0.x with the parameters of its model denotes the predefined model
+        CrcModel legacy = name == null ? null : legacyModel(name);
+        if (legacy != null && legacy.getCrcDescription().equals(crcDescription)) {
+            return legacy;
+        }
         CrcModel crcModel = new CrcModel(name, crcDescription, checkValue);
         synchronized (models) {
             models.add(crcModel);
@@ -469,7 +486,7 @@ public class CrcModel extends CrcDescription {
     // CRC-5
     public static final CrcModel CRC5_EPC_C1G2           = new CrcModel("CRC-5/EPC-C1G2", 5, 0x9, 0x9, false, false, 0x0, 0x0L);
     public static final CrcModel CRC5_EPC                = alias("CRC-5/EPC", CRC5_EPC_C1G2);
-    public static final CrcModel CRC5_G_704              = new CrcModel("CCRC-5/G-704", 5, 0x15, 0x0, true, true, 0x0, 0x7L);
+    public static final CrcModel CRC5_G_704              = new CrcModel("CRC-5/G-704", 5, 0x15, 0x0, true, true, 0x0, 0x7L);
     public static final CrcModel CRC5_ITU                = alias("CRC-5/ITU", CRC5_G_704);
     public static final CrcModel CRC5_USB                = new CrcModel("CRC-5/USB", 5, 0x5, 0x1F, true, true, 0x1F, 0x19L);
 
@@ -492,7 +509,10 @@ public class CrcModel extends CrcDescription {
     public static final CrcModel CRC8                    = alias("CRC-8", CRC8_SMBUS);
     public static final CrcModel CRC8_AUTOSAR            = new CrcModel("CRC-8/AUTOSAR", 8, 0x2F, 0xFF, false, false, 0xFF, 0xDFL);
     public static final CrcModel CRC8_BLUETOOTH          = new CrcModel("CRC-8/BLUETOOTH", 8, 0xA7, 0x0, true, true, 0x0, 0x26L);
-    public static final CrcModel CRC8_CDMA_2000          = new CrcModel("CRC-8/CDMA2000", 8, 0x9B, 0xFF, false, false, 0x0, 0xDAL);
+    public static final CrcModel CRC8_CDMA2000           = new CrcModel("CRC-8/CDMA2000", 8, 0x9B, 0xFF, false, false, 0x0, 0xDAL);
+    /** @deprecated since 1.0.2, use {@link #CRC8_CDMA2000} */
+    @Deprecated
+    public static final CrcModel CRC8_CDMA_2000          = CRC8_CDMA2000;
     public static final CrcModel CRC8_DARC               = new CrcModel("CRC-8/DARC", 8, 0x39, 0x0, true, true, 0x0, 0x15L);
     public static final CrcModel CRC8_DVB_S2             = new CrcModel("CRC-8/DVB-S2", 8, 0xD5, 0x0, false, false, 0x0, 0xBCL);
     public static final CrcModel CRC8_TECH_3250          = new CrcModel("CRC-8/TECH-3250", 8, 0x1D, 0xFF, true, true, 0x0, 0x97L);
@@ -500,7 +520,10 @@ public class CrcModel extends CrcDescription {
     public static final CrcModel CRC8_EBU                = alias("CRC-8/EBU", CRC8_TECH_3250);
     public static final CrcModel CRC8_GSM_A              = new CrcModel("CRC-8/GSM-A", 8, 0x1D, 0x0, false, false, 0x0, 0x37L);
     public static final CrcModel CRC8_GSM_B              = new CrcModel("CRC-8/GSM-B", 8, 0x49, 0x0, false, false, 0xFF, 0x94L);
-    public static final CrcModel CRC8_ICODE              = new CrcModel("CRC-8/I-CODE", 8, 0x1D, 0xFD, false, false, 0x0, 0x7EL);
+    public static final CrcModel CRC8_I_CODE             = new CrcModel("CRC-8/I-CODE", 8, 0x1D, 0xFD, false, false, 0x0, 0x7EL);
+    /** @deprecated since 1.0.2, use {@link #CRC8_I_CODE} */
+    @Deprecated
+    public static final CrcModel CRC8_ICODE              = CRC8_I_CODE;
     public static final CrcModel CRC8_I_432_1            = new CrcModel("CRC-8/I-432-1", 8, 0x7, 0x0, false, false, 0x55, 0xA1L);
     public static final CrcModel CRC8_ITU                = alias("CRC-8/ITU", CRC8_I_432_1);
     public static final CrcModel CRC8_LTE                = new CrcModel("CRC-8/LTE", 8, 0x9B, 0x0, false, false, 0x0, 0xEAL);
@@ -566,7 +589,10 @@ public class CrcModel extends CrcDescription {
     public static final CrcModel CRC16_DECT_X            = new CrcModel("CRC-16/DECT-X", 16, 0x589, 0x0, false, false, 0x0, 0x7FL);
     public static final CrcModel X_CRC_16                = alias("X-CRC-16", CRC16_DECT_X);
     public static final CrcModel CRC16_DNP               = new CrcModel("CRC-16/DNP", 16, 0x3D65, 0x0, true, true, 0xFFFF, 0xEA82L);
-    public static final CrcModel CRC16_EN13757           = new CrcModel("CRC-16/EN-13757", 16, 0x3D65, 0x0, false, false, 0xFFFF, 0xC2B7L);
+    public static final CrcModel CRC16_EN_13757          = new CrcModel("CRC-16/EN-13757", 16, 0x3D65, 0x0, false, false, 0xFFFF, 0xC2B7L);
+    /** @deprecated since 1.0.2, use {@link #CRC16_EN_13757} */
+    @Deprecated
+    public static final CrcModel CRC16_EN13757           = CRC16_EN_13757;
     public static final CrcModel CRC16_GENIBUS           = new CrcModel("CRC-16/GENIBUS", 16, 0x1021, 0xFFFF, false, false, 0xFFFF, 0xD64EL);
     public static final CrcModel CRC16_DARC              = alias("CRC-16/DARC", CRC16_GENIBUS);
     public static final CrcModel CRC16_EPC               = alias("CRC-16/EPC", CRC16_GENIBUS);
@@ -606,7 +632,10 @@ public class CrcModel extends CrcDescription {
     public static final CrcModel CRC16_ISO_HDLC          = alias("CRC-16/ISO-HDLC", CRC16_IBM_SDLC);
     public static final CrcModel CRC16_ISO_IEC_14443_3_B = alias("CRC-16/ISO-IEC-14443-3-B", CRC16_IBM_SDLC);
     public static final CrcModel CRC16_X_25              = alias("CRC-16/X-25", CRC16_IBM_SDLC);
-    public static final CrcModel CRCB                    = alias("CRC-B", CRC16_IBM_SDLC);
+    public static final CrcModel CRC_B                   = alias("CRC-B", CRC16_IBM_SDLC);
+    /** @deprecated since 1.0.2, use {@link #CRC_B} */
+    @Deprecated
+    public static final CrcModel CRCB                    = CRC_B;
     public static final CrcModel X_25                    = alias("X-25", CRC16_IBM_SDLC);
 
     // CRC-17
@@ -635,7 +664,10 @@ public class CrcModel extends CrcDescription {
     public static final CrcModel CRC32_ISO_HDLC          = new CrcModel("CRC-32/ISO-HDLC", 32, 0x04C11DB7L, 0xFFFFFFFFL, true, true, 0xFFFFFFFFL, 0xCBF43926L);
     public static final CrcModel CRC32                   = alias("CRC-32", CRC32_ISO_HDLC);
     public static final CrcModel CRC32_ADCCP             = alias("CRC-32/ADCCP", CRC32_ISO_HDLC);
-    public static final CrcModel CRC32_V42               = alias("CRC-32/V-42", CRC32_ISO_HDLC);
+    public static final CrcModel CRC32_V_42              = alias("CRC-32/V-42", CRC32_ISO_HDLC);
+    /** @deprecated since 1.0.2, use {@link #CRC32_V_42} */
+    @Deprecated
+    public static final CrcModel CRC32_V42               = CRC32_V_42;
     public static final CrcModel CRC32_XZ                = alias("CRC-32/XZ", CRC32_ISO_HDLC);
     public static final CrcModel PKZIP                   = alias("PKZIP", CRC32_ISO_HDLC);
     public static final CrcModel CRC32_AUTOSAR           = new CrcModel("CRC-32/AUTOSAR", 32, 0xF4ACFB13L, 0xFFFFFFFFL, true, true, 0xFFFFFFFFL, 0x1697D06AL);
@@ -647,7 +679,7 @@ public class CrcModel extends CrcDescription {
     public static final CrcModel CRC32_BASE91_C          = alias("CRC-32/BASE91-C", CRC32_ISCSI);
     public static final CrcModel CRC32_CASTAGNOLI        = alias("CRC-32/CASTAGNOLI", CRC32_ISCSI);
     public static final CrcModel CRC32_INTERLAKEN        = alias("CRC-32/INTERLAKEN", CRC32_ISCSI);
-    public static final CrcModel CRC32_C                 = alias("CRC32_C ", CRC32_ISCSI);
+    public static final CrcModel CRC32_C                 = alias("CRC-32C", CRC32_ISCSI);
     public static final CrcModel CRC32_BASE91_D          = new CrcModel("CRC-32/BASE91-D", 32, 0xA833982BL, 0xFFFFFFFFL, true, true, 0xFFFFFFFFL, 0x87315576L);
     public static final CrcModel CRC32_D                 = alias("CRC-32D", CRC32_BASE91_D);
     public static final CrcModel CRC32_JAMCRC            = new CrcModel("CRC-32/JAMCRC", 32, 0x04C11DB7L, 0xFFFFFFFFL, true, true, 0x00000000L, 0x340BC6D9L);
