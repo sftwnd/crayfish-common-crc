@@ -120,18 +120,24 @@ public class CrcModel extends CrcDescription {
         return name;
     }
 
-    // builds the lookup table on first use without a lock: the model takes the table of its description if it is built
+    protected void _init() {
+        lookupTable();
+    }
+
+    // the lookup table, built on first use without a lock: the model takes the table of its description if it is built
     // already, otherwise it builds the table and stores it there. Threads that build it at the same time build identical
     // tables, and the volatile fields publish them completely
-    protected void _init() {
-        if (this.table_byte == null) {
-            long[] table = this.crcDescription.table_byte;
+    private long[] lookupTable() {
+        long[] table = this.table_byte;
+        if (table == null) {
+            table = this.crcDescription.table_byte;
             if (table == null) {
                 table = _createBytewiseTable();
                 this.crcDescription.table_byte = table;
             }
             this.table_byte = table;
         }
+        return table;
     }
 
     /**
@@ -219,23 +225,24 @@ public class CrcModel extends CrcDescription {
         }
 
         /* process the input data a byte at a time */
+        long[] table = lookupTable();
         if (refin) {
             crc &= widmask(width);
             while (len-- > 0) {
-                crc = (crc >>> 8) ^ table_byte[(int) ((crc ^ buf[offset++]) & 0xff)];
+                crc = (crc >>> 8) ^ table[(int) ((crc ^ buf[offset++]) & 0xff)];
             }
         } else if (width <= 8) {
             int shift = 8 - width;           /* 0..7 */
             crc <<= shift;
             while (len-- > 0) {
-                crc = table_byte[(int) ((crc ^ buf[offset++]) & 0xff)];
+                crc = table[(int) ((crc ^ buf[offset++]) & 0xff)];
             }
             crc >>>= shift;
         } else {
             int shift = width - 8;           /* 1..WORDBITS-8 */
             while (len-- > 0) {
                 crc = (crc << 8) ^
-                      table_byte[(int) (((crc >>> shift) ^ (buf[offset++] & 0xff)) & 0xff)];
+                      table[(int) (((crc >>> shift) ^ (buf[offset++] & 0xff)) & 0xff)];
             }
             crc &= widmask(width);
         }
