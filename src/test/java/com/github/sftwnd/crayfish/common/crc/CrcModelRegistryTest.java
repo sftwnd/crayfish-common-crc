@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
 import java.lang.reflect.Field;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
@@ -33,8 +34,10 @@ import static com.github.sftwnd.crayfish.common.crc.CrcModel.lookUp;
 import static java.nio.charset.StandardCharsets.US_ASCII;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CrcModelRegistryTest {
@@ -70,6 +73,76 @@ class CrcModelRegistryTest {
         assertEquals(0, getModels(m -> m == named || m == unnamed).count(), "Removed models have not got to be listed");
         assertEquals(predefined.size(), getModels().count(), "Only the predefined models have to stay registered");
         assertTrue(getModels().allMatch(predefined::contains), "All predefined models have to stay registered");
+    }
+
+    @Test
+    void testRegisteredDescriptionIsACopy() {
+        int run = RUNS.incrementAndGet();
+        CrcDescription description = new CrcDescription(21, 0x100005 + 4 * run, 0x0, false, false, 0x0);
+        CrcModel model = construct(description);
+        assertNotSame(description, model.getCrcDescription(), "The model must not keep the CrcDescription of the caller");
+        assertEquals(description, model.getCrcDescription(), "The model has to keep the parameters of the CrcDescription");
+        model.getCRC().update(CHECK_BUFF.getBytes(US_ASCII));
+        description.getCRC().update(CHECK_BUFF.getBytes(US_ASCII));
+        assertNull(description.table_byte, "The lookup table must not be built in the CrcDescription of the caller");
+        assertNotNull(model.getCrcDescription().table_byte, "The lookup table has to be built in the CrcDescription of the model");
+    }
+
+    @Test
+    void testNoLockOnDescriptions() throws InterruptedException {
+        int run = RUNS.incrementAndGet();
+        // the CrcDescription of the caller, and the CrcDescription of a model whose lookup table is not built yet:
+        // with a known check value, construct() calculates no CRC
+        CrcDescription description = new CrcDescription(21, 0x100007 + 4 * run, 0x0, false, false, 0x0);
+        CrcDescription parameters = new CrcDescription(21, 0x100009 + 4 * run, 0x0, false, false, 0x0);
+        CrcModel model = construct("CRC-21/TEST-NO-LOCK-" + run, parameters, CrcReference.crc(parameters, CHECK_BUFF.getBytes(US_ASCII)));
+        CrcDescription shared = model.getCrcDescription();
+        CountDownLatch held = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        Thread holder = new Thread(() -> {
+            synchronized (description) {
+                synchronized (shared) {
+                    held.countDown();
+                    try {
+                        release.await();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
+            }
+        });
+        holder.start();
+        held.await();
+        try {
+            assertTimeoutPreemptively(Duration.ofSeconds(5), () -> {
+                description.getCRC().update(CHECK_BUFF.getBytes(US_ASCII));
+                model.getCRC().update(CHECK_BUFF.getBytes(US_ASCII));
+            }, "getCRC() must not wait for the monitor of a CrcDescription that other code holds");
+        } finally {
+            release.countDown();
+            holder.join();
+        }
+    }
+
+    @Test
+    void testLookUpAndConstructFindRegisteredModels() {
+        int run = RUNS.incrementAndGet();
+        String name = "CRC-21/TEST-REGISTRY-INDEX-" + run;
+        CrcDescription description = new CrcDescription(21, 0x10000B + 4 * run, 0x0, false, false, 0x0);
+        assertNull(lookUp(name), "An unknown name has to give no model");
+        CrcModel model = construct(name, description);
+        assertSame(model, lookUp(name), "lookUp() has to find a model registered at run time");
+        assertSame(model, construct(new CrcDescription(description)), "construct() has to find a model registered at run time by its parameters");
+        // the parameters of a subclass of CrcDescription
+        CrcDescription subclass = new CrcDescription(32, 0x04C11DB7L, 0xFFFFFFFFL, true, true, 0xFFFFFFFFL) { };
+        assertSame(CRC32_ISO_HDLC, construct(subclass), "construct() has to find a model by the parameters of a subclass of CrcDescription");
+        // a later model under the name of a predefined model and with other parameters: lookUp() returns the first one (see #12)
+        construct("CRC-32", new CrcDescription(21, 0x10000D + 4 * run, 0x0, false, false, 0x0));
+        assertSame(CrcModel.CRC32, lookUp("CRC-32"), "lookUp() has to return the model registered first under a name");
+        CrcModel.removeRegisteredModels();
+        assertNull(lookUp(name), "lookUp() has not got to find a removed model");
+        assertSame(CrcModel.CRC32, lookUp("CRC-32"), "lookUp() has to find the predefined models after removeRegisteredModels()");
+        assertSame(CRC32_ISO_HDLC, construct(new CrcDescription(CRC32_ISO_HDLC)), "construct() has to find the predefined models after removeRegisteredModels()");
     }
 
     @Test
