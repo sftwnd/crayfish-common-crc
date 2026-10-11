@@ -72,11 +72,12 @@ public final class CRC {
     }
 
     /**
-     * Get current crc value
+     * Get current crc value: the crc of the bytes processed so far.
+     * For a CRC without processed data, this is the crc of the empty message, not the init parameter of the model.
      * @return current crc value
      */
     public long getCrc() {
-        return this.length == 0 ? model.getInit() : this.crc;
+        return this.length == 0 ? model.init : this.crc;
     }
 
     /**
@@ -124,7 +125,7 @@ public final class CRC {
      */
     public long combine(long crc2, int len2) {
         return crc_general_combine(
-                  length == 0 ? model.init : getCrc(), crc2, len2,
+                  getCrc(), crc2, len2,
                   model.getWidth(), model.getInit(), model.getPoly(), model.getXorot(), model.isRefot()
                );
     }
