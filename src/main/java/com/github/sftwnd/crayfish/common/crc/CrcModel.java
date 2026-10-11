@@ -221,7 +221,7 @@ public class CrcModel extends CrcDescription {
             int shift = 8 - width;           /* 0..7 */
             crc <<= shift;
             while (len-- > 0) {
-                crc = table_byte[(int) (crc ^ buf[offset++])];
+                crc = table_byte[(int) ((crc ^ buf[offset++]) & 0xff)];
             }
             crc >>>= shift;
         } else {

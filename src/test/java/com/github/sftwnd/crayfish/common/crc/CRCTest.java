@@ -7,6 +7,7 @@ package com.github.sftwnd.crayfish.common.crc;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashSet;
+import java.util.Random;
 import java.util.Set;
 
 import static com.github.sftwnd.crayfish.common.crc.CrcModel.CHECK_BUFF;
@@ -28,6 +29,42 @@ class CRCTest {
             assertEquals(m.getCheck(), crc.update(null, 1, 1).getCrc(), "Update with null reference to buff has not got to change result");
             assertEquals(m.getCheck(), crc.update(CHECK_BUFF.getBytes(), 1, -1).getCrc(), "Update with negative length has not got to change result");
             assertEquals(m.getCheck(), m.getCRC().update(CHECK_BUFF.getBytes(), 4).update(CHECK_BUFF.getBytes(), 4, 5).getCrc(), "Update with negative length has not got to change result");
+        });
+    }
+
+    @Test
+    void testUpdateWithBytesAbove0x7F() {
+        // models with width <= 8 and refin = false; the expected values were calculated bit by bit
+        assertEquals(0x89L, CrcModel.CRC8_SMBUS.getCRC(new byte[]{(byte) 0x80}).getCrc(), "Wrong CRC-8/SMBUS of 0x80");
+        assertEquals(0xF3L, CrcModel.CRC8_SMBUS.getCRC(new byte[]{(byte) 0xFF}).getCrc(), "Wrong CRC-8/SMBUS of 0xFF");
+        assertEquals(0x98L, CrcModel.CRC8_SMBUS.getCRC(new byte[]{(byte) 0xEA}).getCrc(), "Wrong CRC-8/SMBUS of 0xEA");
+        assertEquals(0x30L, CrcModel.CRC8_SMBUS.getCRC(new byte[]{0x16, 0x09, (byte) 0xC4}).getCrc(), "Wrong CRC-8/SMBUS of 0x16 0x09 0xC4");
+        byte[] buff = {(byte) 0xFF, 0x00, (byte) 0xA5};
+        assertEquals(0xFCL, CrcModel.CRC8_AUTOSAR.getCRC(buff).getCrc(), "Wrong CRC-8/AUTOSAR of 0xFF 0x00 0xA5");
+        assertEquals(0x37L, CrcModel.CRC8_SAE_J1850.getCRC(buff).getCrc(), "Wrong CRC-8/SAE-J1850 of 0xFF 0x00 0xA5");
+        assertEquals(0x3DL, CrcModel.CRC7_MMC.getCRC(buff).getCrc(), "Wrong CRC-7/MMC of 0xFF 0x00 0xA5");
+        assertEquals(0x5L, CrcModel.CRC3_GSM.getCRC(buff).getCrc(), "Wrong CRC-3/GSM of 0xFF 0x00 0xA5");
+    }
+
+    @Test
+    void testUpdateWithAllByteValues() {
+        getModels().forEach(m -> {
+            Random random = new Random(m.getName().hashCode());
+            for (int i = 0; i < 32; i++) {
+                byte[] buff = new byte[1 + random.nextInt(512)];
+                random.nextBytes(buff);
+                int offset = random.nextInt(buff.length);
+                int len = buff.length - offset;
+                int split = random.nextInt(len + 1);
+                long expected = CrcReference.crc(m.getCrcDescription(), buff, offset, len);
+                String sample = "Model " + m + ", sample " + i + " (offset " + offset + ", len " + len + ", split " + split + ")";
+                assertEquals(expected, m.getCRC(buff, offset, len).getCrc(),
+                        sample + ": crc of random bytes has to be equal to the bitwise calculated value");
+                assertEquals(expected, m.getCRC().update(buff, offset, split).update(buff, offset + split, len - split).getCrc(),
+                        sample + ": crc of random bytes updated in two parts has to be equal to the bitwise calculated value");
+                assertEquals(expected, m.getCRC(buff, offset, split).combine(m.getCRC(buff, offset + split, len - split)).getCrc(),
+                        sample + ": combined crc of two parts of random bytes has to be equal to the bitwise calculated value");
+            }
         });
     }
 
