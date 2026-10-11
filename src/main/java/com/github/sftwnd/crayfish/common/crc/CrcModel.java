@@ -45,7 +45,13 @@ public class CrcModel extends CrcDescription {
         // a generated name shows the original parameters, not the processed ones of this object
         this.name = name == null ? new CrcDescription(model).toString() : name;
         this.crcDescription = model;
-        this.check = Optional.ofNullable(check).orElseGet(() -> new CrcModel(null, model, -1L).getCRC().update(CHECK_BUFF.getBytes(StandardCharsets.US_ASCII)).getCrc());
+        this.check = Optional.ofNullable(check).orElseGet(() -> checkValue(model));
+    }
+
+    // the check value of the parameters: the crc of the ASCII bytes of "123456789"; -1 stops the recursion,
+    // the model is only used for this calculation
+    private static long checkValue(@NonNull final CrcDescription model) {
+        return new CrcModel(null, model, -1L).getCRC().update(CHECK_BUFF.getBytes(StandardCharsets.US_ASCII)).getCrc();
     }
 
     @Override
@@ -350,11 +356,16 @@ public class CrcModel extends CrcDescription {
      * A registered model with the parameters of crcDescription is returned: the model with the given name,
      * otherwise crcDescription itself if it is a registered model, otherwise the model registered first for these
      * parameters (for predefined parameters the primary model, not an alias). A new model is registered
-     * if no model with these parameters is registered, or if a name is given and none of them has it
+     * if no model with these parameters is registered, or if a name is given and none of them has it.
+     * A name belongs to one parameter set: it cannot be registered for other parameters.
+     * A given check value is verified: it has to be the crc of the ASCII bytes of {@link #CHECK_BUFF};
+     * bits above the CRC width are ignored
      * @param name Name of model
      * @param crcDescription CrcDescription
-     * @param value Check value
+     * @param value Check value, null to calculate it
      * @return registered model
+     * @throws IllegalArgumentException if the name is used by a model with other parameters,
+     *         or if the check value is not the crc of "123456789" for these parameters (both since 1.1.0)
      */
     public static @NonNull CrcModel construct(@Nullable final String name, @NonNull final CrcDescription crcDescription, @Nullable final Long value) {
         Objects.requireNonNull(crcDescription, "CrcModel::construct - crcDescription is null");
@@ -362,15 +373,55 @@ public class CrcModel extends CrcDescription {
         Optional<CrcModel> registered = findModel(name, crcDescription)
                 .filter(model -> name == null || model.getName().equals(name));
         if (registered.isPresent()) {
-            return registered.get();
+            return verifyCheck(registered.get(), value);
         }
-        // lookup and registration as one step: concurrent calls register the model only once
+        // lookup, checks and registration as one step: concurrent calls register the model only once,
+        // and a name is never registered for two parameter sets
         synchronized (models) {
-            return findModel(name, crcDescription)
-                    .map(model -> (name == null || model.getName().equals(name)) ? model : registerModel(name, model.getCrcDescription(), model.getCheck()))
-                    // a copy: the description of the caller is neither kept nor changed
-                    .orElseGet(() -> registerModel(name, new CrcDescription(crcDescription), value));
+            Optional<CrcModel> model = findModel(name, crcDescription);
+            if (model.isPresent() && (name == null || model.get().getName().equals(name))) {
+                return verifyCheck(model.get(), value);
+            }
+            verifyName(name, crcDescription);
+            if (model.isPresent()) {
+                // a new name for registered parameters: the check value of the registered model
+                return registerModel(name, model.get().getCrcDescription(), verifyCheck(model.get(), value).getCheck());
+            }
+            // a copy: the description of the caller is neither kept nor changed
+            CrcDescription description = new CrcDescription(crcDescription);
+            return registerModel(name, description, value == null ? null : verifyCheck(description, value));
         }
+    }
+
+    // a name belongs to the parameters of the model registered under it; the misspelled names of 1.0.x belong
+    // to the parameters of their predefined models
+    private static void verifyName(@Nullable final String name, @NonNull final CrcDescription crcDescription) {
+        CrcModel owner = lookUp(name);
+        if (owner != null && !owner.getCrcDescription().equals(parameters(crcDescription))) {
+            throw new IllegalArgumentException("CrcModel::construct - the name " + name + " is used by a model with other parameters: "
+                    + owner.getCrcDescription() + ", not " + new CrcDescription(crcDescription));
+        }
+    }
+
+    private static CrcModel verifyCheck(@NonNull final CrcModel model, @Nullable final Long value) {
+        if (value != null && (value & widmask(model.getWidth())) != model.getCheck()) {
+            throw wrongCheck(value, model.getCheck(), model.getCrcDescription());
+        }
+        return model;
+    }
+
+    // the check value is calculated with a copy, so that no lookup table is built for the description of the new model
+    private static long verifyCheck(@NonNull final CrcDescription description, final long value) {
+        long check = checkValue(new CrcDescription(description));
+        if ((value & widmask(description.getWidth())) != check) {
+            throw wrongCheck(value, check, description);
+        }
+        return check;
+    }
+
+    private static IllegalArgumentException wrongCheck(final long value, final long check, @NonNull final CrcDescription description) {
+        return new IllegalArgumentException("CrcModel::construct - wrong check value 0x" + Long.toHexString(value).toUpperCase()
+                + " for " + description + ": the crc of \"" + CHECK_BUFF + "\" is 0x" + Long.toHexString(check).toUpperCase());
     }
 
     // registered model with the same parameters: the model with the requested name, otherwise the model passed in
@@ -407,10 +458,11 @@ public class CrcModel extends CrcDescription {
     }
 
     /**
-     * Creation and registration of CrcModel
+     * Creation and registration of CrcModel, see {@link #construct(String, CrcDescription, Long)}
      * @param crcDescription CrcDescription
-     * @param value Check value
+     * @param value Check value, null to calculate it
      * @return registered model
+     * @throws IllegalArgumentException if the check value is not the crc of "123456789" for these parameters
      */
     public static @NonNull CrcModel construct(@NonNull final CrcDescription crcDescription, @Nullable final Long value) {
         return construct(null, crcDescription, value);
@@ -426,10 +478,11 @@ public class CrcModel extends CrcDescription {
     }
 
     /**
-     * Creation and registration of CrcModel
+     * Creation and registration of CrcModel, see {@link #construct(String, CrcDescription, Long)}
      * @param name Name of model
      * @param crcDescription CrcDescription
      * @return registered model
+     * @throws IllegalArgumentException if the name is used by a model with other parameters
      */
     public static @NonNull CrcModel construct(@Nullable final String name, @NonNull final CrcDescription crcDescription) {
         return construct(name, crcDescription, null);

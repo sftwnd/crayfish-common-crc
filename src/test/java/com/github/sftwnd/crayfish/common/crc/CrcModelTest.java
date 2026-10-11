@@ -428,6 +428,55 @@ class CrcModelTest {
     }
 
     @Test
+    void testNameOfOtherParameters() {
+        long modelCount = getModels().count();
+        // CRC-16/XMODEM parameters under the name of the predefined 32-bit CRC-32
+        CrcDescription xmodem = new CrcDescription(16, 0x1021, 0x0, false, false, 0x0);
+        assertThrows(IllegalArgumentException.class, () -> construct("CRC-32", xmodem), "The name of a predefined model has to be rejected for other parameters");
+        assertThrows(IllegalArgumentException.class, () -> construct("CRC-32", CRC16_XMODEM), "The name of a predefined model has to be rejected for another model");
+        // a name registered at run time
+        CrcModel model = construct("CRC-24/TEST-NAME", new CrcDescription(24, 0x123457, 0x0, false, false, 0x0));
+        assertThrows(IllegalArgumentException.class, () -> construct("CRC-24/TEST-NAME", new CrcDescription(24, 0x123459, 0x0, false, false, 0x0)),
+                "The name of a registered model has to be rejected for other parameters");
+        assertSame(model, construct("CRC-24/TEST-NAME", new CrcDescription(model)), "The name with its own parameters has to return the registered model");
+        // the misspelled names of 1.0.x belong to their predefined models
+        assertThrows(IllegalArgumentException.class, () -> construct("CCRC-5/G-704", new CrcDescription(5, 0x15, 0x1, true, true, 0x0)),
+                "A misspelled name of 1.0.x has to be rejected for other parameters");
+        assertSame(CrcModel.CRC5_G_704, construct("CCRC-5/G-704", CrcModel.CRC5_ITU), "A misspelled name of 1.0.x with its parameters has to return the predefined model");
+        // every name is found by lookUp() and stays with its model
+        assertEquals(modelCount + 1, getModels().count(), "Only CRC-24/TEST-NAME has to be registered");
+        assertSame(CrcModel.CRC32, lookUp("CRC-32"), "lookUp(\"CRC-32\") has to return the predefined model");
+        getModels().forEach(m -> assertSame(m, lookUp(m.getName()), "lookUp(\"" + m + "\") has to return the model"));
+    }
+
+    @Test
+    void testCheckValueIsVerified() {
+        long modelCount = getModels().count();
+        // new parameters with a wrong check value: the crc of "123456789" is 0x14AF
+        CrcDescription crc13 = new CrcDescription(13, 0x1CF5, 0x1, false, false, 0x0);
+        IllegalArgumentException wrong = assertThrows(IllegalArgumentException.class, () -> construct("X", crc13, 0x1234L),
+                "A wrong check value has to be rejected for new parameters");
+        assertTrue(wrong.getMessage().contains("0x1234") && wrong.getMessage().contains("0x14AF"), "Wrong message: " + wrong.getMessage());
+        // the parameters of CRC-16/ARC with a check value that is not the one of CRC-16/ARC
+        assertThrows(IllegalArgumentException.class, () -> construct("Y", new CrcDescription(16, 0x8005, 0x0, true, true, 0x0), 0x1234L),
+                "A wrong check value has to be rejected for the parameters of a predefined model");
+        assertThrows(IllegalArgumentException.class, () -> construct(CRC64_GO_ISO, 0L), "A wrong check value has to be rejected for a predefined model");
+        assertEquals(modelCount, getModels().count(), "Rejected calls must not register models");
+        // correct check values, also with the bits above the width set by the sign extension of an int
+        CrcModel x = construct("X", crc13, 0x14AFL);
+        assertEquals(0x14AFL, x.getCheck(), "Wrong check value of X");
+        assertNull(x.getCrcDescription().table_byte, "The verification of the check value must not build the lookup table of the new model");
+        assertEquals(x.getCheck(), x.getCRC(CHECK_BUFF.getBytes(US_ASCII)).getCrc(), "The check value of X has to be the crc of 123456789");
+        CrcModel y = construct("Y", new CrcDescription(16, 0x8005, 0x0, true, true, 0x0), 0xBB3DL);
+        assertSame(CrcModel.CRC16_ARC.getCrcDescription(), y.getCrcDescription(), "Y has to share the parameters of CRC-16/ARC");
+        assertEquals(CrcModel.CRC16_ARC.getCheck(), y.getCheck(), "Wrong check value of Y");
+        CrcModel z = construct("Z", new CrcDescription(32, 0x04C11DB7L, 0x0, false, false, 0x0), (long) (int) 0x89A1897FL);
+        assertEquals(0x89A1897FL, z.getCheck(), "A sign-extended check value has to be reduced to the CRC width");
+        assertSame(x, construct("X", crc13, 0x14AFL), "A registered model has to be returned for its check value");
+        assertThrows(IllegalArgumentException.class, () -> construct("X", crc13, 0x14AEL), "A wrong check value has to be rejected for a registered model");
+    }
+
+    @Test
     void testCheckValueOverAscii() {
         // the check value of a model without a given one: the CRC of the ASCII bytes of "123456789", whatever the default charset
         CrcDescription crc16 = new CrcDescription(16, 0x7001, 0x0, false, false, 0x0);
