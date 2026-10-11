@@ -26,17 +26,22 @@ public class CrcDescription {
     /**
      * Create description with the CRC parameters
      * @param width CRC width in bits: 1..64
-     * @param poly polynomial, without the x^width term
+     * @param poly polynomial, without the x^width term: for example 0x04C11DB7 for CRC-32, not 0x104C11DB7
      * @param init initial value of the CRC register
      * @param refin true if the input bytes are reflected
      * @param refot true if the CRC is reflected before the final XOR
      * @param xorot value XOR-ed to the CRC at the end
-     * @throws IllegalArgumentException if the width is not in 1..64
+     * @throws IllegalArgumentException if the width is not in 1..64, or if poly, init or xorot do not fit into
+     *         width bits (since 1.1.0)
      */
     public CrcDescription(final int width, final long poly, final long init, final boolean refin, final boolean refot, final long xorot) {
         if (width < 1 || width > 64) {
             throw new IllegalArgumentException("CRC_model_d::new - width has to be in 1..64: " + width);
         }
+        long mask = CrcModel.widmask(width);
+        checkFits("poly", poly, width, mask);
+        checkFits("init", init, width, mask);
+        checkFits("xorot", xorot, width, mask);
         this.width = width;
         this.poly = poly;
         this.init = init;
@@ -53,6 +58,22 @@ public class CrcDescription {
     public CrcDescription(@NonNull final CrcDescription model) {
         this(Objects.requireNonNull(model, "CRC_model_d::new - model is null").getWidth(),
              model.getPoly(), model.getInit(), model.isRefin(), model.isRefot(), model.getXorot());
+    }
+
+    // a parameter with bits above the width gives wrong CRC values or fails later inside CrcModel
+    private static void checkFits(final String parameter, final long value, final int width, final long mask) {
+        if ((value & ~mask) != 0) {
+            String hint;
+            if ((value | mask) == -1L) {
+                // all bits above the width are set: typically an int literal such as 0xFFFFFFFF, which is -1
+                hint = " (an int literal is sign-extended: use a long literal such as 0x"
+                     + Long.toHexString(value & mask).toUpperCase() + "L)";
+            } else {
+                hint = "poly".equals(parameter) ? " (poly without the x^" + width + " term)" : "";
+            }
+            throw new IllegalArgumentException("CRC_model_d::new - " + parameter + " 0x" + Long.toHexString(value).toUpperCase()
+                    + " does not fit into the width " + width + hint);
+        }
     }
 
     @Override
