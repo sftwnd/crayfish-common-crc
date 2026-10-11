@@ -11,12 +11,14 @@ import lombok.Getter;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -35,7 +37,7 @@ public class CrcModel extends CrcDescription {
     // predefined model: it is added to the predefined models in declaration order
     private CrcModel(@Nullable final String name, final int width, final long poly, final long init, final boolean refin, final boolean refot, final long xorot, @Nullable final Long check) {
         this(name, new CrcDescription(width, poly, init, refin, refot, xorot), check);
-        predefinedModels.add(this);
+        predefine(this);
     }
 
     private CrcModel(@Nullable final String name, @NonNull final CrcDescription model, @Nullable final Long check) {
@@ -118,15 +120,17 @@ public class CrcModel extends CrcDescription {
         return name;
     }
 
-    // This DCL is correct because variable is volatile and initialization makes before
+    // builds the lookup table on first use without a lock: the model takes the table of its description if it is built
+    // already, otherwise it builds the table and stores it there. Threads that build it at the same time build identical
+    // tables, and the volatile fields publish them completely
     protected void _init() {
         if (this.table_byte == null) {
-            synchronized (this.crcDescription) {
-                if (this.crcDescription.table_byte == null) {
-                    this.crcDescription.table_byte = _createBytewiseTable();
-                }
-                this.table_byte = this.crcDescription.table_byte;
+            long[] table = this.crcDescription.table_byte;
+            if (table == null) {
+                table = _createBytewiseTable();
+                this.crcDescription.table_byte = table;
             }
+            this.table_byte = table;
         }
     }
 
@@ -249,6 +253,26 @@ public class CrcModel extends CrcDescription {
     // while the class is initialized, so the list has to be declared before them; it is not changed afterwards
     private static final List<CrcModel> predefinedModels = new ArrayList<>();
 
+    // indexes of all registered models, the predefined ones included: the first model for every name, and the models
+    // for every parameter set in the order of registration; they are changed while holding the lock on models
+    private static final Map<String, CrcModel> modelsByName = new ConcurrentHashMap<>();
+    private static final Map<CrcDescription, List<CrcModel>> modelsByParameters = new ConcurrentHashMap<>();
+
+    // adds a predefined model while the class is initialized
+    private static void predefine(@NonNull final CrcModel model) {
+        predefinedModels.add(model);
+        index(model);
+    }
+
+    private static void index(@NonNull final CrcModel model) {
+        modelsByName.putIfAbsent(model.getName(), model);
+        modelsByParameters.merge(model.getCrcDescription(), Collections.singletonList(model), (registered, added) -> {
+            List<CrcModel> all = new ArrayList<>(registered);
+            all.addAll(added);
+            return Collections.unmodifiableList(all);
+        });
+    }
+
     /**
      * Stream of all registered models.
      * The stream contains the models registered at the time of the call
@@ -262,6 +286,9 @@ public class CrcModel extends CrcDescription {
     static void removeRegisteredModels() {
         synchronized (models) {
             models.clear();
+            modelsByName.clear();
+            modelsByParameters.clear();
+            predefinedModels.forEach(CrcModel::index);
         }
     }
 
@@ -286,8 +313,7 @@ public class CrcModel extends CrcDescription {
      */
     public static @Nullable
     CrcModel lookUp(@Nullable final String name) {
-        return name == null ? null
-                : getModels(m -> name.equals(m.getName())).findFirst().orElseGet(() -> legacyModel(name));
+        return name == null ? null : Optional.ofNullable(modelsByName.get(name)).orElseGet(() -> legacyModel(name));
     }
 
     // predefined models with a misspelled name in the versions 1.0.0 and 1.0.1
@@ -322,7 +348,8 @@ public class CrcModel extends CrcDescription {
         synchronized (models) {
             return findModel(name, crcDescription)
                     .map(model -> (name == null || model.getName().equals(name)) ? model : registerModel(name, model.getCrcDescription(), model.getCheck()))
-                    .orElseGet(() -> registerModel(name, crcDescription, value));
+                    // a copy: the description of the caller is neither kept nor changed
+                    .orElseGet(() -> registerModel(name, new CrcDescription(crcDescription), value));
         }
     }
 
@@ -330,16 +357,20 @@ public class CrcModel extends CrcDescription {
     // if it is registered, otherwise the first registered one, which later registrations do not change:
     // the primary predefined model, or the model registered first at run time
     private static Optional<CrcModel> findModel(@Nullable final String name, @NonNull final CrcDescription crcDescription) {
-        CrcDescription description = Optional.of(crcDescription)
-                .filter(CrcModel.class::isInstance).map(CrcModel.class::cast)
-                .map(CrcModel::getCrcDescription)
-                .orElse(crcDescription);
-        List<CrcModel> registered = getModels(m -> description.equals(m.getCrcDescription())).collect(Collectors.toList());
+        List<CrcModel> registered = modelsByParameters.getOrDefault(parameters(crcDescription), Collections.emptyList());
         Optional<CrcModel> model = registered.stream().filter(m -> m.getName().equals(name)).findFirst();
         if (!model.isPresent()) {
             model = registered.stream().filter(m -> m == crcDescription).findFirst();
         }
         return model.isPresent() ? model : registered.stream().findFirst();
+    }
+
+    // the parameters of a description as key of the index: a plain CrcDescription, as the models keep it
+    private static CrcDescription parameters(@NonNull final CrcDescription description) {
+        if (description instanceof CrcModel) {
+            return ((CrcModel) description).getCrcDescription();
+        }
+        return description.getClass() == CrcDescription.class ? description : new CrcDescription(description);
     }
 
     // has to be called while holding the lock on models
@@ -351,6 +382,7 @@ public class CrcModel extends CrcDescription {
         }
         CrcModel crcModel = new CrcModel(name, crcDescription, checkValue);
         models.add(crcModel);
+        index(crcModel);
         return crcModel;
     }
 
@@ -386,7 +418,7 @@ public class CrcModel extends CrcDescription {
     // predefined alias: it is added to the predefined models in declaration order, after its primary model
     private static @NonNull CrcModel alias(@NonNull final String name, @NonNull CrcModel model) {
         CrcModel alias = new CrcModel(name, model.getCrcDescription(), model.getCheck());
-        predefinedModels.add(alias);
+        predefine(alias);
         return alias;
     }
 
