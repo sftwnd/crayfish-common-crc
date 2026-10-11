@@ -17,6 +17,7 @@ import static com.github.sftwnd.crayfish.common.crc.CrcModel.getModels;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class CRCTest {
 
@@ -52,6 +53,18 @@ class CRCTest {
         assertEquals(0x37L, CrcModel.CRC8_SAE_J1850.getCRC(buff).getCrc(), "Wrong CRC-8/SAE-J1850 of 0xFF 0x00 0xA5");
         assertEquals(0x3DL, CrcModel.CRC7_MMC.getCRC(buff).getCrc(), "Wrong CRC-7/MMC of 0xFF 0x00 0xA5");
         assertEquals(0x5L, CrcModel.CRC3_GSM.getCRC(buff).getCrc(), "Wrong CRC-3/GSM of 0xFF 0x00 0xA5");
+    }
+
+    @Test
+    void testUpdateWithNullBuff() {
+        getModels().forEach(m -> {
+            CRC crc = m.getCRC(CHECK_BUFF.getBytes());
+            assertEquals(m.getCheck(), crc.update((byte[]) null).getCrc(), "Model " + m + ": update(null) has not got to change the crc value");
+            assertEquals(CHECK_BUFF.length(), crc.getLength(), "Model " + m + ": update(null) has not got to change the length");
+            CRC clear = m.getCRC().update((byte[]) null);
+            assertEquals(m.getCRC().getCrc(), clear.getCrc(), "Model " + m + ": update(null) of a clear CRC has to keep the CRC of the empty message");
+            assertEquals(0, clear.getLength(), "Model " + m + ": update(null) of a clear CRC has to keep the length 0");
+        });
     }
 
     @Test
@@ -98,6 +111,26 @@ class CRCTest {
             crc = m.getCRC().update(CHECK_BUFF.getBytes()).combine(m.getCRC());
             assertEquals(m.getCheck(), crc.getCrc(), "CRC of byte sequence of 123456789 combine with clear crc has to be equals check value");
         });
+    }
+
+    @Test
+    void testCombineWithOtherParameters() {
+        byte[] buff = CHECK_BUFF.getBytes();
+        // other width, other polynomial, other reflection
+        for (CrcModel other : new CrcModel[]{CrcModel.CRC16_ARC, CrcModel.CRC32_ISCSI, CrcModel.CRC32_BZIP2}) {
+            CRC crc = CrcModel.CRC32.getCRC(buff, 0, 4);
+            long crcValue = crc.getCrc();
+            CRC next = other.getCRC(buff, 4, 5);
+            assertThrows(IllegalArgumentException.class, () -> crc.combine(next), "combine() with a CRC of " + other + " has to throw IllegalArgumentException");
+            CRC clear = other.getCRC();
+            assertThrows(IllegalArgumentException.class, () -> crc.combine(clear), "combine() with a clear CRC of " + other + " has to throw IllegalArgumentException");
+            assertEquals(crcValue, crc.getCrc(), "Rejected combine() has not got to change the crc value");
+            assertEquals(4, crc.getLength(), "Rejected combine() has not got to change the length");
+        }
+        // an alias has the same parameters
+        assertEquals(CrcModel.CRC32.getCheck(), CrcModel.CRC32.getCRC(buff, 0, 4).combine(CrcModel.PKZIP.getCRC(buff, 4, 5)).getCrc(),
+                "combine() with a CRC of an alias has to give the CRC of both parts");
+        assertEquals(CrcModel.CRC32.getCheck(), CrcModel.CRC32.getCRC(buff).combine(null).getCrc(), "combine(null) has not got to change the CRC");
     }
 
     @Test
@@ -168,6 +201,20 @@ class CRCTest {
     }
 
     @Test
+    void testConstructorsBuildLookupTable() {
+        byte[] buff = CHECK_BUFF.getBytes();
+        // with a known check value, construct() calculates no CRC, so the lookup table of the new model is not built yet
+        CrcDescription description = new CrcDescription(16, 0x2F15, 0x1D0F, false, true, 0x0);
+        CrcModel model = CrcModel.construct("CRC-16/TEST-CRC-CONSTRUCTOR", description, CrcReference.crc(description, buff));
+        assertEquals(model.getCheck(), new CRC(model).update(buff).getCrc(),
+                "new CRC(model) has to build the lookup table of a model that has not been used yet");
+        CrcDescription description2 = new CrcDescription(16, 0x2F17, 0x1D0F, false, true, 0x0);
+        CrcModel model2 = CrcModel.construct("CRC-16/TEST-CRC-CONSTRUCTOR-CRC-LEN", description2, CrcReference.crc(description2, buff));
+        assertEquals(model2.getCheck(), new CRC(model2, CrcReference.crc(description2, buff, 0, 4), 4).update(buff, 4, 5).getCrc(),
+                "new CRC(model, crc, len) has to build the lookup table of a model that has not been used yet");
+    }
+
+    @Test
     void testHashCode() {
         getModels().forEach(
                 m -> {
@@ -191,6 +238,17 @@ class CRCTest {
             getModels().peek( m -> strings.add(m.getCRC(CHECK_BUFF.getBytes()).toString())).count()
            ,strings.stream().distinct().count()
            ,"All toString value for different CRCs has to be different");
+    }
+
+    @Test
+    void testToStringFormat() {
+        byte[] buff = CHECK_BUFF.getBytes();
+        assertEquals("CRC-64/XZ[crc:0x995dc9bbdf1939fa,len:9]", CrcModel.CRC64_XZ.getCRC(buff).toString(),
+                "toString() has to show a 64-bit crc value as unsigned hexadecimal number");
+        assertEquals("CRC-32[crc:0xcbf43926,len:9]", CrcModel.CRC32.getCRC(buff).toString(), "Wrong toString() of CRC-32");
+        assertEquals("CRC-16/ARC[crc:0xbb3d,len:9]", CrcModel.CRC16_ARC.getCRC(buff).toString(), "Wrong toString() of CRC-16/ARC");
+        assertEquals("CRC-3/GSM[crc:0x4,len:9]", CrcModel.CRC3_GSM.getCRC(buff).toString(), "Wrong toString() of CRC-3/GSM");
+        assertEquals("CRC-32[crc:0x00000000,len:0]", CrcModel.CRC32.getCRC().toString(), "toString() has to show all digits of the CRC width");
     }
 
 }

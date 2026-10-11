@@ -66,9 +66,7 @@ public class CrcModel extends CrcDescription {
      */
     @Override
     public @NonNull CRC getCRC() {
-        CRC result = new CRC(this);
-        _init();
-        return result;
+        return new CRC(this);
     }
 
     /**
@@ -109,9 +107,7 @@ public class CrcModel extends CrcDescription {
      */
     @Override
     public @NonNull CRC getCRC(long crc, int len) {
-        CRC result = new CRC(this, crc, len);
-        _init();
-        return result;
+        return new CRC(this, crc, len);
     }
 
     @Override
