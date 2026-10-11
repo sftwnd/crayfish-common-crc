@@ -60,6 +60,17 @@ public class CrcDescription {
              model.getPoly(), model.getInit(), model.isRefin(), model.isRefot(), model.getXorot());
     }
 
+    // the parameters of a checked description, processed for the calculation by CrcModel: the reflected values
+    // and the XOR of init with xorot keep the width, so they are not checked again
+    CrcDescription(@NonNull final CrcDescription model, final long poly, final long init, final boolean refot) {
+        this.width = model.width;
+        this.poly = poly;
+        this.init = init;
+        this.refin = model.refin;
+        this.refot = refot;
+        this.xorot = model.xorot;
+    }
+
     // a parameter with bits above the width gives wrong CRC values or fails later inside CrcModel
     private static void checkFits(final String parameter, final long value, final int width, final long mask) {
         if ((value & ~mask) != 0) {

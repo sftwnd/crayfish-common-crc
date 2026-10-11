@@ -167,12 +167,10 @@ public class CrcModel extends CrcDescription {
     @SuppressWarnings("java:S3358")
     private static CrcDescription _config(@NonNull final CrcDescription model) {
         return new CrcDescription(
-                       model.width,
+                       model,
                        model.refin ? CrcModel.reflect(model.poly, model.width) : model.poly,
                        (model.refot ? CrcModel.reflect(model.init, model.width) : model.init) ^ model.xorot,
-                       model.refin,
-                       model.refot ^ model.refin,
-                       model.xorot
+                       model.refot ^ model.refin
                    );
     }
 
