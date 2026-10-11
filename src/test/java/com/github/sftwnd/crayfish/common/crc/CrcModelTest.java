@@ -7,6 +7,7 @@ package com.github.sftwnd.crayfish.common.crc;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -279,6 +280,64 @@ class CrcModelTest {
         model.getCRC().update(CHECK_BUFF.getBytes());
         assertEquals(hashCode, model.hashCode(), "CrcModel.hashCode() must not change after first use");
         assertTrue(models.contains(model), "CrcModel has to be found in a HashSet after first use");
+    }
+
+    @Test
+    void testCatalogueNames() {
+        assertEquals("CRC-5/G-704", CrcModel.CRC5_G_704.getName(), "Wrong name of CRC5_G_704");
+        assertEquals("CRC-32C", CrcModel.CRC32_C.getName(), "Wrong name of CRC32_C");
+        assertSame(CrcModel.CRC5_G_704, lookUp("CRC-5/G-704"), "lookUp(\"CRC-5/G-704\") has to return CRC5_G_704");
+        assertSame(CrcModel.CRC32_C, lookUp("CRC-32C"), "lookUp(\"CRC-32C\") has to return CRC32_C");
+    }
+
+    @Test
+    void testLookUpMisspelledNames() {
+        // names of 1.0.0 and 1.0.1: still accepted by lookUp() and construct(), but no model is listed under them
+        assertSame(CrcModel.CRC5_G_704, lookUp("CCRC-5/G-704"), "lookUp(\"CCRC-5/G-704\") has to return CRC5_G_704");
+        assertSame(CrcModel.CRC32_C, lookUp("CRC32_C "), "lookUp(\"CRC32_C \") has to return CRC32_C");
+        assertSame(CrcModel.CRC5_G_704, construct("CCRC-5/G-704", new CrcDescription(5, 0x15, 0x0, true, true, 0x0)),
+                "construct() with the old name and the parameters of CRC5_G_704 has to return CRC5_G_704");
+        assertSame(CrcModel.CRC32_C, construct("CRC32_C ", CrcModel.CRC32_ISCSI),
+                "construct() with the old name and the parameters of CRC32_C has to return CRC32_C");
+        assertEquals(0, getModels(m -> "CCRC-5/G-704".equals(m.getName()) || "CRC32_C ".equals(m.getName())).count(),
+                "getModels() must not contain models with the misspelled names");
+    }
+
+    @Test
+    @SuppressWarnings("deprecation")
+    void testDeprecatedConstants() throws IllegalAccessException {
+        CrcModel[][] replacements = {
+                {CrcModel.CRC_B, CrcModel.CRCB},
+                {CrcModel.CRC8_CDMA2000, CrcModel.CRC8_CDMA_2000},
+                {CrcModel.CRC8_I_CODE, CrcModel.CRC8_ICODE},
+                {CrcModel.CRC16_EN_13757, CrcModel.CRC16_EN13757},
+                {CrcModel.CRC32_V_42, CrcModel.CRC32_V42}
+        };
+        for (CrcModel[] replacement : replacements) {
+            assertSame(replacement[0], replacement[1], "The deprecated constant has to refer to the model " + replacement[0]);
+            assertEquals(1, getModels(m -> m == replacement[0]).count(), "The model " + replacement[0] + " has to be listed by getModels() once");
+        }
+        // getModels() skips deprecated fields: each of them has to refer to a listed model
+        for (Field field : CrcModel.class.getDeclaredFields()) {
+            if (field.getType() == CrcModel.class && field.isAnnotationPresent(Deprecated.class)) {
+                CrcModel model = (CrcModel) field.get(null);
+                assertEquals(1, getModels(m -> m == model).count(), "The deprecated constant " + field.getName() + " has to refer to a model listed by getModels()");
+            }
+        }
+    }
+
+    @Test
+    void testConstantNamesMatchModelNames() throws IllegalAccessException {
+        for (Field field : CrcModel.class.getDeclaredFields()) {
+            if (field.getType() != CrcModel.class || field.isAnnotationPresent(Deprecated.class)) {
+                continue;
+            }
+            String name = ((CrcModel) field.get(null)).getName();
+            String expected = name.replaceFirst("^CRC-(\\d+)([A-Z])$", "CRC$1_$2")  // CRC-32C -> CRC32_C
+                                  .replaceFirst("^CRC-(\\d+)", "CRC$1")               // CRC-16/ -> CRC16/
+                                  .replaceAll("[-/]", "_");
+            assertEquals(expected, field.getName(), "The constant name has to be derived from the model name [" + name + "]");
+        }
     }
 
 }
