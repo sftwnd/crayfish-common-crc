@@ -6,8 +6,6 @@ package com.github.sftwnd.crayfish.common.crc;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import lombok.EqualsAndHashCode;
-import lombok.Getter;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -26,14 +24,13 @@ import java.util.stream.Stream;
  * Registered predefined CrcModel for CrcDescription
  */
 @SuppressWarnings({"java:S100", "java:S107"})
-@EqualsAndHashCode(callSuper = true)
 public class CrcModel extends CrcDescription {
 
     public static final String CHECK_BUFF = "123456789";
 
-    @Getter public  final String name;
-    @Getter public  final Long check;
-    @Getter private final CrcDescription crcDescription;
+    public  final String name;
+    public  final Long check;
+    private final CrcDescription crcDescription;
 
     // predefined model: it is added to the predefined models in declaration order
     private CrcModel(@Nullable final String name, final int width, final long poly, final long init, final boolean refin, final boolean refot, final long xorot, @Nullable final Long check) {
@@ -53,6 +50,30 @@ public class CrcModel extends CrcDescription {
     // the model is only used for this calculation
     private static long checkValue(@NonNull final CrcDescription model) {
         return new CrcModel(null, model, -1L).getCRC().update(CHECK_BUFF.getBytes(StandardCharsets.US_ASCII)).getCrc();
+    }
+
+    /**
+     * Get the name of the model
+     * @return name of the model
+     */
+    public String getName() {
+        return this.name;
+    }
+
+    /**
+     * Get the check value: the crc of the ASCII bytes of {@link #CHECK_BUFF}
+     * @return check value
+     */
+    public Long getCheck() {
+        return this.check;
+    }
+
+    /**
+     * Get the original parameters of the model
+     * @return parameters of the model
+     */
+    public CrcDescription getCrcDescription() {
+        return this.crcDescription;
     }
 
     @Override
@@ -133,6 +154,47 @@ public class CrcModel extends CrcDescription {
     @Override
     public @NonNull CRC getCRC(long crc, int len) {
         return getCRC(crc, (long) len);
+    }
+
+    /**
+     * Models are equal if they have the same parameters, name and check value
+     * @param o object to compare with
+     * @return true if o is a model with the same parameters, name and check value
+     */
+    @Override
+    public boolean equals(final Object o) {
+        if (o == this) {
+            return true;
+        }
+        if (!(o instanceof CrcModel)) {
+            return false;
+        }
+        final CrcModel other = (CrcModel) o;
+        return other.canEqual(this)
+            && super.equals(o)
+            && Objects.equals(this.getCheck(), other.getCheck())
+            && Objects.equals(this.getName(), other.getName())
+            && Objects.equals(this.getCrcDescription(), other.getCrcDescription());
+    }
+
+    /**
+     * Whether the other object can be equal to this one, see {@link CrcDescription#canEqual(Object)}
+     * @param other object to compare with
+     * @return true if other is a CrcModel
+     */
+    @Override
+    protected boolean canEqual(final Object other) {
+        return other instanceof CrcModel;
+    }
+
+    // the hash code of the versions up to 1.0.2, which were built with Lombok; the fields are never null
+    @Override
+    public int hashCode() {
+        int result = super.hashCode();
+        result = result * PRIME + this.getCheck().hashCode();
+        result = result * PRIME + this.getName().hashCode();
+        result = result * PRIME + this.getCrcDescription().hashCode();
+        return result;
     }
 
     @Override

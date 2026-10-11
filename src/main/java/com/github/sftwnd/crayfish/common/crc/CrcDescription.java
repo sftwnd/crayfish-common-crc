@@ -5,23 +5,20 @@
 package com.github.sftwnd.crayfish.common.crc;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import lombok.EqualsAndHashCode;
-import lombok.Getter;
 
 import java.util.Objects;
 
 /**
  * CRC algorithm parameters holder
  */
-@EqualsAndHashCode
 public class CrcDescription {
 
-    @Getter protected final int     width;
-    @Getter protected final long    poly;
-    @Getter protected final long    init;
-    @Getter protected final boolean refin;
-    @Getter protected final boolean refot;
-    @Getter protected final long    xorot;
+    protected final int     width;
+    protected final long    poly;
+    protected final long    init;
+    protected final boolean refin;
+    protected final boolean refot;
+    protected final long    xorot;
 
     /**
      * Create description with the CRC parameters
@@ -87,6 +84,106 @@ public class CrcDescription {
         }
     }
 
+    /**
+     * Get the CRC width
+     * @return CRC width in bits: 1..64
+     */
+    public int getWidth() {
+        return this.width;
+    }
+
+    /**
+     * Get the polynomial
+     * @return polynomial, without the x^width term
+     */
+    public long getPoly() {
+        return this.poly;
+    }
+
+    /**
+     * Get the initial value of the CRC register
+     * @return initial value of the CRC register
+     */
+    public long getInit() {
+        return this.init;
+    }
+
+    /**
+     * Whether the input bytes are reflected
+     * @return true if the input bytes are reflected
+     */
+    public boolean isRefin() {
+        return this.refin;
+    }
+
+    /**
+     * Whether the CRC is reflected before the final XOR
+     * @return true if the CRC is reflected before the final XOR
+     */
+    public boolean isRefot() {
+        return this.refot;
+    }
+
+    /**
+     * Get the value XOR-ed to the CRC at the end
+     * @return value XOR-ed to the CRC at the end
+     */
+    public long getXorot() {
+        return this.xorot;
+    }
+
+    /**
+     * Descriptions are equal if they have the same CRC parameters.
+     * The parameters are compared with the getters, so a {@link CrcModel} is compared by its original parameters,
+     * and the lookup table, a cache, is not compared
+     * @param o object to compare with
+     * @return true if o is a description with the same parameters
+     */
+    @Override
+    public boolean equals(final Object o) {
+        if (o == this) {
+            return true;
+        }
+        if (!(o instanceof CrcDescription)) {
+            return false;
+        }
+        final CrcDescription other = (CrcDescription) o;
+        return other.canEqual(this)
+            && this.getWidth() == other.getWidth()
+            && this.getPoly() == other.getPoly()
+            && this.getInit() == other.getInit()
+            && this.isRefin() == other.isRefin()
+            && this.isRefot() == other.isRefot()
+            && this.getXorot() == other.getXorot();
+    }
+
+    /**
+     * Whether the other object can be equal to this one: a subclass with additional state overrides it,
+     * so that equals() stays symmetric
+     * @param other object to compare with
+     * @return true if other is a CrcDescription
+     */
+    protected boolean canEqual(final Object other) {
+        return other instanceof CrcDescription;
+    }
+
+    // the hash code of the versions up to 1.0.2, which were built with Lombok
+    @Override
+    public int hashCode() {
+        int result = 1;
+        result = result * PRIME + this.getWidth();
+        result = result * PRIME + Long.hashCode(this.getPoly());
+        result = result * PRIME + Long.hashCode(this.getInit());
+        result = result * PRIME + (this.isRefin() ? TRUE_HASH : FALSE_HASH);
+        result = result * PRIME + (this.isRefot() ? TRUE_HASH : FALSE_HASH);
+        result = result * PRIME + Long.hashCode(this.getXorot());
+        return result;
+    }
+
+    static final int PRIME = 59;
+    private static final int TRUE_HASH = 79;
+    private static final int FALSE_HASH = 97;
+
     @Override
     public String toString() {
         return "CRC-" + getWidth()+"/P"+Long.toHexString(poly).toUpperCase()
@@ -143,7 +240,6 @@ public class CrcDescription {
             "java:S3077"
     })
     // The lazily built lookup table is a cache, not a CRC parameter, so it is excluded from equals and hashCode
-    @EqualsAndHashCode.Exclude
     protected volatile long[] table_byte = null;
 
 }
