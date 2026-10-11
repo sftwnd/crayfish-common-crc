@@ -6,7 +6,6 @@ package com.github.sftwnd.crayfish.common.crc;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import lombok.EqualsAndHashCode;
-import lombok.Generated;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -36,7 +35,6 @@ public class CrcDescription {
              model.getPoly(), model.getInit(), model.isRefin(), model.isRefot(), model.getXorot());
     }
 
-    @Generated
     @Override
     public String toString() {
         return "CRC-" + getWidth()+"/P"+Long.toHexString(poly).toUpperCase()

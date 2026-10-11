@@ -4,8 +4,10 @@
  */
 package com.github.sftwnd.crayfish.common.crc;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
+import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.Random;
 import java.util.Set;
@@ -18,6 +20,12 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 
 class CRCTest {
 
+    // every test starts with the predefined models only
+    @AfterEach
+    void cleanUp() {
+        CrcModel.removeRegisteredModels();
+    }
+
     @Test
     void testUpdate() {
         getModels(m -> m.getCheck() != null).forEach( m -> {
@@ -27,8 +35,8 @@ class CRCTest {
             assertEquals(m.getCheck(), crcValue, "Crc update result for byte sequence of 123456789 has to be equals check value");
             assertEquals(m.getCheck(), crc.update(CHECK_BUFF.getBytes(), 1, -1).getCrc(), "Update with negative length has not got to change result");
             assertEquals(m.getCheck(), crc.update(null, 1, 1).getCrc(), "Update with null reference to buff has not got to change result");
-            assertEquals(m.getCheck(), crc.update(CHECK_BUFF.getBytes(), 1, -1).getCrc(), "Update with negative length has not got to change result");
-            assertEquals(m.getCheck(), m.getCRC().update(CHECK_BUFF.getBytes(), 4).update(CHECK_BUFF.getBytes(), 4, 5).getCrc(), "Update with negative length has not got to change result");
+            assertEquals(m.getCheck(), crc.update(CHECK_BUFF.getBytes(), 1, 0).getCrc(), "Update with zero length has not got to change result");
+            assertEquals(m.getCheck(), m.getCRC().update(CHECK_BUFF.getBytes(), 4).update(CHECK_BUFF.getBytes(), 4, 5).getCrc(), "Update by 1234 and then by 56789 has to give the check value");
         });
     }
 
@@ -66,6 +74,17 @@ class CRCTest {
                         sample + ": combined crc of two parts of random bytes has to be equal to the bitwise calculated value");
             }
         });
+    }
+
+    @Test
+    void testUpdateWithNonAsciiText() {
+        // UTF-8 text with German, Russian and Chinese letters: bytes >= 0x80
+        byte[] text = "Grüße, Привет, 你好".getBytes(StandardCharsets.UTF_8);
+        java.util.zip.CRC32 crc32 = new java.util.zip.CRC32();
+        crc32.update(text);
+        assertEquals(crc32.getValue(), CrcModel.CRC32.getCRC(text).getCrc(), "CRC-32 of UTF-8 text has to be equal to java.util.zip.CRC32");
+        getModels().forEach(m -> assertEquals(CrcReference.crc(m.getCrcDescription(), text), m.getCRC(text).getCrc(),
+                "Model " + m + ": crc of UTF-8 text has to be equal to the bitwise calculated value"));
     }
 
     @Test
