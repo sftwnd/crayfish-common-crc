@@ -12,13 +12,15 @@ import lombok.Getter;
 import lombok.SneakyThrows;
 
 import java.lang.reflect.Field;
-import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -239,10 +241,12 @@ public class CrcModel extends CrcDescription {
         return crc;
     }
 
-    private static final List<CrcModel> models = new ArrayList<>();
+    // registered models: a stream of the list works on a snapshot, so registration does not break running streams
+    private static final List<CrcModel> models = new CopyOnWriteArrayList<>();
 
     /**
-     * Stream of all registered models
+     * Stream of all registered models.
+     * The stream contains the models registered at the time of the call
      * @return stream of models
      */
     public static @NonNull Stream<CrcModel> getModels() {
@@ -263,20 +267,15 @@ public class CrcModel extends CrcDescription {
     }
 
     /**
-     * Stream of all registered models
+     * Stream of all registered models.
+     * The stream contains the models registered at the time of the call: models registered later,
+     * even while the stream is processed, are not included
      * @param filter filter predicate for models
      * @return stream of models
      */
     public static @NonNull Stream<CrcModel> getModels(@Nullable final Predicate<? super CrcModel> filter) {
-        synchronized (models) {
-            return Stream.concat(
-                    Arrays.stream(CrcModel.class.getDeclaredFields())
-                            .map(CrcModel::castModel)
-                            .filter(Objects::nonNull)
-                            .map(CrcModel.class::cast)
-                    , models.stream()
-            ).filter(filter == null ? m -> true : filter);
-        }
+        return Stream.concat(predefinedModels.stream(), models.stream())
+                     .filter(filter == null ? m -> true : filter);
     }
 
     /**
@@ -303,21 +302,35 @@ public class CrcModel extends CrcDescription {
      * @return registered model
      */
     public static @NonNull CrcModel construct(@Nullable final String name, @NonNull final CrcDescription crcDescription, @Nullable final Long value) {
-        return getModels(m -> Optional.of(Objects.requireNonNull(crcDescription, "CrcModel::construct - crcDescription is null"))
-                .filter(CrcModel.class::isInstance).map(CrcModel.class::cast)
-                .map(CrcModel::getCrcDescription)
-                .orElse(crcDescription)
-                .equals(m.getCrcDescription()))
-                .min(Comparator.comparing(mdl -> modelNameFirst(mdl, name)))
-                .map(model -> (name == null || model.getName().equals(name)) ? model : registerModel(name, model.getCrcDescription(), model.getCheck()))
-                .orElseGet(() -> registerModel(name, crcDescription, value));
+        Objects.requireNonNull(crcDescription, "CrcModel::construct - crcDescription is null");
+        // a registered model is returned without the lock
+        Optional<CrcModel> registered = findModel(name, crcDescription)
+                .filter(model -> name == null || model.getName().equals(name));
+        if (registered.isPresent()) {
+            return registered.get();
+        }
+        // lookup and registration as one step: concurrent calls register the model only once
+        synchronized (models) {
+            return findModel(name, crcDescription)
+                    .map(model -> (name == null || model.getName().equals(name)) ? model : registerModel(name, model.getCrcDescription(), model.getCheck()))
+                    .orElseGet(() -> registerModel(name, crcDescription, value));
+        }
     }
 
+    // registered model with the same parameters; a model with the requested name is preferred
+    private static Optional<CrcModel> findModel(@Nullable final String name, @NonNull final CrcDescription crcDescription) {
+        CrcDescription description = Optional.of(crcDescription)
+                .filter(CrcModel.class::isInstance).map(CrcModel.class::cast)
+                .map(CrcModel::getCrcDescription)
+                .orElse(crcDescription);
+        return getModels(m -> description.equals(m.getCrcDescription()))
+                .min(Comparator.comparing(mdl -> modelNameFirst(mdl, name)));
+    }
+
+    // has to be called while holding the lock on models
     private static CrcModel registerModel(@Nullable String name, @NonNull CrcDescription crcDescription, @Nullable Long checkValue) {
         CrcModel crcModel = new CrcModel(name, crcDescription, checkValue);
-        synchronized (models) {
-            models.add(crcModel);
-        }
+        models.add(crcModel);
         return crcModel;
     }
 
@@ -673,5 +686,12 @@ public class CrcModel extends CrcDescription {
     public static final CrcModel CRC64_WE                = new CrcModel("CRC-64/WE", 64, 0x42F0E1EBA9EA3693L, 0xFFFFFFFFFFFFFFFFL, false, false, 0xFFFFFFFFFFFFFFFFL,0x62EC59E3F1A4F00AL);
     public static final CrcModel CRC64_XZ                = new CrcModel("CRC-64/XZ", 64, 0x42F0E1EBA9EA3693L, 0xFFFFFFFFFFFFFFFFL, true, true, 0xFFFFFFFFFFFFFFFFL,0x995DC9BBDF1939FAL);
     public static final CrcModel CRC64_GO_ECMA           = alias("CRC-64/GO-ECMA", CRC64_XZ);
+
+    // collected once; has to be declared after the last predefined model, so that all of them are initialized
+    private static final List<CrcModel> predefinedModels = Collections.unmodifiableList(
+            Arrays.stream(CrcModel.class.getDeclaredFields())
+                    .map(CrcModel::castModel)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList()));
 
 }
