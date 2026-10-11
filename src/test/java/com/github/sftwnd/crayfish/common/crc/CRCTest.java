@@ -7,6 +7,11 @@ package com.github.sftwnd.crayfish.common.crc;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.Random;
@@ -179,6 +184,47 @@ class CRCTest {
             // the crc value given for a CRC without data is not used
             assertEquals(m.getCRC(), m.getCRC(m.getCheck(), 0), "Model " + m + ": CRCs without data have to be equal");
         });
+    }
+
+    @Test
+    void testCrcValueWithBitsAboveTheWidth() {
+        byte[] buff = CHECK_BUFF.getBytes();
+        getModels().forEach(m -> {
+            // all bits above the width set, as by the sign extension of a negative int
+            long highBits = ~CrcModel.widmask(m.getWidth());
+            long crc1234 = m.getCRC(buff, 0, 4).getCrc();
+            long crc56789 = m.getCRC(buff, 4, 5).getCrc();
+            String model = "Model " + m;
+            CRC crc = m.getCRC(crc1234 | highBits, 4);
+            assertEquals(crc1234, crc.getCrc(), model + ": getCRC(crc, len) has to ignore the bits above the width");
+            assertEquals(m.getCheck(), crc.copy().update(buff, 4, 5).getCrc(),
+                    model + ": update() after getCRC(crc, len) with bits above the width has to give the check value");
+            assertEquals(m.getCheck(), crc.copy().combine(m.getCRC(buff, 4, 5)).getCrc(),
+                    model + ": combine() after getCRC(crc, len) with bits above the width has to give the check value");
+            assertEquals(m.getCheck(), m.getCRC(buff, 0, 4).combine(crc56789 | highBits, 5),
+                    model + ": combine(crc2, len2) has to ignore the bits above the width");
+        });
+    }
+
+    @Test
+    void testCrcValueKeptInIntAndByte() throws IOException {
+        byte[] head = CHECK_BUFF.getBytes();
+        byte[] tail = {'x'};
+        // a CRC-32 written as int and read back: the negative int is sign-extended to a long
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        new DataOutputStream(bytes).writeInt((int) CrcModel.CRC32.getCRC(head).getCrc());
+        int stored = new DataInputStream(new ByteArrayInputStream(bytes.toByteArray())).readInt();
+        long expected = CrcModel.CRC32.getCRC(head).update(tail).getCrc();
+        assertEquals(CrcModel.CRC32.getCheck(), CrcModel.CRC32.getCRC(stored, head.length).getCrc(), "CRC-32 kept in an int: wrong getCrc()");
+        assertEquals(expected, CrcModel.CRC32.getCRC(stored, head.length).update(tail).getCrc(), "CRC-32 kept in an int: wrong update()");
+        assertEquals(expected, CrcModel.CRC32.getCRC(stored, head.length).combine(CrcModel.CRC32.getCRC(tail)).getCrc(), "CRC-32 kept in an int: wrong combine(CRC)");
+        int storedTail = (int) CrcModel.CRC32.getCRC(tail).getCrc();
+        assertEquals(expected, CrcModel.CRC32.getCRC(head).combine(storedTail, tail.length), "CRC-32 kept in an int: wrong combine(crc2, len2)");
+        // a CRC-8 kept in a byte
+        byte stored8 = (byte) CrcModel.CRC8.getCRC(head).getCrc();
+        long expected8 = CrcModel.CRC8.getCRC(head).update(tail).getCrc();
+        assertEquals(expected8, CrcModel.CRC8.getCRC(stored8, head.length).update(tail).getCrc(), "CRC-8 kept in a byte: wrong update()");
+        assertEquals(expected8, CrcModel.CRC8.getCRC(stored8, head.length).combine(CrcModel.CRC8.getCRC(tail)).getCrc(), "CRC-8 kept in a byte: wrong combine(CRC)");
     }
 
     @Test
