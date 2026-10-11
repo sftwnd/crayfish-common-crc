@@ -9,10 +9,8 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
-import java.lang.reflect.Field;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Comparator;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -34,15 +32,18 @@ public class CrcModel extends CrcDescription {
     @Getter public  final Long check;
     @Getter private final CrcDescription crcDescription;
 
+    // predefined model: it is added to the predefined models in declaration order
     private CrcModel(@Nullable final String name, final int width, final long poly, final long init, final boolean refin, final boolean refot, final long xorot, @Nullable final Long check) {
         this(name, new CrcDescription(width, poly, init, refin, refot, xorot), check);
+        predefinedModels.add(this);
     }
 
     private CrcModel(@Nullable final String name, @NonNull final CrcDescription model, @Nullable final Long check) {
         super(_config(Objects.requireNonNull(model, "CRC_model_t::new - model is null")));
-        this.name = name == null ? super.toString() : name;
+        // a generated name shows the original parameters, not the processed ones of this object
+        this.name = name == null ? new CrcDescription(model).toString() : name;
         this.crcDescription = model;
-        this.check = Optional.ofNullable(check).orElseGet(() -> new CrcModel(null, model, -1L).getCRC().update(CHECK_BUFF.getBytes()).getCrc());
+        this.check = Optional.ofNullable(check).orElseGet(() -> new CrcModel(null, model, -1L).getCRC().update(CHECK_BUFF.getBytes(StandardCharsets.US_ASCII)).getCrc());
     }
 
     @Override
@@ -244,6 +245,10 @@ public class CrcModel extends CrcDescription {
     // registered models: a stream of the list works on a snapshot, so registration does not break running streams
     private static final List<CrcModel> models = new CopyOnWriteArrayList<>();
 
+    // predefined models in declaration order, every primary model before its aliases: they add themselves
+    // while the class is initialized, so the list has to be declared before them; it is not changed afterwards
+    private static final List<CrcModel> predefinedModels = new ArrayList<>();
+
     /**
      * Stream of all registered models.
      * The stream contains the models registered at the time of the call
@@ -258,19 +263,6 @@ public class CrcModel extends CrcDescription {
         synchronized (models) {
             models.clear();
         }
-    }
-
-    // the model of a predefined model field, otherwise null; package-private for the tests
-    static CrcModel castModel(Field field) {
-        // a deprecated field refers to the same model as the field that replaces it
-        if (field != null && field.getType().equals(CrcModel.class) && !field.isAnnotationPresent(Deprecated.class)) {
-            try {
-                return (CrcModel) field.get(0);
-            } catch (IllegalAccessException iaex) {
-                return null;
-            }
-        }
-        return null;
     }
 
     /**
@@ -307,12 +299,12 @@ public class CrcModel extends CrcDescription {
         }
     }
 
-    private static @NonNull String modelNameFirst(@NonNull final CrcModel model, @Nullable final String name) {
-        return (model.getName().equals(name) ? "a" : "b") + model.getName();
-    }
-
     /**
-     * Creation and registration of CrcModel
+     * Creation and registration of CrcModel.
+     * A registered model with the parameters of crcDescription is returned: the model with the given name,
+     * otherwise crcDescription itself if it is a registered model, otherwise the model registered first for these
+     * parameters (for predefined parameters the primary model, not an alias). A new model is registered
+     * if no model with these parameters is registered, or if a name is given and none of them has it
      * @param name Name of model
      * @param crcDescription CrcDescription
      * @param value Check value
@@ -334,14 +326,20 @@ public class CrcModel extends CrcDescription {
         }
     }
 
-    // registered model with the same parameters; a model with the requested name is preferred
+    // registered model with the same parameters: the model with the requested name, otherwise the model passed in
+    // if it is registered, otherwise the first registered one, which later registrations do not change:
+    // the primary predefined model, or the model registered first at run time
     private static Optional<CrcModel> findModel(@Nullable final String name, @NonNull final CrcDescription crcDescription) {
         CrcDescription description = Optional.of(crcDescription)
                 .filter(CrcModel.class::isInstance).map(CrcModel.class::cast)
                 .map(CrcModel::getCrcDescription)
                 .orElse(crcDescription);
-        return getModels(m -> description.equals(m.getCrcDescription()))
-                .min(Comparator.comparing(mdl -> modelNameFirst(mdl, name)));
+        List<CrcModel> registered = getModels(m -> description.equals(m.getCrcDescription())).collect(Collectors.toList());
+        Optional<CrcModel> model = registered.stream().filter(m -> m.getName().equals(name)).findFirst();
+        if (!model.isPresent()) {
+            model = registered.stream().filter(m -> m == crcDescription).findFirst();
+        }
+        return model.isPresent() ? model : registered.stream().findFirst();
     }
 
     // has to be called while holding the lock on models
@@ -385,8 +383,11 @@ public class CrcModel extends CrcDescription {
         return construct(name, crcDescription, null);
     }
 
+    // predefined alias: it is added to the predefined models in declaration order, after its primary model
     private static @NonNull CrcModel alias(@NonNull final String name, @NonNull CrcModel model) {
-        return new CrcModel(name, model.getCrcDescription(), model.getCheck());
+        CrcModel alias = new CrcModel(name, model.getCrcDescription(), model.getCheck());
+        predefinedModels.add(alias);
+        return alias;
     }
 
     protected final long reflect(long value) {
@@ -727,12 +728,5 @@ public class CrcModel extends CrcDescription {
     public static final CrcModel CRC64_WE                = new CrcModel("CRC-64/WE", 64, 0x42F0E1EBA9EA3693L, 0xFFFFFFFFFFFFFFFFL, false, false, 0xFFFFFFFFFFFFFFFFL,0x62EC59E3F1A4F00AL);
     public static final CrcModel CRC64_XZ                = new CrcModel("CRC-64/XZ", 64, 0x42F0E1EBA9EA3693L, 0xFFFFFFFFFFFFFFFFL, true, true, 0xFFFFFFFFFFFFFFFFL,0x995DC9BBDF1939FAL);
     public static final CrcModel CRC64_GO_ECMA           = alias("CRC-64/GO-ECMA", CRC64_XZ);
-
-    // collected once; has to be declared after the last predefined model, so that all of them are initialized
-    private static final List<CrcModel> predefinedModels = Collections.unmodifiableList(
-            Arrays.stream(CrcModel.class.getDeclaredFields())
-                    .map(CrcModel::castModel)
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList()));
 
 }

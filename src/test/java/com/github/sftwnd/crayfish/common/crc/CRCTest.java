@@ -19,6 +19,7 @@ import java.util.Set;
 
 import static com.github.sftwnd.crayfish.common.crc.CrcModel.CHECK_BUFF;
 import static com.github.sftwnd.crayfish.common.crc.CrcModel.getModels;
+import static java.nio.charset.StandardCharsets.US_ASCII;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -38,13 +39,13 @@ class CRCTest {
     void testUpdate() {
         getModels(m -> m.getCheck() != null).forEach( m -> {
             CRC crc = m.getCRC();
-            long crcValue = crc.update(CHECK_BUFF.getBytes()).getCrc();
+            long crcValue = crc.update(CHECK_BUFF.getBytes(US_ASCII)).getCrc();
             assertEquals(m.getCheck(), crc.getCrc(), "CRC value for byte sequence of 123456789 has to be equals check value");
             assertEquals(m.getCheck(), crcValue, "Crc update result for byte sequence of 123456789 has to be equals check value");
-            assertEquals(m.getCheck(), crc.update(CHECK_BUFF.getBytes(), 1, -1).getCrc(), "Update with negative length has not got to change result");
+            assertEquals(m.getCheck(), crc.update(CHECK_BUFF.getBytes(US_ASCII), 1, -1).getCrc(), "Update with negative length has not got to change result");
             assertEquals(m.getCheck(), crc.update(null, 1, 1).getCrc(), "Update with null reference to buff has not got to change result");
-            assertEquals(m.getCheck(), crc.update(CHECK_BUFF.getBytes(), 1, 0).getCrc(), "Update with zero length has not got to change result");
-            assertEquals(m.getCheck(), m.getCRC().update(CHECK_BUFF.getBytes(), 4).update(CHECK_BUFF.getBytes(), 4, 5).getCrc(), "Update by 1234 and then by 56789 has to give the check value");
+            assertEquals(m.getCheck(), crc.update(CHECK_BUFF.getBytes(US_ASCII), 1, 0).getCrc(), "Update with zero length has not got to change result");
+            assertEquals(m.getCheck(), m.getCRC().update(CHECK_BUFF.getBytes(US_ASCII), 4).update(CHECK_BUFF.getBytes(US_ASCII), 4, 5).getCrc(), "Update by 1234 and then by 56789 has to give the check value");
         });
     }
 
@@ -65,7 +66,7 @@ class CRCTest {
     @Test
     void testUpdateWithNullBuff() {
         getModels().forEach(m -> {
-            CRC crc = m.getCRC(CHECK_BUFF.getBytes());
+            CRC crc = m.getCRC(CHECK_BUFF.getBytes(US_ASCII));
             assertEquals(m.getCheck(), crc.update((byte[]) null).getCrc(), "Model " + m + ": update(null) has not got to change the crc value");
             assertEquals(CHECK_BUFF.length(), crc.getLength(), "Model " + m + ": update(null) has not got to change the length");
             CRC clear = m.getCRC().update((byte[]) null);
@@ -111,18 +112,18 @@ class CRCTest {
     void combineUpdate() {
         getModels(m -> m.getCheck() != null).forEach( m -> {
             CRC crc = m.getCRC();
-            crc.update(CHECK_BUFF.getBytes(), 0, 4).combine(m.getCRC().update(CHECK_BUFF.getBytes(), 4, 5));
+            crc.update(CHECK_BUFF.getBytes(US_ASCII), 0, 4).combine(m.getCRC().update(CHECK_BUFF.getBytes(US_ASCII), 4, 5));
             assertEquals(m.getCheck(), crc.getCrc(), "CRC combine value of crcs of byte sequence of 1234 & 56789 has to be equals check value");
-            crc = m.getCRC().combine(m.getCRC().update(CHECK_BUFF.getBytes()));
+            crc = m.getCRC().combine(m.getCRC().update(CHECK_BUFF.getBytes(US_ASCII)));
             assertEquals(m.getCheck(), crc.getCrc(), "Clear CRC combine value of crc of byte sequence of 123456789 has to be equals check value");
-            crc = m.getCRC().update(CHECK_BUFF.getBytes()).combine(m.getCRC());
+            crc = m.getCRC().update(CHECK_BUFF.getBytes(US_ASCII)).combine(m.getCRC());
             assertEquals(m.getCheck(), crc.getCrc(), "CRC of byte sequence of 123456789 combine with clear crc has to be equals check value");
         });
     }
 
     @Test
     void testCombineWithOtherParameters() {
-        byte[] buff = CHECK_BUFF.getBytes();
+        byte[] buff = CHECK_BUFF.getBytes(US_ASCII);
         // other width, other polynomial, other reflection
         for (CrcModel other : new CrcModel[]{CrcModel.CRC16_ARC, CrcModel.CRC32_ISCSI, CrcModel.CRC32_BZIP2}) {
             CRC crc = CrcModel.CRC32.getCRC(buff, 0, 4);
@@ -157,7 +158,7 @@ class CRCTest {
     @Test
     void testCombineWithPartOf2GiB() {
         int part = 1 << 30;
-        byte[] buff = CHECK_BUFF.getBytes();
+        byte[] buff = CHECK_BUFF.getBytes(US_ASCII);
         getModels().forEach(m -> {
             long crc2 = m.getCheck();
             long crc3 = m.getCRC(buff, 0, 4).getCrc();
@@ -188,7 +189,7 @@ class CRCTest {
 
     @Test
     void testCrcValueWithBitsAboveTheWidth() {
-        byte[] buff = CHECK_BUFF.getBytes();
+        byte[] buff = CHECK_BUFF.getBytes(US_ASCII);
         getModels().forEach(m -> {
             // all bits above the width set, as by the sign extension of a negative int
             long highBits = ~CrcModel.widmask(m.getWidth());
@@ -208,7 +209,7 @@ class CRCTest {
 
     @Test
     void testCrcValueKeptInIntAndByte() throws IOException {
-        byte[] head = CHECK_BUFF.getBytes();
+        byte[] head = CHECK_BUFF.getBytes(US_ASCII);
         byte[] tail = {'x'};
         // a CRC-32 written as int and read back: the negative int is sign-extended to a long
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
@@ -231,7 +232,7 @@ class CRCTest {
     void testCopy() {
         getModels().forEach(
                 m -> {
-                    CRC crc = m.getCRC(CHECK_BUFF.getBytes());
+                    CRC crc = m.getCRC(CHECK_BUFF.getBytes(US_ASCII));
                     CRC crc1 = crc.copy();
                     assertEquals(crc, crc1, "CRC and CRC.clone() have to be equals");
                 }
@@ -245,7 +246,7 @@ class CRCTest {
                     long emptyCrc = CrcReference.crc(m.getCrcDescription(), new byte[0]);
                     CRC crc = m.getCRC();
                     assertEquals(emptyCrc, crc.getCrc(), "Clear CRC value has to be equal to the CRC of the empty message");
-                    assertEquals(m.getCheck(), crc.update(CHECK_BUFF.getBytes()).getCrc(), "CRC value of 123456789 has to be equals model check value");
+                    assertEquals(m.getCheck(), crc.update(CHECK_BUFF.getBytes(US_ASCII)).getCrc(), "CRC value of 123456789 has to be equals model check value");
                     assertEquals(emptyCrc, m.getCRC(null).getCrc(), "CRC value of empty buff has to be equal to the CRC of the empty message");
                 }
         );
@@ -253,7 +254,7 @@ class CRCTest {
 
     @Test
     void testGetCrcOfEmptyInput() {
-        byte[] buff = CHECK_BUFF.getBytes();
+        byte[] buff = CHECK_BUFF.getBytes(US_ASCII);
         getModels().forEach(m -> {
             long emptyCrc = CrcReference.crc(m.getCrcDescription(), new byte[0]);
             String model = "Model " + m;
@@ -287,7 +288,7 @@ class CRCTest {
     void testConstructor() {
         getModels().forEach(
                 m -> {
-                    CRC crc = m.getCRC(CHECK_BUFF.getBytes());
+                    CRC crc = m.getCRC(CHECK_BUFF.getBytes(US_ASCII));
                     CRC crc1 = new CRC(crc);
                     assertEquals(crc, crc1, "CRC and new CRC(crc) have to be equals");
                 }
@@ -296,7 +297,7 @@ class CRCTest {
 
     @Test
     void testConstructorsBuildLookupTable() {
-        byte[] buff = CHECK_BUFF.getBytes();
+        byte[] buff = CHECK_BUFF.getBytes(US_ASCII);
         // with a known check value, construct() calculates no CRC, so the lookup table of the new model is not built yet
         CrcDescription description = new CrcDescription(16, 0x2F15, 0x1D0F, false, true, 0x0);
         CrcModel model = CrcModel.construct("CRC-16/TEST-CRC-CONSTRUCTOR", description, CrcReference.crc(description, buff));
@@ -312,7 +313,7 @@ class CRCTest {
     void testHashCode() {
         getModels().forEach(
                 m -> {
-                    CRC crc = m.getCRC(CHECK_BUFF.getBytes());
+                    CRC crc = m.getCRC(CHECK_BUFF.getBytes(US_ASCII));
                     CRC crc1 = crc.copy();
                     assertEquals(crc.hashCode(), crc1.hashCode(), "CRC.hashCode() on cloned CRCs have to be equals");
                 }
@@ -329,14 +330,14 @@ class CRCTest {
     void testToString() {
         Set<String> strings = new HashSet<>();
         assertEquals(
-            getModels().peek( m -> strings.add(m.getCRC(CHECK_BUFF.getBytes()).toString())).count()
+            getModels().peek( m -> strings.add(m.getCRC(CHECK_BUFF.getBytes(US_ASCII)).toString())).count()
            ,strings.stream().distinct().count()
            ,"All toString value for different CRCs has to be different");
     }
 
     @Test
     void testToStringFormat() {
-        byte[] buff = CHECK_BUFF.getBytes();
+        byte[] buff = CHECK_BUFF.getBytes(US_ASCII);
         assertEquals("CRC-64/XZ[crc:0x995dc9bbdf1939fa,len:9]", CrcModel.CRC64_XZ.getCRC(buff).toString(),
                 "toString() has to show a 64-bit crc value as unsigned hexadecimal number");
         assertEquals("CRC-32[crc:0xcbf43926,len:9]", CrcModel.CRC32.getCRC(buff).toString(), "Wrong toString() of CRC-32");

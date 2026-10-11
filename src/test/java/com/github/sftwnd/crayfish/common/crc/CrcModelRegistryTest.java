@@ -30,6 +30,7 @@ import static com.github.sftwnd.crayfish.common.crc.CrcModel.CRC32_ISO_HDLC;
 import static com.github.sftwnd.crayfish.common.crc.CrcModel.construct;
 import static com.github.sftwnd.crayfish.common.crc.CrcModel.getModels;
 import static com.github.sftwnd.crayfish.common.crc.CrcModel.lookUp;
+import static java.nio.charset.StandardCharsets.US_ASCII;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -169,7 +170,7 @@ class CrcModelRegistryTest {
                         getModels().count();
                         lookUp("CRC-29/TEST-REGISTRY-UNKNOWN");
                         // parameters of a predefined model: CrcDescription.getCRC() looks the model up in the registry
-                        new CrcDescription(32, 0x04C11DB7L, 0xFFFFFFFFL, true, true, 0xFFFFFFFFL).getCRC().update(CHECK_BUFF.getBytes());
+                        new CrcDescription(32, 0x04C11DB7L, 0xFFFFFFFFL, true, true, 0xFFFFFFFFL).getCRC().update(CHECK_BUFF.getBytes(US_ASCII));
                     } while (!registered.get());
                     return null;
                 }));

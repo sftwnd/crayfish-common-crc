@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import java.util.Optional;
 
 import static com.github.sftwnd.crayfish.common.crc.CrcModel.getModels;
+import static java.nio.charset.StandardCharsets.US_ASCII;
 import static org.junit.jupiter.api.Assertions.*;
 
 class CrcDescriptionTest {
@@ -22,7 +23,7 @@ class CrcDescriptionTest {
 
     @Test
     void testGetCRC() {
-        byte[] buff = "123456789".getBytes();
+        byte[] buff = "123456789".getBytes(US_ASCII);
         getModels().forEach(
                 model -> {
                     CrcDescription crcDescription = model.getCrcDescription();
@@ -54,7 +55,7 @@ class CrcDescriptionTest {
                     "A CrcDescription with the width " + width + " has to be rejected");
         }
         // the limits 1 and 64 are valid widths
-        byte[] buff = "123456789".getBytes();
+        byte[] buff = "123456789".getBytes(US_ASCII);
         for (CrcDescription description : new CrcDescription[]{
                 new CrcDescription(1, 0x1, 0x0, false, false, 0x0),
                 new CrcDescription(64, 0x42F0E1EBA9EA3693L, 0x0, false, false, 0x0)}) {
@@ -80,7 +81,7 @@ class CrcDescriptionTest {
     void testEqualsAndHashCodeDoNotChangeOnFirstUse() {
         CrcDescription unused = new CrcDescription(13, 0x1CF5, 0x1, true, true, 0x2);
         CrcModel model = CrcModel.construct("CRC-13/TEST-EQUALS-HASHCODE", new CrcDescription(13, 0x1CF5, 0x1, true, true, 0x2));
-        model.getCRC().update("123456789".getBytes());
+        model.getCRC().update("123456789".getBytes(US_ASCII));
         CrcDescription used = model.getCrcDescription();
         assertNotNull(used.table_byte, "The lookup table of the used CrcDescription has to be built");
         assertEquals(unused, used, "Used CrcDescription has to be equal to an unused one with the same parameters");
