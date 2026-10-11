@@ -96,12 +96,45 @@ class CRCTest {
     void testGetCrc() {
         getModels(m -> m.getCheck() != null).forEach(
                 m -> {
+                    long emptyCrc = CrcReference.crc(m.getCrcDescription(), new byte[0]);
                     CRC crc = m.getCRC();
-                    assertEquals(m.getInit(), crc.getCrc(), "Clear CRC value has to be equals model initial value");
+                    assertEquals(emptyCrc, crc.getCrc(), "Clear CRC value has to be equal to the CRC of the empty message");
                     assertEquals(m.getCheck(), crc.update(CHECK_BUFF.getBytes()).getCrc(), "CRC value of 123456789 has to be equals model check value");
-                    assertEquals(m.getInit(), m.getCRC(null).getCrc(), "CRC value of empty buff has to be equals model initial value");
+                    assertEquals(emptyCrc, m.getCRC(null).getCrc(), "CRC value of empty buff has to be equal to the CRC of the empty message");
                 }
         );
+    }
+
+    @Test
+    void testGetCrcOfEmptyInput() {
+        byte[] buff = CHECK_BUFF.getBytes();
+        getModels().forEach(m -> {
+            long emptyCrc = CrcReference.crc(m.getCrcDescription(), new byte[0]);
+            String model = "Model " + m;
+            assertEquals(emptyCrc, m.getCRC(new byte[0]).getCrc(), model + ": crc of an empty buff has to be equal to the CRC of the empty message");
+            assertEquals(emptyCrc, m.getCRC(buff, 0).getCrc(), model + ": crc of 0 bytes of buff has to be equal to the CRC of the empty message");
+            assertEquals(emptyCrc, m.getCRC(buff, 4, 0).getCrc(), model + ": crc of 0 bytes from offset 4 has to be equal to the CRC of the empty message");
+            assertEquals(emptyCrc, m.getCRC().update(new byte[0]).update(buff, 4, 0).update(null, 0, 1).getCrc(),
+                    model + ": update without data has not got to change the CRC of the empty message");
+            assertEquals(emptyCrc, m.getCRC().copy().getCrc(), model + ": copy of a clear CRC has to keep the CRC of the empty message");
+            assertEquals(emptyCrc, m.getCRC().combine(m.getCRC()).getCrc(), model + ": combine of two clear CRCs has to be equal to the CRC of the empty message");
+            assertEquals(emptyCrc, m.getCRC().combine(m.getCheck(), 0), model + ": combine of a clear CRC with 0 bytes has to be equal to the CRC of the empty message");
+            CRC empty = m.getCRC();
+            assertEquals(m.getCheck(), m.getCRC(empty.getCrc(), empty.getLength()).update(buff).getCrc(),
+                    model + ": calculation continued from a clear CRC has to give the check value");
+        });
+    }
+
+    @Test
+    void testGetCrcOfEmptyInputKnownValues() {
+        assertEquals(new java.util.zip.CRC32().getValue(), CrcModel.CRC32.getCRC().getCrc(), "CRC-32 of the empty message has to be equal to java.util.zip.CRC32");
+        assertEquals(0x0L, CrcModel.CRC32.getCRC(new byte[0]).getCrc(), "Wrong CRC-32 of the empty message");
+        assertEquals(0x0L, CrcModel.CRC32_ISCSI.getCRC().getCrc(), "Wrong CRC-32/ISCSI of the empty message");
+        assertEquals(0x0L, CrcModel.CRC64_XZ.getCRC().getCrc(), "Wrong CRC-64/XZ of the empty message");
+        assertEquals(0x0L, CrcModel.CRC16_X_25.getCRC().getCrc(), "Wrong CRC-16/X-25 of the empty message");
+        assertEquals(0xFFFFFFFFL, CrcModel.CRC32_CKSUM.getCRC().getCrc(), "Wrong CRC-32/CKSUM of the empty message");
+        assertEquals(0x554DL, CrcModel.CRC16_RIELLO.getCRC().getCrc(), "Wrong CRC-16/RIELLO of the empty message");
+        assertEquals(0x7L, CrcModel.CRC3_GSM.getCRC().getCrc(), "Wrong CRC-3/GSM of the empty message");
     }
 
     @Test
