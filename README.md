@@ -66,7 +66,9 @@ Crc Model is an object for usage of CrcDescription with name and check code.
     long checkCode = 0x4L;
     CrcModel crcModel3 = CrcModel.construct("MyModel", crcDescription, checkCode);
 ```
-_P.S.> The checkValue will be calculated if it is not defined._
+_P.S.> The check value is calculated if it is not given. A given check value is verified: `construct()` throws
+`IllegalArgumentException` if it is not the CRC of the ASCII bytes of `"123456789"`. A name belongs to one parameter set:
+`construct()` throws `IllegalArgumentException` for a name that is used by a model with other parameters._
 
 ### Use predefined CrcModel
 ```java
