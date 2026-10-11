@@ -4,11 +4,11 @@
 
     <groupId>com.github.sftwnd.crayfish.common</groupId>
     <artifactId>crayfish-common-crc</artifactId>
-    <version>1.0.1</version>
+    <version>1.0.2</version>
 
     <name>CrayFish :: COMMON :: Crc</name>
     <description>
-        Generic Java language CRC implementation (includes CRC16, CRC32, CRC64, etc). With more than 170 predefined CRC like: CRC-32/ISO-HDLC, CRC-64/ECMA-182,...
+        Generic Java CRC implementation (CRC-16, CRC-32, CRC-64, etc.) with 101 predefined CRC algorithms (173 names including aliases), such as CRC-32/ISO-HDLC, CRC-64/ECMA-182 and CRC-8/SMBUS.
     </description>
     <url>https://github.com/sftwnd/crayfish-common-crc</url>
 
@@ -30,24 +30,11 @@
     </developers>
 
     <scm>
-        <url>https://github.com.github.sftwnd/crayfish-common-crc</url>
+        <url>https://github.com/sftwnd/crayfish-common-crc</url>
         <connection>scm:git:https://github.com/sftwnd/crayfish-common-crc.git</connection>
         <developerConnection>scm:git:git@github.com:sftwnd/crayfish-common-crc.git</developerConnection>
-        <tag>crayfish-common-crc-1.0.1</tag>
+        <tag>crayfish-common-crc-1.0.2</tag>
     </scm>
-
-    <distributionManagement>
-        <repository>
-            <id>sonatype-nexus-staging</id>
-            <name>Nexus Release Repository</name>
-            <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
-        </repository>
-        <snapshotRepository>
-            <id>sonatype-nexus-snapshots</id>
-            <name>Sonatype Nexus Snapshots</name>
-            <url>https://oss.sonatype.org/content/repositories/snapshots/</url>
-        </snapshotRepository>
-    </distributionManagement>
 
     <properties>
         <java.version>1.8</java.version>
@@ -56,7 +43,8 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <javaModuleName>com.github.sftwnd.crayfish_common_crc</javaModuleName>
         <spotbugs-annotations.version>4.7.3</spotbugs-annotations.version>
-        <lombok.version>1.18.26</lombok.version>
+        <lombok.version>1.18.48</lombok.version>
+        <lombok-maven-plugin.version>1.18.20.0</lombok-maven-plugin.version>
         <junit.version>5.9.2</junit.version>
         <maven-compiler-plugin.version>3.10.1</maven-compiler-plugin.version>
         <maven-gpg-plugin.version>3.0.1</maven-gpg-plugin.version>
@@ -66,13 +54,19 @@
         <maven-source-plugin.version>3.2.1</maven-source-plugin.version>
         <maven-surefire-plugin.version>2.22.2</maven-surefire-plugin.version>
         <jacoco-maven-plugin.version>0.8.8</jacoco-maven-plugin.version>
+        <!-- bnd 7 requires Java 17, the build has to run on Java 8 -->
+        <bnd-maven-plugin.version>6.4.0</bnd-maven-plugin.version>
+        <central-publishing-maven-plugin.version>0.11.0</central-publishing-maven-plugin.version>
+        <sonar-maven-plugin.version>5.8.0.7211</sonar-maven-plugin.version>
     </properties>
 
     <dependencies>
+        <!-- optional: NonNull/Nullable are CLASS-retention marker annotations, consumers need neither this jar
+             nor its dependency jsr305 (package javax.annotation) to compile or to run -->
         <dependency>
             <groupId>com.github.spotbugs</groupId>
             <artifactId>spotbugs-annotations</artifactId>
-            <scope>compile</scope>
+            <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
@@ -106,7 +100,34 @@
                         <arg>-Xlint:-processing</arg>
                     </compilerArgs>
                     <showWarnings>true</showWarnings>
+                    <!-- JDK 23+ runs annotation processors only when they are configured explicitly -->
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
                 </configuration>
+            </plugin>
+            <plugin>
+                <!-- delomboked sources for the Javadoc, which otherwise misses the Lombok-generated API -->
+                <groupId>org.projectlombok</groupId>
+                <artifactId>lombok-maven-plugin</artifactId>
+                <configuration>
+                    <sourceDirectory>${project.build.sourceDirectory}</sourceDirectory>
+                    <outputDirectory>${project.build.directory}/delombok</outputDirectory>
+                    <addOutputDirectory>false</addOutputDirectory>
+                    <skip>${maven.javadoc.skip}</skip>
+                </configuration>
+                <executions>
+                    <execution>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>delombok</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -115,7 +136,8 @@
                     <execution>
                         <id>attach-sources</id>
                         <goals>
-                            <goal>jar</goal>
+                            <!-- jar would run the generate-sources phase (and delombok) a second time -->
+                            <goal>jar-no-fork</goal>
                         </goals>
                     </execution>
                 </executions>
@@ -125,6 +147,7 @@
                 <artifactId>maven-javadoc-plugin</artifactId>
                 <configuration>
                     <source>${maven.compiler.source}</source>
+                    <sourcepath>${project.build.directory}/delombok</sourcepath>
                 </configuration>
                 <executions>
                     <execution>
@@ -157,6 +180,31 @@
                 </executions>
             </plugin>
             <plugin>
+                <!-- OSGi bundle headers -->
+                <groupId>biz.aQute.bnd</groupId>
+                <artifactId>bnd-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>bnd-process</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <bnd><![CDATA[
+Bundle-SymbolicName: com.github.sftwnd.crayfish.common.crc
+Bundle-License: BSD-3-Clause;link="https://opensource.org/licenses/BSD-3-Clause"
+Automatic-Module-Name: ${javaModuleName}
+Export-Package: com.github.sftwnd.crayfish.common.crc;version="${version;===;${Bundle-Version}}"
+# Lombok is a compile-time dependency: a reference to lombok.Lombok left by @SneakyThrows must not become an import
+Import-Package: !lombok, *
+-noextraheaders: true
+# snapshot builds get the version qualifier SNAPSHOT instead of a timestamp, so that they are reproducible
+-snapshot: SNAPSHOT
+]]></bnd>
+                </configuration>
+            </plugin>
+            <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
                 <configuration>
@@ -164,10 +212,7 @@
                         <manifest>
                             <addDefaultImplementationEntries>false</addDefaultImplementationEntries>
                         </manifest>
-                        <manifestEntries>
-                            <Automatic-Module-Name>${javaModuleName}</Automatic-Module-Name>
-                            <Export-Package>com.github.sftwnd.crayfish.common.crc</Export-Package>
-                        </manifestEntries>
+                        <manifestFile>${project.build.outputDirectory}/META-INF/MANIFEST.MF</manifestFile>
                     </archive>
                 </configuration>
             </plugin>
@@ -177,7 +222,17 @@
                 <configuration>
                     <mavenExecutorId>forked-path</mavenExecutorId>
                     <useReleaseProfile>false</useReleaseProfile>
-                    <arguments>-P!sonatype-oss-release</arguments>
+                    <releaseProfiles>sign-artifacts</releaseProfiles>
+                </configuration>
+            </plugin>
+            <plugin>
+                <!-- deploy publishes to the Central Publisher Portal (server id "central" with a Portal user token in settings.xml) -->
+                <groupId>org.sonatype.central</groupId>
+                <artifactId>central-publishing-maven-plugin</artifactId>
+                <extensions>true</extensions>
+                <configuration>
+                    <publishingServerId>central</publishingServerId>
+                    <deploymentName>${project.artifactId}-${project.version}</deploymentName>
                 </configuration>
             </plugin>
         </plugins>
@@ -199,6 +254,19 @@
                     <version>${maven-javadoc-plugin.version}</version>
                 </plugin>
                 <plugin>
+                    <groupId>org.projectlombok</groupId>
+                    <artifactId>lombok-maven-plugin</artifactId>
+                    <version>${lombok-maven-plugin.version}</version>
+                    <dependencies>
+                        <!-- the plugin depends on Lombok 1.18.20, which fails on JDK 21+ -->
+                        <dependency>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </dependency>
+                    </dependencies>
+                </plugin>
+                <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-surefire-plugin</artifactId>
                     <version>${maven-surefire-plugin.version}</version>
@@ -217,6 +285,22 @@
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-release-plugin</artifactId>
                     <version>${maven-release-plugin.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>biz.aQute.bnd</groupId>
+                    <artifactId>bnd-maven-plugin</artifactId>
+                    <version>${bnd-maven-plugin.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.sonatype.central</groupId>
+                    <artifactId>central-publishing-maven-plugin</artifactId>
+                    <version>${central-publishing-maven-plugin.version}</version>
+                </plugin>
+                <plugin>
+                    <!-- SonarCloud analysis in the GitHub Actions workflow -->
+                    <groupId>org.sonarsource.scanner.maven</groupId>
+                    <artifactId>sonar-maven-plugin</artifactId>
+                    <version>${sonar-maven-plugin.version}</version>
                 </plugin>
             </plugins>
         </pluginManagement>
@@ -248,6 +332,16 @@
     </dependencyManagement>
 
     <profiles>
+        <profile>
+            <!-- compile against the Java 8 API on JDK 9+ (-source/-target alone do not check the API) -->
+            <id>release-8-on-jdk9+</id>
+            <activation>
+                <jdk>[9,)</jdk>
+            </activation>
+            <properties>
+                <maven.compiler.release>8</maven.compiler.release>
+            </properties>
+        </profile>
         <profile>
             <id>sign-artifacts</id>
             <activation>

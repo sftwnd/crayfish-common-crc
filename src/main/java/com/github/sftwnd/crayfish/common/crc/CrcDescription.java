@@ -1,21 +1,18 @@
 /*
- * Copyright (c) 2017-20xx Andrey D. Shindarev (ashindarev@gmail.com)
+ * Copyright (c) 2017-2026 Andrey D. Shindarev (ashindarev@gmail.com)
  * This program is made available under the terms of the BSD 3-Clause License.
  */
 package com.github.sftwnd.crayfish.common.crc;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import lombok.EqualsAndHashCode;
-import lombok.Generated;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 
 import java.util.Objects;
 
 /**
  * CRC algorithm parameters holder
  */
-@RequiredArgsConstructor
 @EqualsAndHashCode
 public class CrcDescription {
 
@@ -26,13 +23,38 @@ public class CrcDescription {
     @Getter protected final boolean refot;
     @Getter protected final long    xorot;
 
+    /**
+     * Create description with the CRC parameters
+     * @param width CRC width in bits: 1..64
+     * @param poly polynomial, without the x^width term
+     * @param init initial value of the CRC register
+     * @param refin true if the input bytes are reflected
+     * @param refot true if the CRC is reflected before the final XOR
+     * @param xorot value XOR-ed to the CRC at the end
+     * @throws IllegalArgumentException if the width is not in 1..64
+     */
+    public CrcDescription(final int width, final long poly, final long init, final boolean refin, final boolean refot, final long xorot) {
+        if (width < 1 || width > 64) {
+            throw new IllegalArgumentException("CRC_model_d::new - width has to be in 1..64: " + width);
+        }
+        this.width = width;
+        this.poly = poly;
+        this.init = init;
+        this.refin = refin;
+        this.refot = refot;
+        this.xorot = xorot;
+    }
+
+    /**
+     * Create description with the parameters of another description or model
+     * @param model description or model to copy the parameters from
+     */
     @SuppressWarnings("CopyConstructorMissesField")
     public CrcDescription(@NonNull final CrcDescription model) {
         this(Objects.requireNonNull(model, "CRC_model_d::new - model is null").getWidth(),
              model.getPoly(), model.getInit(), model.isRefin(), model.isRefot(), model.getXorot());
     }
 
-    @Generated
     @Override
     public String toString() {
         return "CRC-" + getWidth()+"/P"+Long.toHexString(poly).toUpperCase()
@@ -42,10 +64,25 @@ public class CrcDescription {
              + (xorot == 0 ? "" : "_X"+Long.toHexString(xorot).toUpperCase());
     }
 
+    /**
+     * Create CRC for these parameters.
+     * The CRC uses a model registered for the parameters: if no model is registered for them yet,
+     * a new model is registered (see {@link CrcModel#construct(CrcDescription)}).
+     * @return created CRC
+     */
     public CRC getCRC() {
         return CrcModel.construct(this).getCRC();
     }
 
+    /**
+     * Create CRC for these parameters, continuing the calculation from a known crc value.
+     * The model is looked up or registered as in {@link #getCRC()}.
+     * @param crc initial crc value: crc of the bytes processed so far. Bits above the CRC width are ignored,
+     *            so a CRC-32 kept in an int can be passed as is. If len is 0, crc is ignored:
+     *            a CRC without processed data has the crc of the empty message
+     * @param len initial processed length: number of bytes processed so far
+     * @return created CRC
+     */
     public CRC getCRC(long crc, int len) {
         return CrcModel.construct(this).getCRC(crc, len);
     }
@@ -58,6 +95,8 @@ public class CrcDescription {
             // table items are not mutable and use of table is controlled in CrcModel carefully
             "java:S3077"
     })
+    // The lazily built lookup table is a cache, not a CRC parameter, so it is excluded from equals and hashCode
+    @EqualsAndHashCode.Exclude
     protected volatile long[] table_byte = null;
 
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-20xx Andrey D. Shindarev (ashindarev@gmail.com)
+ * Copyright (c) 2017-2026 Andrey D. Shindarev (ashindarev@gmail.com)
  * This program is made available under the terms of the BSD 3-Clause License.
  */
 package com.github.sftwnd.crayfish.common.crc;
@@ -7,17 +7,17 @@ package com.github.sftwnd.crayfish.common.crc;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import lombok.EqualsAndHashCode;
-import lombok.Generated;
 import lombok.Getter;
-import lombok.SneakyThrows;
 
-import java.lang.reflect.Field;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
@@ -34,15 +34,18 @@ public class CrcModel extends CrcDescription {
     @Getter public  final Long check;
     @Getter private final CrcDescription crcDescription;
 
+    // predefined model: it is added to the predefined models in declaration order
     private CrcModel(@Nullable final String name, final int width, final long poly, final long init, final boolean refin, final boolean refot, final long xorot, @Nullable final Long check) {
         this(name, new CrcDescription(width, poly, init, refin, refot, xorot), check);
+        predefine(this);
     }
 
     private CrcModel(@Nullable final String name, @NonNull final CrcDescription model, @Nullable final Long check) {
         super(_config(Objects.requireNonNull(model, "CRC_model_t::new - model is null")));
-        this.name = name == null ? super.toString() : name;
+        // a generated name shows the original parameters, not the processed ones of this object
+        this.name = name == null ? new CrcDescription(model).toString() : name;
         this.crcDescription = model;
-        this.check = Optional.ofNullable(check).orElseGet(() -> new CrcModel(null, model, -1L).getCRC().update(CHECK_BUFF.getBytes()).getCrc());
+        this.check = Optional.ofNullable(check).orElseGet(() -> new CrcModel(null, model, -1L).getCRC().update(CHECK_BUFF.getBytes(StandardCharsets.US_ASCII)).getCrc());
     }
 
     @Override
@@ -60,11 +63,13 @@ public class CrcModel extends CrcDescription {
         return crcDescription.isRefot();
     }
 
+    /**
+     * Create CRC for this model
+     * @return created CRC
+     */
     @Override
     public @NonNull CRC getCRC() {
-        CRC result = new CRC(this);
-        _init();
-        return result;
+        return new CRC(this);
     }
 
     /**
@@ -98,16 +103,16 @@ public class CrcModel extends CrcDescription {
     }
 
     /**
-     * Create CRC and update by the value of buff
-     * @param crc initial crc value
-     * @param len initial processed length
+     * Create CRC that continues the calculation from a known crc value
+     * @param crc initial crc value: crc of the bytes processed so far. Bits above the CRC width are ignored,
+     *            so a CRC-32 kept in an int can be passed as is. If len is 0, crc is ignored:
+     *            a CRC without processed data has the crc of the empty message
+     * @param len initial processed length: number of bytes processed so far
      * @return created CRC
      */
     @Override
     public @NonNull CRC getCRC(long crc, int len) {
-        CRC result = new CRC(this, crc, len);
-        _init();
-        return result;
+        return new CRC(this, crc, len);
     }
 
     @Override
@@ -115,21 +120,29 @@ public class CrcModel extends CrcDescription {
         return name;
     }
 
-    // This DCL is correct because variable is volatile and initialization makes before
     protected void _init() {
-        if (this.table_byte == null) {
-            synchronized (this.crcDescription) {
-                if (this.crcDescription.table_byte == null) {
-                    this.crcDescription.table_byte = _createBytewiseTable();
-                }
-                this.table_byte = this.crcDescription.table_byte;
+        lookupTable();
+    }
+
+    // the lookup table, built on first use without a lock: the model takes the table of its description if it is built
+    // already, otherwise it builds the table and stores it there. Threads that build it at the same time build identical
+    // tables, and the volatile fields publish them completely
+    private long[] lookupTable() {
+        long[] table = this.table_byte;
+        if (table == null) {
+            table = this.crcDescription.table_byte;
+            if (table == null) {
+                table = _createBytewiseTable();
+                this.crcDescription.table_byte = table;
             }
+            this.table_byte = table;
         }
+        return table;
     }
 
     /**
-     * Process the model data for th calculation.
-     * constants will be equals of original values, but variables - changed
+     * Process the model data for the calculation: the fields of the model get the processed values,
+     * the getters return the original parameters
      */
     @SuppressWarnings("java:S3358")
     private static CrcDescription _config(@NonNull final CrcDescription model) {
@@ -212,23 +225,24 @@ public class CrcModel extends CrcDescription {
         }
 
         /* process the input data a byte at a time */
+        long[] table = lookupTable();
         if (refin) {
             crc &= widmask(width);
             while (len-- > 0) {
-                crc = (crc >>> 8) ^ table_byte[(int) ((crc ^ buf[offset++]) & 0xff)];
+                crc = (crc >>> 8) ^ table[(int) ((crc ^ buf[offset++]) & 0xff)];
             }
         } else if (width <= 8) {
             int shift = 8 - width;           /* 0..7 */
             crc <<= shift;
             while (len-- > 0) {
-                crc = table_byte[(int) (crc ^ buf[offset++])];
+                crc = table[(int) ((crc ^ buf[offset++]) & 0xff)];
             }
             crc >>>= shift;
         } else {
             int shift = width - 8;           /* 1..WORDBITS-8 */
             while (len-- > 0) {
                 crc = (crc << 8) ^
-                      table_byte[(int) (((crc >>> shift) ^ (buf[offset++] & 0xff)) & 0xff)];
+                      table[(int) (((crc >>> shift) ^ (buf[offset++] & 0xff)) & 0xff)];
             }
             crc &= widmask(width);
         }
@@ -239,85 +253,143 @@ public class CrcModel extends CrcDescription {
         return crc;
     }
 
-    private static final List<CrcModel> models = new ArrayList<>();
+    // registered models: a stream of the list works on a snapshot, so registration does not break running streams
+    private static final List<CrcModel> models = new CopyOnWriteArrayList<>();
+
+    // predefined models in declaration order, every primary model before its aliases: they add themselves
+    // while the class is initialized, so the list has to be declared before them; it is not changed afterwards
+    private static final List<CrcModel> predefinedModels = new ArrayList<>();
+
+    // indexes of all registered models, the predefined ones included: the first model for every name, and the models
+    // for every parameter set in the order of registration; they are changed while holding the lock on models
+    private static final Map<String, CrcModel> modelsByName = new ConcurrentHashMap<>();
+    private static final Map<CrcDescription, List<CrcModel>> modelsByParameters = new ConcurrentHashMap<>();
+
+    // adds a predefined model while the class is initialized
+    private static void predefine(@NonNull final CrcModel model) {
+        predefinedModels.add(model);
+        index(model);
+    }
+
+    private static void index(@NonNull final CrcModel model) {
+        modelsByName.putIfAbsent(model.getName(), model);
+        modelsByParameters.merge(model.getCrcDescription(), Collections.singletonList(model), (registered, added) -> {
+            List<CrcModel> all = new ArrayList<>(registered);
+            all.addAll(added);
+            return Collections.unmodifiableList(all);
+        });
+    }
 
     /**
-     * Stream of all registered models
+     * Stream of all registered models.
+     * The stream contains the models registered at the time of the call
      * @return stream of models
      */
     public static @NonNull Stream<CrcModel> getModels() {
         return getModels(null);
     }
 
-    @Generated
-    @SneakyThrows
-    private static CrcModel castModel(Field field) {
-        if (field != null && field.getType().equals(CrcModel.class)) {
-            try {
-                return (CrcModel) field.get(0);
-            } catch (IllegalAccessException iaex) {
-                return null;
-            }
+    // removes the models registered at run time, the predefined models stay: the tests start from the same registry
+    static void removeRegisteredModels() {
+        synchronized (models) {
+            models.clear();
+            modelsByName.clear();
+            modelsByParameters.clear();
+            predefinedModels.forEach(CrcModel::index);
         }
-        return null;
     }
 
     /**
-     * Stream of all registered models
+     * Stream of all registered models.
+     * The stream contains the models registered at the time of the call: models registered later,
+     * even while the stream is processed, are not included
      * @param filter filter predicate for models
      * @return stream of models
      */
     public static @NonNull Stream<CrcModel> getModels(@Nullable final Predicate<? super CrcModel> filter) {
-        synchronized (models) {
-            return Stream.concat(
-                    Arrays.stream(CrcModel.class.getDeclaredFields())
-                            .map(CrcModel::castModel)
-                            .filter(Objects::nonNull)
-                            .map(CrcModel.class::cast)
-                    , models.stream()
-            ).filter(filter == null ? m -> true : filter);
-        }
+        return Stream.concat(predefinedModels.stream(), models.stream())
+                     .filter(filter == null ? m -> true : filter);
     }
 
     /**
-     * Look up Crc Model by the name
+     * Look up Crc Model by the name.
+     * The misspelled names "CCRC-5/G-704" and "CRC32_C " of the versions 1.0.0 and 1.0.1 are accepted as well:
+     * they return {@link #CRC5_G_704} and {@link #CRC32_C}
      * @param name Name of model
      * @return CrcModel for the name or null
      */
     public static @Nullable
     CrcModel lookUp(@Nullable final String name) {
-        return name == null ? null
-                : getModels(m -> name.equals(m.getName())).findFirst().orElse(null);
+        return name == null ? null : Optional.ofNullable(modelsByName.get(name)).orElseGet(() -> legacyModel(name));
     }
 
-    @Generated
-    private static @NonNull String modelNameFirst(@NonNull final CrcModel model, @Nullable final String name) {
-        return (model.getName().equals(name) ? "a" : "b") + model.getName();
+    // predefined models with a misspelled name in the versions 1.0.0 and 1.0.1
+    private static @Nullable CrcModel legacyModel(@NonNull final String name) {
+        switch (name) {
+            case "CCRC-5/G-704": return CRC5_G_704;
+            case "CRC32_C ":     return CRC32_C;
+            default:             return null;
+        }
     }
 
     /**
-     * Creation and registration of CrcModel
+     * Creation and registration of CrcModel.
+     * A registered model with the parameters of crcDescription is returned: the model with the given name,
+     * otherwise crcDescription itself if it is a registered model, otherwise the model registered first for these
+     * parameters (for predefined parameters the primary model, not an alias). A new model is registered
+     * if no model with these parameters is registered, or if a name is given and none of them has it
      * @param name Name of model
      * @param crcDescription CrcDescription
      * @param value Check value
      * @return registered model
      */
     public static @NonNull CrcModel construct(@Nullable final String name, @NonNull final CrcDescription crcDescription, @Nullable final Long value) {
-        return getModels(m -> Optional.of(Objects.requireNonNull(crcDescription, "CrcModel::construct - crcDescription is null"))
-                .filter(CrcModel.class::isInstance).map(CrcModel.class::cast)
-                .map(CrcModel::getCrcDescription)
-                .orElse(crcDescription)
-                .equals(m.getCrcDescription()))
-                .min(Comparator.comparing(mdl -> modelNameFirst(mdl, name)))
-                .map(model -> (name == null || model.getName().equals(name)) ? model : registerModel(name, model.getCrcDescription(), model.getCheck()))
-                .orElseGet(() -> registerModel(name, crcDescription, value));
+        Objects.requireNonNull(crcDescription, "CrcModel::construct - crcDescription is null");
+        // a registered model is returned without the lock
+        Optional<CrcModel> registered = findModel(name, crcDescription)
+                .filter(model -> name == null || model.getName().equals(name));
+        if (registered.isPresent()) {
+            return registered.get();
+        }
+        // lookup and registration as one step: concurrent calls register the model only once
+        synchronized (models) {
+            return findModel(name, crcDescription)
+                    .map(model -> (name == null || model.getName().equals(name)) ? model : registerModel(name, model.getCrcDescription(), model.getCheck()))
+                    // a copy: the description of the caller is neither kept nor changed
+                    .orElseGet(() -> registerModel(name, new CrcDescription(crcDescription), value));
+        }
     }
 
-    private static CrcModel registerModel(@Nullable String name, @NonNull CrcDescription crcDescription, @Nullable Long checkValue) {
-        CrcModel crcModel = new CrcModel(name, crcDescription, checkValue);
-        synchronized (models) {
-            models.add(crcModel);
+    // registered model with the same parameters: the model with the requested name, otherwise the model passed in
+    // if it is registered, otherwise the first registered one, which later registrations do not change:
+    // the primary predefined model, or the model registered first at run time
+    private static Optional<CrcModel> findModel(@Nullable final String name, @NonNull final CrcDescription crcDescription) {
+        List<CrcModel> registered = modelsByParameters.getOrDefault(parameters(crcDescription), Collections.emptyList());
+        Optional<CrcModel> model = registered.stream().filter(m -> m.getName().equals(name)).findFirst();
+        if (!model.isPresent()) {
+            model = registered.stream().filter(m -> m == crcDescription).findFirst();
         }
+        return model.isPresent() ? model : registered.stream().findFirst();
+    }
+
+    // the parameters of a description as key of the index: a plain CrcDescription, as the models keep it
+    private static CrcDescription parameters(@NonNull final CrcDescription description) {
+        if (description instanceof CrcModel) {
+            return ((CrcModel) description).getCrcDescription();
+        }
+        return description.getClass() == CrcDescription.class ? description : new CrcDescription(description);
+    }
+
+    // has to be called while holding the lock on models
+    private static CrcModel registerModel(@Nullable String name, @NonNull CrcDescription crcDescription, @Nullable Long checkValue) {
+        // a misspelled name of 1.0.x with the parameters of its model denotes the predefined model
+        CrcModel legacy = name == null ? null : legacyModel(name);
+        if (legacy != null && legacy.getCrcDescription().equals(crcDescription)) {
+            return legacy;
+        }
+        CrcModel crcModel = new CrcModel(name, crcDescription, checkValue);
+        models.add(crcModel);
+        index(crcModel);
         return crcModel;
     }
 
@@ -350,9 +422,11 @@ public class CrcModel extends CrcDescription {
         return construct(name, crcDescription, null);
     }
 
-    @Generated
+    // predefined alias: it is added to the predefined models in declaration order, after its primary model
     private static @NonNull CrcModel alias(@NonNull final String name, @NonNull CrcModel model) {
-        return new CrcModel(name, model.getCrcDescription(), model.getCheck());
+        CrcModel alias = new CrcModel(name, model.getCrcDescription(), model.getCheck());
+        predefine(alias);
+        return alias;
     }
 
     protected final long reflect(long value) {
@@ -388,6 +462,11 @@ public class CrcModel extends CrcDescription {
     }
 
     protected static long crc_general_combine(long crc1, long crc2, int len2, int width, long init, long poly, long xorot, boolean reflect) {
+        return crc_general_combine(crc1, crc2, (long) len2, width, init, poly, xorot, reflect);
+    }
+
+    // len2 is a long: CRC.combine(CRC) combines with buffers of 2 GiB and more
+    static long crc_general_combine(long crc1, long crc2, long len2, int width, long init, long poly, long xorot, boolean reflect) {
         int n;
         long col;
         long[] even = new long[width];          /* even-power-of-two zeros operator */
@@ -469,7 +548,7 @@ public class CrcModel extends CrcDescription {
     // CRC-5
     public static final CrcModel CRC5_EPC_C1G2           = new CrcModel("CRC-5/EPC-C1G2", 5, 0x9, 0x9, false, false, 0x0, 0x0L);
     public static final CrcModel CRC5_EPC                = alias("CRC-5/EPC", CRC5_EPC_C1G2);
-    public static final CrcModel CRC5_G_704              = new CrcModel("CCRC-5/G-704", 5, 0x15, 0x0, true, true, 0x0, 0x7L);
+    public static final CrcModel CRC5_G_704              = new CrcModel("CRC-5/G-704", 5, 0x15, 0x0, true, true, 0x0, 0x7L);
     public static final CrcModel CRC5_ITU                = alias("CRC-5/ITU", CRC5_G_704);
     public static final CrcModel CRC5_USB                = new CrcModel("CRC-5/USB", 5, 0x5, 0x1F, true, true, 0x1F, 0x19L);
 
@@ -492,7 +571,10 @@ public class CrcModel extends CrcDescription {
     public static final CrcModel CRC8                    = alias("CRC-8", CRC8_SMBUS);
     public static final CrcModel CRC8_AUTOSAR            = new CrcModel("CRC-8/AUTOSAR", 8, 0x2F, 0xFF, false, false, 0xFF, 0xDFL);
     public static final CrcModel CRC8_BLUETOOTH          = new CrcModel("CRC-8/BLUETOOTH", 8, 0xA7, 0x0, true, true, 0x0, 0x26L);
-    public static final CrcModel CRC8_CDMA_2000          = new CrcModel("CRC-8/CDMA2000", 8, 0x9B, 0xFF, false, false, 0x0, 0xDAL);
+    public static final CrcModel CRC8_CDMA2000           = new CrcModel("CRC-8/CDMA2000", 8, 0x9B, 0xFF, false, false, 0x0, 0xDAL);
+    /** @deprecated since 1.0.2, use {@link #CRC8_CDMA2000} */
+    @Deprecated
+    public static final CrcModel CRC8_CDMA_2000          = CRC8_CDMA2000;
     public static final CrcModel CRC8_DARC               = new CrcModel("CRC-8/DARC", 8, 0x39, 0x0, true, true, 0x0, 0x15L);
     public static final CrcModel CRC8_DVB_S2             = new CrcModel("CRC-8/DVB-S2", 8, 0xD5, 0x0, false, false, 0x0, 0xBCL);
     public static final CrcModel CRC8_TECH_3250          = new CrcModel("CRC-8/TECH-3250", 8, 0x1D, 0xFF, true, true, 0x0, 0x97L);
@@ -500,7 +582,10 @@ public class CrcModel extends CrcDescription {
     public static final CrcModel CRC8_EBU                = alias("CRC-8/EBU", CRC8_TECH_3250);
     public static final CrcModel CRC8_GSM_A              = new CrcModel("CRC-8/GSM-A", 8, 0x1D, 0x0, false, false, 0x0, 0x37L);
     public static final CrcModel CRC8_GSM_B              = new CrcModel("CRC-8/GSM-B", 8, 0x49, 0x0, false, false, 0xFF, 0x94L);
-    public static final CrcModel CRC8_ICODE              = new CrcModel("CRC-8/I-CODE", 8, 0x1D, 0xFD, false, false, 0x0, 0x7EL);
+    public static final CrcModel CRC8_I_CODE             = new CrcModel("CRC-8/I-CODE", 8, 0x1D, 0xFD, false, false, 0x0, 0x7EL);
+    /** @deprecated since 1.0.2, use {@link #CRC8_I_CODE} */
+    @Deprecated
+    public static final CrcModel CRC8_ICODE              = CRC8_I_CODE;
     public static final CrcModel CRC8_I_432_1            = new CrcModel("CRC-8/I-432-1", 8, 0x7, 0x0, false, false, 0x55, 0xA1L);
     public static final CrcModel CRC8_ITU                = alias("CRC-8/ITU", CRC8_I_432_1);
     public static final CrcModel CRC8_LTE                = new CrcModel("CRC-8/LTE", 8, 0x9B, 0x0, false, false, 0x0, 0xEAL);
@@ -566,7 +651,10 @@ public class CrcModel extends CrcDescription {
     public static final CrcModel CRC16_DECT_X            = new CrcModel("CRC-16/DECT-X", 16, 0x589, 0x0, false, false, 0x0, 0x7FL);
     public static final CrcModel X_CRC_16                = alias("X-CRC-16", CRC16_DECT_X);
     public static final CrcModel CRC16_DNP               = new CrcModel("CRC-16/DNP", 16, 0x3D65, 0x0, true, true, 0xFFFF, 0xEA82L);
-    public static final CrcModel CRC16_EN13757           = new CrcModel("CRC-16/EN-13757", 16, 0x3D65, 0x0, false, false, 0xFFFF, 0xC2B7L);
+    public static final CrcModel CRC16_EN_13757          = new CrcModel("CRC-16/EN-13757", 16, 0x3D65, 0x0, false, false, 0xFFFF, 0xC2B7L);
+    /** @deprecated since 1.0.2, use {@link #CRC16_EN_13757} */
+    @Deprecated
+    public static final CrcModel CRC16_EN13757           = CRC16_EN_13757;
     public static final CrcModel CRC16_GENIBUS           = new CrcModel("CRC-16/GENIBUS", 16, 0x1021, 0xFFFF, false, false, 0xFFFF, 0xD64EL);
     public static final CrcModel CRC16_DARC              = alias("CRC-16/DARC", CRC16_GENIBUS);
     public static final CrcModel CRC16_EPC               = alias("CRC-16/EPC", CRC16_GENIBUS);
@@ -606,7 +694,10 @@ public class CrcModel extends CrcDescription {
     public static final CrcModel CRC16_ISO_HDLC          = alias("CRC-16/ISO-HDLC", CRC16_IBM_SDLC);
     public static final CrcModel CRC16_ISO_IEC_14443_3_B = alias("CRC-16/ISO-IEC-14443-3-B", CRC16_IBM_SDLC);
     public static final CrcModel CRC16_X_25              = alias("CRC-16/X-25", CRC16_IBM_SDLC);
-    public static final CrcModel CRCB                    = alias("CRC-B", CRC16_IBM_SDLC);
+    public static final CrcModel CRC_B                   = alias("CRC-B", CRC16_IBM_SDLC);
+    /** @deprecated since 1.0.2, use {@link #CRC_B} */
+    @Deprecated
+    public static final CrcModel CRCB                    = CRC_B;
     public static final CrcModel X_25                    = alias("X-25", CRC16_IBM_SDLC);
 
     // CRC-17
@@ -635,7 +726,10 @@ public class CrcModel extends CrcDescription {
     public static final CrcModel CRC32_ISO_HDLC          = new CrcModel("CRC-32/ISO-HDLC", 32, 0x04C11DB7L, 0xFFFFFFFFL, true, true, 0xFFFFFFFFL, 0xCBF43926L);
     public static final CrcModel CRC32                   = alias("CRC-32", CRC32_ISO_HDLC);
     public static final CrcModel CRC32_ADCCP             = alias("CRC-32/ADCCP", CRC32_ISO_HDLC);
-    public static final CrcModel CRC32_V42               = alias("CRC-32/V-42", CRC32_ISO_HDLC);
+    public static final CrcModel CRC32_V_42              = alias("CRC-32/V-42", CRC32_ISO_HDLC);
+    /** @deprecated since 1.0.2, use {@link #CRC32_V_42} */
+    @Deprecated
+    public static final CrcModel CRC32_V42               = CRC32_V_42;
     public static final CrcModel CRC32_XZ                = alias("CRC-32/XZ", CRC32_ISO_HDLC);
     public static final CrcModel PKZIP                   = alias("PKZIP", CRC32_ISO_HDLC);
     public static final CrcModel CRC32_AUTOSAR           = new CrcModel("CRC-32/AUTOSAR", 32, 0xF4ACFB13L, 0xFFFFFFFFL, true, true, 0xFFFFFFFFL, 0x1697D06AL);
@@ -647,7 +741,7 @@ public class CrcModel extends CrcDescription {
     public static final CrcModel CRC32_BASE91_C          = alias("CRC-32/BASE91-C", CRC32_ISCSI);
     public static final CrcModel CRC32_CASTAGNOLI        = alias("CRC-32/CASTAGNOLI", CRC32_ISCSI);
     public static final CrcModel CRC32_INTERLAKEN        = alias("CRC-32/INTERLAKEN", CRC32_ISCSI);
-    public static final CrcModel CRC32_C                 = alias("CRC32_C ", CRC32_ISCSI);
+    public static final CrcModel CRC32_C                 = alias("CRC-32C", CRC32_ISCSI);
     public static final CrcModel CRC32_BASE91_D          = new CrcModel("CRC-32/BASE91-D", 32, 0xA833982BL, 0xFFFFFFFFL, true, true, 0xFFFFFFFFL, 0x87315576L);
     public static final CrcModel CRC32_D                 = alias("CRC-32D", CRC32_BASE91_D);
     public static final CrcModel CRC32_JAMCRC            = new CrcModel("CRC-32/JAMCRC", 32, 0x04C11DB7L, 0xFFFFFFFFL, true, true, 0x00000000L, 0x340BC6D9L);

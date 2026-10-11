@@ -1,14 +1,14 @@
 /*
- * Copyright (c) 2017-20xx Andrey D. Shindarev (ashindarev@gmail.com)
+ * Copyright (c) 2017-2026 Andrey D. Shindarev (ashindarev@gmail.com)
  * This program is made available under the terms of the BSD 3-Clause License.
  */
 package com.github.sftwnd.crayfish.common.crc;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import lombok.EqualsAndHashCode;
-import lombok.Generated;
 import lombok.Getter;
 
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -20,13 +20,16 @@ import static com.github.sftwnd.crayfish.common.crc.CrcModel.crc_general_combine
  * @since 1.0.0
  * @author Andrey D. Shindarev
  */
-@EqualsAndHashCode
+// the fields are compared, not the getters: getLength() throws for 2 GiB and more,
+// and the crc field of a CRC without data always holds the crc of the empty message (see the constructor)
+@EqualsAndHashCode(doNotUseGetters = true)
 public final class CRC {
 
     @Getter private final CrcModel model;
     @SuppressWarnings("java:S1700")
     long crc;
-    @Getter private int length;
+    // number of processed bytes: a long, so that it neither turns negative at 2 GiB nor wraps to 0 at 4 GiB
+    private long length;
 
     /**
      * Construct CRC as copy of CRC
@@ -40,9 +43,10 @@ public final class CRC {
     }
 
     /**
-     * Construct CRC for defined model with defined crc value and length
+     * Construct CRC for defined model with defined crc value and length.
+     * The lookup table of the model is built if the model has not been used yet
      * @param model CRC model
-     * @param crc crc value
+     * @param crc crc value; bits above the CRC width are ignored
      * @param length length of calculated buffer
      */
     CRC(@NonNull final CrcModel model, long crc, int length) {
@@ -50,7 +54,9 @@ public final class CRC {
             throw new IllegalArgumentException("CRC::new - length less than 0");
         }
         this.model = Objects.requireNonNull(model, "CRC::new - model is null");
-        this.crc = crc;
+        this.model._init();
+        // bits above the CRC width are ignored, for example the sign extension of a CRC-32 kept in an int
+        this.crc = length == 0 ? this.model.init : crc & CrcModel.widmask(this.model.getWidth());
         this.length = length;
     }
 
@@ -66,17 +72,27 @@ public final class CRC {
      * Copy CRC
      * @return copy of current CRC
      */
-    @Generated
     public CRC copy() {
         return new CRC(this);
     }
 
     /**
-     * Get current crc value
+     * Get current crc value: the crc of the bytes processed so far.
+     * For a CRC without processed data, this is the crc of the empty message, not the init parameter of the model.
      * @return current crc value
      */
     public long getCrc() {
-        return this.length == 0 ? model.getInit() : this.crc;
+        return this.length == 0 ? model.init : this.crc;
+    }
+
+    /**
+     * Get the number of processed bytes
+     * @return number of processed bytes
+     * @throws ArithmeticException if 2 GiB or more have been processed: the number does not fit into an int.
+     *         The crc value is correct for any number of processed bytes
+     */
+    public int getLength() {
+        return Math.toIntExact(this.length);
     }
 
     /**
@@ -109,48 +125,63 @@ public final class CRC {
 
     /**
      * Update CRC by calculating buffer from start of it to the end
-     * @param buff buffer to calculate
+     * @param buff buffer to calculate, null does not change the CRC
      * @return CRC with updated result (same as this)
      */
     public CRC update(byte[] buff) {
-        return update(buff, buff.length);
+        return update(buff, 0, buff == null ? 0 : buff.length);
     }
 
     /**
-     * Combine current crc value with crc value of the nuxt buff
-     * @param crc2 crc value of the next buffer
+     * Combine current crc value with crc value of the next buffer.
+     * Unlike {@link #combine(CRC)}, this method does not change the current CRC: it only returns the combined value.
+     * The length of the next buffer is an int: for a next buffer of 2 GiB or more, use {@link #combine(CRC)}
+     * @param crc2 crc value of the next buffer; bits above the CRC width are ignored,
+     *             so a CRC-32 kept in an int can be passed as is
      * @param len2 length of the next buffer
      * @return combined crc value
      */
     public long combine(long crc2, int len2) {
+        return combinedValue(crc2 & CrcModel.widmask(model.getWidth()), len2);
+    }
+
+    // the length of the next buffer is a long, so that combine(CRC) works with buffers of 2 GiB and more
+    private long combinedValue(long crc2, long len2) {
         return crc_general_combine(
-                  length == 0 ? model.init : getCrc(), crc2, len2,
+                  getCrc(), crc2, len2,
                   model.getWidth(), model.getInit(), model.getPoly(), model.getXorot(), model.isRefot()
                );
     }
 
     /**
-     * Combine current CRC with CRC on next buffer
+     * Combine current CRC with CRC on next buffer: the current CRC is updated and covers both buffers.
+     * Both CRCs have to use the same CRC parameters, for example a model and its alias
      * @param crc CRC of the next buffer
      * @return current CRC, combined with CRC of parameter
+     * @throws IllegalArgumentException if the CRC of the next buffer uses other CRC parameters
      */
     public CRC combine(CRC crc) {
+        if (crc != null && !model.getCrcDescription().equals(crc.model.getCrcDescription())) {
+            throw new IllegalArgumentException("CRC::combine - incompatible models: " + model + " and " + crc.model);
+        }
         Optional.ofNullable(crc)
                 .filter(c -> c.length > 0)
                 .ifPresent(c -> {
-                         this.crc = combine(c.getCrc(), c.length);
+                         this.crc = combinedValue(c.getCrc(), c.length);
                          this.length += c.length;
                  });
         return this;
     }
 
     /**
-     * String representation of CRC
+     * String representation of CRC: the model, the crc value as unsigned hexadecimal number
+     * with the number of digits of the CRC width, and the length
      * @return String value
      */
     @Override
     public String toString() {
-        return this.getModel().toString()+"[crc:"+getCrc()+",len:"+getLength()+"]";
+        int digits = (model.getWidth() + 3) / 4;
+        return this.getModel().toString()+"[crc:0x"+String.format(Locale.ROOT, "%0" + digits + "x", getCrc())+",len:"+this.length+"]";
     }
     
 }
