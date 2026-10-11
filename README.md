@@ -15,6 +15,9 @@ The parameters and check values of the predefined models are those of the [RevEn
     CrcDescription crcDescription = new CrcDescription(3, 0x3, 0x0, false, false, 0x7);
     long crc = crcDescription.getCRC().update("StringA".getBytes()).getCrc();
 ```
+`CrcDescription.getCRC()` uses the model registered for the parameters, here the predefined CRC-3/GSM. Parameters
+without a registered model are not registered: the CRC uses a model that `CrcModel.getModels()` and `CrcModel.lookUp()`
+do not know, so calculations with many different parameter sets do not fill the registry.
 ### Incremental update
 ```java
     CrcModel crcModel = CrcModel.lookUp("CRC-16/ARC");
@@ -67,6 +70,13 @@ Crc Model is an object for usage of CrcDescription with name and check code.
     CrcModel crcModel3 = CrcModel.construct("MyModel", crcDescription, checkCode);
 ```
 _P.S.> The checkValue will be calculated if it is not defined._
+
+### Unregistered CrcModel
+```java
+    // a model that is not registered: getModels(), lookUp() and construct() do not know it
+    CrcModel crcModel = CrcModel.unregistered("MyModel", new CrcDescription(16, 0x1234, 0x0, false, false, 0x0));
+    long crc = crcModel.getCRC().update("String".getBytes()).getCrc();
+```
 
 ### Use predefined CrcModel
 ```java

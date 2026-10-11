@@ -66,13 +66,16 @@ class CrcModelRegistryTest {
         long modelCount = getModels().count();
         String name = "CRC-21/TEST-REGISTRY-REMOVE-" + run;
         CrcModel named = construct(name, new CrcDescription(21, 0x100001 + 4 * run, 0x0, false, false, 0x0));
-        CrcModel unnamed = new CrcDescription(21, 0x100003 + 4 * run, 0x0, false, false, 0x0).getCRC().getModel();
+        CrcModel unnamed = construct(new CrcDescription(21, 0x100003 + 4 * run, 0x0, false, false, 0x0));
+        new CrcDescription(21, 0x100005 + 4 * run, 0x0, false, false, 0x0).getCRC();
         assertEquals(modelCount + 2, getModels().count(), "Two models have to be registered");
+        assertEquals(1, CrcModel.unregisteredModelCount(), "CrcDescription.getCRC() has to keep the model for new parameters in the cache");
         CrcModel.removeRegisteredModels();
         assertNull(lookUp(name), "A removed model has not got to be found by the name");
         assertEquals(0, getModels(m -> m == named || m == unnamed).count(), "Removed models have not got to be listed");
         assertEquals(predefined.size(), getModels().count(), "Only the predefined models have to stay registered");
         assertTrue(getModels().allMatch(predefined::contains), "All predefined models have to stay registered");
+        assertEquals(0, CrcModel.unregisteredModelCount(), "The cache of CrcDescription.getCRC() has to be cleared");
     }
 
     @Test
@@ -198,10 +201,14 @@ class CrcModelRegistryTest {
                 CrcModel model = assertOneModel(pool, "construct(\"" + alias + "\", CRC32_ISO_HDLC)",
                         () -> construct(alias, CRC32_ISO_HDLC), m -> alias.equals(m.getName()));
                 assertSame(CRC32_ISO_HDLC.getCrcDescription(), model.getCrcDescription(), "The model " + alias + " has to use the parameters of CRC-32/ISO-HDLC");
-                // CrcDescription.getCRC() with new parameters registers a model without a name
+                // construct() with new parameters registers a model without a name
                 CrcDescription unnamed = new CrcDescription(22, 0x200001 + 2 * id, 0x0, false, false, 0x0);
-                assertOneModel(pool, "CrcDescription.getCRC() for " + unnamed,
-                        () -> new CrcDescription(unnamed).getCRC().getModel(), m -> unnamed.equals(m.getCrcDescription()));
+                assertOneModel(pool, "construct(" + unnamed + ")",
+                        () -> construct(new CrcDescription(unnamed)), m -> unnamed.equals(m.getCrcDescription()));
+                // CrcDescription.getCRC() with new parameters registers no model: all threads get the cached model
+                CrcDescription unregistered = new CrcDescription(22, 0x300001 + 2 * id, 0x0, false, false, 0x0);
+                assertOneModel(pool, "CrcDescription.getCRC() for " + unregistered,
+                        () -> new CrcDescription(unregistered).getCRC().getModel(), m -> false);
             }
         } finally {
             pool.shutdownNow();
@@ -283,8 +290,10 @@ class CrcModelRegistryTest {
             results.add(result.get());
         }
         assertEquals(1, results.size(), "Concurrent calls of " + call + " have to return the same model");
-        assertEquals(1, getModels(registered).count(), "Concurrent calls of " + call + " have to register one model");
-        return results.iterator().next();
+        CrcModel model = results.iterator().next();
+        assertEquals(registered.test(model) ? 1 : 0, getModels(registered).count(),
+                "Concurrent calls of " + call + " have to register " + (registered.test(model) ? "one model" : "no model"));
+        return model;
     }
 
 }
