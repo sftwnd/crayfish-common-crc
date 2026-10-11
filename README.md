@@ -37,8 +37,12 @@ do not know, so calculations with many different parameter sets do not fill the 
     crc.combine(crc2);                        // crc now covers part1 followed by part2
     long crcValue = crc.getCrc();
     // only the CRC value and the length of the second part are known
-    // (combine(long, int) returns the result and does not modify the CRC object):
+    // (combine(long, long) returns the result and does not modify the CRC object):
     long crcValue2 = crcModel.getCRC(part1).combine(crc2.getCrc(), part2.length);
+    // a calculation is continued from a saved state of any length, also of 2 GiB and more
+    long savedCrc = crc.getCrc();
+    long savedLength = crc.getLength();
+    CRC resumed = crcModel.getCRC(savedCrc, savedLength);
 ```
 
 ### Construct & combine value check examples
@@ -69,7 +73,9 @@ Crc Model is an object for usage of CrcDescription with name and check code.
     long checkCode = 0x4L;
     CrcModel crcModel3 = CrcModel.construct("MyModel", crcDescription, checkCode);
 ```
-_P.S.> The checkValue will be calculated if it is not defined._
+_P.S.> The check value is calculated if it is not given. A given check value is verified: `construct()` throws
+`IllegalArgumentException` if it is not the CRC of the ASCII bytes of `"123456789"`. A name belongs to one parameter set:
+`construct()` throws `IllegalArgumentException` for a name that is used by a model with other parameters._
 
 ### Unregistered CrcModel
 ```java

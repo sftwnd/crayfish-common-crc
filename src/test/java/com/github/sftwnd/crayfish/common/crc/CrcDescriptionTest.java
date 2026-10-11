@@ -65,6 +65,45 @@ class CrcDescriptionTest {
     }
 
     @Test
+    void testParametersOutOfWidth() {
+        // CRC-32/ISO-HDLC with the x^32 term in the polynomial
+        IllegalArgumentException poly = assertThrows(IllegalArgumentException.class,
+                () -> new CrcDescription(32, 0x104C11DB7L, 0xFFFFFFFFL, true, true, 0xFFFFFFFFL), "A poly with the x^32 term has to be rejected");
+        assertTrue(poly.getMessage().contains("poly 0x104C11DB7") && poly.getMessage().contains("x^32 term"), "Wrong message: " + poly.getMessage());
+        // CRC-32/BZIP2 with the x^32 term: update() gave the correct value, combine() failed
+        assertThrows(IllegalArgumentException.class, () -> new CrcDescription(32, 0x104C11DB7L, 0xFFFFFFFFL, false, false, 0xFFFFFFFFL),
+                "A non-reflected poly with the x^32 term has to be rejected");
+        // CRC-16/IBM-SDLC with a 17-bit xorout
+        IllegalArgumentException xorot = assertThrows(IllegalArgumentException.class,
+                () -> new CrcDescription(16, 0x1021, 0xFFFF, true, true, 0x1FFFF), "A 17-bit xorout has to be rejected for a 16-bit CRC");
+        assertTrue(xorot.getMessage().contains("xorot 0x1FFFF"), "Wrong message: " + xorot.getMessage());
+        assertThrows(IllegalArgumentException.class, () -> new CrcDescription(16, 0x1021, 0x10000, false, false, 0x0),
+                "A 17-bit init has to be rejected for a 16-bit CRC");
+        assertThrows(IllegalArgumentException.class, () -> new CrcDescription(3, 0x3, 0x0, false, false, 0x8),
+                "A 4-bit xorout has to be rejected for a 3-bit CRC");
+        // CRC-32 written with int literals: 0xFFFFFFFF is the int -1, sign-extended to a long
+        IllegalArgumentException literal = assertThrows(IllegalArgumentException.class,
+                () -> new CrcDescription(32, 0x04C11DB7, 0xFFFFFFFF, true, true, 0xFFFFFFFF), "A sign-extended init has to be rejected");
+        assertTrue(literal.getMessage().contains("0xFFFFFFFFL"), "The message has to suggest the long literal: " + literal.getMessage());
+    }
+
+    @Test
+    void testParametersAtTheWidthLimit() {
+        byte[] buff = "123456789".getBytes(US_ASCII);
+        // all bits of the width set: the largest valid values, also for 64 bits where the values are negative
+        for (int width : new int[]{1, 3, 8, 31, 32, 33, 63, 64}) {
+            long mask = CrcModel.widmask(width);
+            for (boolean reflected : new boolean[]{false, true}) {
+                CrcDescription description = new CrcDescription(width, mask, mask, reflected, reflected, mask);
+                assertEquals(CrcReference.crc(description, buff), description.getCRC().update(buff).getCrc(),
+                        "Wrong crc of " + description);
+            }
+        }
+        // every predefined model satisfies the check
+        getModels().forEach(m -> assertEquals(m.getCrcDescription(), new CrcDescription(m.getCrcDescription()), "Model " + m + ": the parameters have to be accepted"));
+    }
+
+    @Test
     void testToString() {
         getModels().map(CrcModel::getCrcDescription).forEach(description -> assertDoesNotThrow(description::toString, "CrcDescription::toString hasn't got to throws exception"));
     }

@@ -151,7 +151,7 @@ class CRCTest {
             CRC crc = m.getCRC(crc2, Integer.MAX_VALUE).combine(m.getCRC(crc3, Integer.MAX_VALUE)).update(tail);
             long expected = m.getCRC(m.getCRC(crc2, Integer.MAX_VALUE).combine(crc3, Integer.MAX_VALUE), 1).update(tail).getCrc();
             assertEquals(expected, crc.getCrc(), "Model " + m + ": the crc after exactly 4 GiB has to be the crc of the processed data");
-            assertThrows(ArithmeticException.class, crc::getLength, "Model " + m + ": getLength() of 4 GiB has to throw ArithmeticException");
+            assertEquals(0x1_0000_0000L, crc.getLength(), "Model " + m + ": getLength() has to return 4 GiB, not 0");
         });
     }
 
@@ -165,10 +165,72 @@ class CRCTest {
             // two parts of 1 GiB: 2 GiB, more than an int length
             CRC part2 = m.getCRC(crc2, part).combine(m.getCRC(crc3, part));
             assertEquals(m.getCRC(crc2, part).combine(crc3, part), part2.getCrc(), "Model " + m + ": wrong crc of 2 GiB");
-            assertThrows(ArithmeticException.class, part2::getLength, "Model " + m + ": getLength() of 2 GiB has to throw ArithmeticException");
+            assertEquals(2L * part, part2.getLength(), "Model " + m + ": wrong getLength() of 2 GiB");
             // "123456789" followed by the 2 GiB, the same as "123456789" followed by the two parts of 1 GiB
             long expected = m.getCRC(m.getCRC(buff).combine(crc2, part), buff.length + part).combine(crc3, part);
             assertEquals(expected, m.getCRC(buff).combine(part2).getCrc(), "Model " + m + ": combine() with a CRC of 2 GiB has to give the crc of both parts");
+        });
+    }
+
+    @Test
+    void testLengthBeyond4GiB() {
+        // the CRC of 4 GiB - 1 bytes and one byte more: no large input is needed
+        CRC crc = CrcModel.CRC32.getCRC(0x12345678L, 0xFFFFFFFFL).update(new byte[1]);
+        assertEquals(0x1_0000_0000L, crc.getLength(), "getLength() has to return 4 GiB");
+        assertEquals(CrcModel.CRC32.getCRC(0x12345678L, 1).update(new byte[1]).getCrc(), crc.getCrc(),
+                "The crc after 4 GiB has to continue from the crc given for 4 GiB - 1 bytes");
+        byte[] buff = CHECK_BUFF.getBytes(US_ASCII);
+        long[] lengths = {(1L << 31) - 1, 1L << 31, 1L << 32, (1L << 32) + 1, 0x7FF_FFFF_FFFFL, Long.MAX_VALUE};
+        getModels().forEach(m -> {
+            long crc2 = m.getCRC(buff, 0, 4).getCrc();
+            for (long len : lengths) {
+                String model = "Model " + m + ", length " + len;
+                // a state of any length is restored by getCRC(getCrc(), getLength())
+                CRC state = m.getCRC(m.getCheck(), len);
+                CRC restored = m.getCRC(state.getCrc(), state.getLength());
+                assertEquals(state, restored, model + ": getCRC(getCrc(), getLength()) has to restore the CRC");
+                assertEquals(len, m.getCrcDescription().getCRC(m.getCheck(), len).getLength(),
+                        model + ": CrcDescription.getCRC(crc, len) has to keep the length");
+                // combine(crc2, len2) and combine(CRC) give the same value for a long next buffer
+                long combined = m.getCRC(buff).combine(crc2, len);
+                assertEquals(combined, m.getCRC(buff).combine(m.getCRC(crc2, len)).getCrc(),
+                        model + ": combine(crc2, len2) and combine(CRC) have to give the same crc");
+                assertEquals(buff.length + len, m.getCRC(buff).combine(m.getCRC(crc2, len)).getLength(),
+                        model + ": combine(CRC) has to add the length of the next buffer");
+            }
+        });
+    }
+
+    @Test
+    void testCombineFromLengthsOfParts() {
+        // a buffer of 3 GiB + 9 bytes as a sequence of parts, combined from their crc values and lengths only
+        byte[] buff = CHECK_BUFF.getBytes(US_ASCII);
+        getModels().forEach(m -> {
+            long gib = 1L << 30;
+            long crc1 = m.getCRC(buff).getCrc();
+            long crc2 = m.getCRC(buff, 0, 4).getCrc();
+            long crc3 = m.getCRC(buff, 4, 5).getCrc();
+            // ("123456789" + 2 GiB) + 1 GiB as one step and as two steps of 1 GiB give the same crc
+            long twoGiB = m.getCRC(crc2, gib).combine(crc3, gib);
+            long oneStep = m.getCRC(crc1, buff.length).combine(m.getCRC(twoGiB, 2 * gib).combine(crc3, gib), 3 * gib);
+            long twoSteps = m.getCRC(m.getCRC(m.getCRC(crc1, buff.length).combine(crc2, gib), buff.length + gib)
+                    .combine(crc3, gib), buff.length + 2 * gib).combine(crc3, gib);
+            assertEquals(twoSteps, oneStep, "Model " + m + ": combine(crc2, len2) of 3 GiB has to give the crc of all parts");
+        });
+    }
+
+    @Test
+    void testIntOverloads() {
+        // the int variants of 1.0.x are kept for compiled callers and give the same results
+        byte[] buff = CHECK_BUFF.getBytes(US_ASCII);
+        getModels().forEach(m -> {
+            long crc2 = m.getCRC(buff, 4, 5).getCrc();
+            int len = 5;
+            assertEquals(m.getCRC(buff, 0, 4).combine(crc2, (long) len), m.getCRC(buff, 0, 4).combine(crc2, len),
+                    "Model " + m + ": combine(long, int) has to be the same as combine(long, long)");
+            assertEquals(m.getCRC(crc2, (long) len), m.getCRC(crc2, len), "Model " + m + ": getCRC(long, int) has to be the same as getCRC(long, long)");
+            assertEquals(m.getCrcDescription().getCRC(crc2, (long) len), m.getCrcDescription().getCRC(crc2, len),
+                    "Model " + m + ": CrcDescription.getCRC(long, int) has to be the same as getCRC(long, long)");
         });
     }
 
