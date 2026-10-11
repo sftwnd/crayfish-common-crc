@@ -9,6 +9,7 @@ import lombok.EqualsAndHashCode;
 import lombok.Generated;
 import lombok.Getter;
 
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -40,7 +41,8 @@ public final class CRC {
     }
 
     /**
-     * Construct CRC for defined model with defined crc value and length
+     * Construct CRC for defined model with defined crc value and length.
+     * The lookup table of the model is built if the model has not been used yet
      * @param model CRC model
      * @param crc crc value
      * @param length length of calculated buffer
@@ -50,6 +52,7 @@ public final class CRC {
             throw new IllegalArgumentException("CRC::new - length less than 0");
         }
         this.model = Objects.requireNonNull(model, "CRC::new - model is null");
+        this.model._init();
         this.crc = crc;
         this.length = length;
     }
@@ -110,15 +113,16 @@ public final class CRC {
 
     /**
      * Update CRC by calculating buffer from start of it to the end
-     * @param buff buffer to calculate
+     * @param buff buffer to calculate, null does not change the CRC
      * @return CRC with updated result (same as this)
      */
     public CRC update(byte[] buff) {
-        return update(buff, buff.length);
+        return update(buff, 0, buff == null ? 0 : buff.length);
     }
 
     /**
-     * Combine current crc value with crc value of the next buffer
+     * Combine current crc value with crc value of the next buffer.
+     * Unlike {@link #combine(CRC)}, this method does not change the current CRC: it only returns the combined value
      * @param crc2 crc value of the next buffer
      * @param len2 length of the next buffer
      * @return combined crc value
@@ -131,11 +135,16 @@ public final class CRC {
     }
 
     /**
-     * Combine current CRC with CRC on next buffer
+     * Combine current CRC with CRC on next buffer: the current CRC is updated and covers both buffers.
+     * Both CRCs have to use the same CRC parameters, for example a model and its alias
      * @param crc CRC of the next buffer
      * @return current CRC, combined with CRC of parameter
+     * @throws IllegalArgumentException if the CRC of the next buffer uses other CRC parameters
      */
     public CRC combine(CRC crc) {
+        if (crc != null && !model.getCrcDescription().equals(crc.model.getCrcDescription())) {
+            throw new IllegalArgumentException("CRC::combine - incompatible models: " + model + " and " + crc.model);
+        }
         Optional.ofNullable(crc)
                 .filter(c -> c.length > 0)
                 .ifPresent(c -> {
@@ -146,12 +155,14 @@ public final class CRC {
     }
 
     /**
-     * String representation of CRC
+     * String representation of CRC: the model, the crc value as unsigned hexadecimal number
+     * with the number of digits of the CRC width, and the length
      * @return String value
      */
     @Override
     public String toString() {
-        return this.getModel().toString()+"[crc:"+getCrc()+",len:"+getLength()+"]";
+        int digits = (model.getWidth() + 3) / 4;
+        return this.getModel().toString()+"[crc:0x"+String.format(Locale.ROOT, "%0" + digits + "x", getCrc())+",len:"+getLength()+"]";
     }
     
 }
