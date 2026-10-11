@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-20xx Andrey D. Shindarev (ashindarev@gmail.com)
+ * Copyright (c) 2017-2026 Andrey D. Shindarev (ashindarev@gmail.com)
  * This program is made available under the terms of the BSD 3-Clause License.
  */
 package com.github.sftwnd.crayfish.common.crc;
@@ -62,6 +62,10 @@ public class CrcModel extends CrcDescription {
         return crcDescription.isRefot();
     }
 
+    /**
+     * Create CRC for this model
+     * @return created CRC
+     */
     @Override
     public @NonNull CRC getCRC() {
         CRC result = new CRC(this);
@@ -100,9 +104,9 @@ public class CrcModel extends CrcDescription {
     }
 
     /**
-     * Create CRC and update by the value of buff
-     * @param crc initial crc value
-     * @param len initial processed length
+     * Create CRC that continues the calculation from a known crc value
+     * @param crc initial crc value: crc of the bytes processed so far
+     * @param len initial processed length: number of bytes processed so far
      * @return created CRC
      */
     @Override
@@ -130,8 +134,8 @@ public class CrcModel extends CrcDescription {
     }
 
     /**
-     * Process the model data for th calculation.
-     * constants will be equals of original values, but variables - changed
+     * Process the model data for the calculation: the fields of the model get the processed values,
+     * the getters return the original parameters
      */
     @SuppressWarnings("java:S3358")
     private static CrcDescription _config(@NonNull final CrcDescription model) {

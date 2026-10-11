@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-20xx Andrey D. Shindarev (ashindarev@gmail.com)
+ * Copyright (c) 2017-2026 Andrey D. Shindarev (ashindarev@gmail.com)
  * This program is made available under the terms of the BSD 3-Clause License.
  */
 package com.github.sftwnd.crayfish.common.crc;
@@ -26,6 +26,10 @@ public class CrcDescription {
     @Getter protected final boolean refot;
     @Getter protected final long    xorot;
 
+    /**
+     * Create description with the parameters of another description or model
+     * @param model description or model to copy the parameters from
+     */
     @SuppressWarnings("CopyConstructorMissesField")
     public CrcDescription(@NonNull final CrcDescription model) {
         this(Objects.requireNonNull(model, "CRC_model_d::new - model is null").getWidth(),
@@ -42,10 +46,23 @@ public class CrcDescription {
              + (xorot == 0 ? "" : "_X"+Long.toHexString(xorot).toUpperCase());
     }
 
+    /**
+     * Create CRC for these parameters.
+     * The CRC uses a model registered for the parameters: if no model is registered for them yet,
+     * a new model is registered (see {@link CrcModel#construct(CrcDescription)}).
+     * @return created CRC
+     */
     public CRC getCRC() {
         return CrcModel.construct(this).getCRC();
     }
 
+    /**
+     * Create CRC for these parameters, continuing the calculation from a known crc value.
+     * The model is looked up or registered as in {@link #getCRC()}.
+     * @param crc initial crc value: crc of the bytes processed so far
+     * @param len initial processed length: number of bytes processed so far
+     * @return created CRC
+     */
     public CRC getCRC(long crc, int len) {
         return CrcModel.construct(this).getCRC(crc, len);
     }
