@@ -34,8 +34,12 @@ The parameters and check values of the predefined models are those of the [RevEn
     crc.combine(crc2);                        // crc now covers part1 followed by part2
     long crcValue = crc.getCrc();
     // only the CRC value and the length of the second part are known
-    // (combine(long, int) returns the result and does not modify the CRC object):
+    // (combine(long, long) returns the result and does not modify the CRC object):
     long crcValue2 = crcModel.getCRC(part1).combine(crc2.getCrc(), part2.length);
+    // a calculation is continued from a saved state of any length, also of 2 GiB and more
+    long savedCrc = crc.getCrc();
+    long savedLength = crc.getLength();
+    CRC resumed = crcModel.getCRC(savedCrc, savedLength);
 ```
 
 ### Construct & combine value check examples

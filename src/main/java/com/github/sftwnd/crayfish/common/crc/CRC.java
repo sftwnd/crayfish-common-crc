@@ -20,15 +20,15 @@ import static com.github.sftwnd.crayfish.common.crc.CrcModel.crc_general_combine
  * @since 1.0.0
  * @author Andrey D. Shindarev
  */
-// the fields are compared, not the getters: getLength() throws for 2 GiB and more,
-// and the crc field of a CRC without data always holds the crc of the empty message (see the constructor)
+// the fields are compared, not the getters:
+// the crc field of a CRC without data always holds the crc of the empty message (see the constructor)
 @EqualsAndHashCode(doNotUseGetters = true)
 public final class CRC {
 
     @Getter private final CrcModel model;
     @SuppressWarnings("java:S1700")
     long crc;
-    // number of processed bytes: a long, so that it neither turns negative at 2 GiB nor wraps to 0 at 4 GiB
+    // number of processed bytes
     private long length;
 
     /**
@@ -49,7 +49,7 @@ public final class CRC {
      * @param crc crc value; bits above the CRC width are ignored
      * @param length length of calculated buffer
      */
-    CRC(@NonNull final CrcModel model, long crc, int length) {
+    CRC(@NonNull final CrcModel model, long crc, long length) {
         if (length < 0) {
             throw new IllegalArgumentException("CRC::new - length less than 0");
         }
@@ -86,13 +86,12 @@ public final class CRC {
     }
 
     /**
-     * Get the number of processed bytes
+     * Get the number of processed bytes.
+     * The number is a long since 1.1.0: up to 1.0.2 it was an int, and getLength() failed for 2 GiB and more
      * @return number of processed bytes
-     * @throws ArithmeticException if 2 GiB or more have been processed: the number does not fit into an int.
-     *         The crc value is correct for any number of processed bytes
      */
-    public int getLength() {
-        return Math.toIntExact(this.length);
+    public long getLength() {
+        return this.length;
     }
 
     /**
@@ -134,18 +133,28 @@ public final class CRC {
 
     /**
      * Combine current crc value with crc value of the next buffer.
-     * Unlike {@link #combine(CRC)}, this method does not change the current CRC: it only returns the combined value.
-     * The length of the next buffer is an int: for a next buffer of 2 GiB or more, use {@link #combine(CRC)}
+     * Unlike {@link #combine(CRC)}, this method does not change the current CRC: it only returns the combined value
      * @param crc2 crc value of the next buffer; bits above the CRC width are ignored,
      *             so a CRC-32 kept in an int can be passed as is
      * @param len2 length of the next buffer
      * @return combined crc value
+     * @since 1.1.0
      */
-    public long combine(long crc2, int len2) {
+    public long combine(long crc2, long len2) {
         return combinedValue(crc2 & CrcModel.widmask(model.getWidth()), len2);
     }
 
-    // the length of the next buffer is a long, so that combine(CRC) works with buffers of 2 GiB and more
+    /**
+     * Combine current crc value with crc value of the next buffer: the same as {@link #combine(long, long)},
+     * kept for the binary compatibility with the versions up to 1.0.2
+     * @param crc2 crc value of the next buffer; bits above the CRC width are ignored
+     * @param len2 length of the next buffer
+     * @return combined crc value
+     */
+    public long combine(long crc2, int len2) {
+        return combine(crc2, (long) len2);
+    }
+
     private long combinedValue(long crc2, long len2) {
         return crc_general_combine(
                   getCrc(), crc2, len2,

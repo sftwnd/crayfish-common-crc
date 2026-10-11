@@ -82,9 +82,21 @@ public class CrcDescription {
      *            a CRC without processed data has the crc of the empty message
      * @param len initial processed length: number of bytes processed so far
      * @return created CRC
+     * @since 1.1.0
+     */
+    public CRC getCRC(long crc, long len) {
+        return CrcModel.construct(this).getCRC(crc, len);
+    }
+
+    /**
+     * Create CRC for these parameters, continuing the calculation from a known crc value: the same as
+     * {@link #getCRC(long, long)}, kept for the binary compatibility with the versions up to 1.0.2
+     * @param crc initial crc value: crc of the bytes processed so far
+     * @param len initial processed length: number of bytes processed so far
+     * @return created CRC
      */
     public CRC getCRC(long crc, int len) {
-        return CrcModel.construct(this).getCRC(crc, len);
+        return getCRC(crc, (long) len);
     }
 
     @SuppressWarnings({
