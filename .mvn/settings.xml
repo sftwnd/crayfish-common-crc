@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<settings xmlns="http://maven.apache.org/SETTINGS/1.2.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.2.0 https://maven.apache.org/xsd/settings-1.2.0.xsd">
+    <!--
+        No secrets in this file: the values come from the environment (~/.mavenrc, not under git).
+        CENTRAL_TOKEN_PASSWORD and GPG_SIGNING_PASSPHRASE hold {...} values of mvn -ep (encrypt-password)
+        (master password in settings-security.xml). Maven 3.9 decrypts only <password> and <passphrase>,
+        so CENTRAL_TOKEN_USERNAME is the plain username of the Central Portal user token.
+    -->
+    <servers>
+        <server>
+            <!-- Central Publisher Portal user token (central-publishing-maven-plugin, publishingServerId) -->
+            <id>central</id>
+            <username>${env.CENTRAL_TOKEN_USERNAME}</username>
+            <password>${env.CENTRAL_TOKEN_PASSWORD}</password>
+        </server>
+        <server>
+            <!-- passphrase of the signing key (maven-gpg-plugin, default passphraseServerId) -->
+            <id>gpg.passphrase</id>
+            <passphrase>${env.GPG_SIGNING_PASSPHRASE}</passphrase>
+        </server>
+    </servers>
+    <profiles>
+        <profile>
+            <id>default</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <properties>
+                <!-- the first secret key in the keyring (429B72445B782652) has expired -->
+                <gpg.keyname>9693550DDD49D13C4BDD493D9AA4A6E0DB4C6F5B</gpg.keyname>
+            </properties>
+            <repositories>
+                <repository>
+                    <id>central</id>
+                    <url>https://repo.maven.apache.org/maven2/</url>
+                    <releases>
+                        <enabled>true</enabled>
+                    </releases>
+                    <snapshots>
+                        <enabled>false</enabled>
+                    </snapshots>
+                </repository>
+            </repositories>
+            <pluginRepositories>
+                <pluginRepository>
+                    <id>central</id>
+                    <url>https://repo.maven.apache.org/maven2/</url>
+                    <releases>
+                        <enabled>true</enabled>
+                    </releases>
+                    <snapshots>
+                        <enabled>false</enabled>
+                    </snapshots>
+                </pluginRepository>
+            </pluginRepositories>
+        </profile>
+    </profiles>
+    <activeProfiles>
+        <activeProfile>default</activeProfile>
+    </activeProfiles>
+    <pluginGroups>
+        <pluginGroup>com.atlassian.maven.plugins</pluginGroup>
+    </pluginGroups>
+</settings>

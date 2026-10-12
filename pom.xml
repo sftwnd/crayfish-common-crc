@@ -4,11 +4,11 @@
 
     <groupId>com.github.sftwnd.crayfish.common</groupId>
     <artifactId>crayfish-common-crc</artifactId>
-    <version>1.0.2</version>
+    <version>1.1.0</version>
 
     <name>CrayFish :: COMMON :: Crc</name>
     <description>
-        Generic Java CRC implementation (CRC-16, CRC-32, CRC-64, etc.) with 101 predefined CRC algorithms (173 names including aliases), such as CRC-32/ISO-HDLC, CRC-64/ECMA-182 and CRC-8/SMBUS.
+        Generic Java CRC implementation (CRC-16, CRC-32, CRC-64, etc.) with 112 predefined CRC algorithms (186 names including aliases), such as CRC-32/ISO-HDLC, CRC-64/ECMA-182 and CRC-8/SMBUS.
     </description>
     <url>https://github.com/sftwnd/crayfish-common-crc</url>
 
@@ -33,7 +33,7 @@
         <url>https://github.com/sftwnd/crayfish-common-crc</url>
         <connection>scm:git:https://github.com/sftwnd/crayfish-common-crc.git</connection>
         <developerConnection>scm:git:git@github.com:sftwnd/crayfish-common-crc.git</developerConnection>
-        <tag>crayfish-common-crc-1.0.2</tag>
+        <tag>crayfish-common-crc-1.1.0</tag>
     </scm>
 
     <properties>
@@ -43,10 +43,11 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <javaModuleName>com.github.sftwnd.crayfish_common_crc</javaModuleName>
         <spotbugs-annotations.version>4.7.3</spotbugs-annotations.version>
-        <lombok.version>1.18.48</lombok.version>
-        <lombok-maven-plugin.version>1.18.20.0</lombok-maven-plugin.version>
         <junit.version>5.9.2</junit.version>
-        <maven-compiler-plugin.version>3.10.1</maven-compiler-plugin.version>
+        <!-- 3.11.0+: compileSourceRoots can be configured, for the module descriptor in src/main/java9 -->
+        <maven-compiler-plugin.version>3.15.0</maven-compiler-plugin.version>
+        <maven-deploy-plugin.version>3.1.4</maven-deploy-plugin.version>
+        <maven-enforcer-plugin.version>3.5.0</maven-enforcer-plugin.version>
         <maven-gpg-plugin.version>3.0.1</maven-gpg-plugin.version>
         <maven-jar-plugin.version>3.3.0</maven-jar-plugin.version>
         <maven-javadoc-plugin.version>3.5.0</maven-javadoc-plugin.version>
@@ -58,6 +59,9 @@
         <bnd-maven-plugin.version>6.4.0</bnd-maven-plugin.version>
         <central-publishing-maven-plugin.version>0.11.0</central-publishing-maven-plugin.version>
         <sonar-maven-plugin.version>5.8.0.7211</sonar-maven-plugin.version>
+        <!-- the server with the passphrase of the signing key: no such server, so the signing takes the passphrase
+             from gpg-agent, see the profile sign-artifacts -->
+        <gpg.serverId>gpg-agent</gpg.serverId>
     </properties>
 
     <dependencies>
@@ -78,11 +82,6 @@
             <artifactId>junit-jupiter-engine</artifactId>
             <scope>test</scope>
         </dependency>
-        <dependency>
-            <groupId>org.projectlombok</groupId>
-            <artifactId>lombok</artifactId>
-            <scope>provided</scope>
-        </dependency>
     </dependencies>
 
     <build>
@@ -97,37 +96,11 @@
                     <target>${maven.compiler.target}</target>
                     <compilerArgs>
                         <arg>-Xlint:all</arg>
-                        <arg>-Xlint:-processing</arg>
+                        <!-- JDK 21+ reports Java 8 as an obsolete target; Java 8 stays the target of the library -->
+                        <arg>-Xlint:-options</arg>
                     </compilerArgs>
                     <showWarnings>true</showWarnings>
-                    <!-- JDK 23+ runs annotation processors only when they are configured explicitly -->
-                    <annotationProcessorPaths>
-                        <path>
-                            <groupId>org.projectlombok</groupId>
-                            <artifactId>lombok</artifactId>
-                            <version>${lombok.version}</version>
-                        </path>
-                    </annotationProcessorPaths>
                 </configuration>
-            </plugin>
-            <plugin>
-                <!-- delomboked sources for the Javadoc, which otherwise misses the Lombok-generated API -->
-                <groupId>org.projectlombok</groupId>
-                <artifactId>lombok-maven-plugin</artifactId>
-                <configuration>
-                    <sourceDirectory>${project.build.sourceDirectory}</sourceDirectory>
-                    <outputDirectory>${project.build.directory}/delombok</outputDirectory>
-                    <addOutputDirectory>false</addOutputDirectory>
-                    <skip>${maven.javadoc.skip}</skip>
-                </configuration>
-                <executions>
-                    <execution>
-                        <phase>generate-sources</phase>
-                        <goals>
-                            <goal>delombok</goal>
-                        </goals>
-                    </execution>
-                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -136,7 +109,7 @@
                     <execution>
                         <id>attach-sources</id>
                         <goals>
-                            <!-- jar would run the generate-sources phase (and delombok) a second time -->
+                            <!-- jar would run the generate-sources phase a second time -->
                             <goal>jar-no-fork</goal>
                         </goals>
                     </execution>
@@ -147,7 +120,8 @@
                 <artifactId>maven-javadoc-plugin</artifactId>
                 <configuration>
                     <source>${maven.compiler.source}</source>
-                    <sourcepath>${project.build.directory}/delombok</sourcepath>
+                    <!-- an undocumented public or protected member fails the build (JDK 17+ reports it) -->
+                    <failOnWarnings>true</failOnWarnings>
                 </configuration>
                 <executions>
                     <execution>
@@ -191,13 +165,17 @@
                     </execution>
                 </executions>
                 <configuration>
+                    <!-- not in target/classes: there its Automatic-Module-Name makes javac take target/classes for the module
+                         when it compiles module-info.java in an incremental build -->
+                    <manifestPath>${project.build.directory}/bnd/MANIFEST.MF</manifestPath>
                     <bnd><![CDATA[
 Bundle-SymbolicName: com.github.sftwnd.crayfish.common.crc
 Bundle-License: BSD-3-Clause;link="https://opensource.org/licenses/BSD-3-Clause"
 Automatic-Module-Name: ${javaModuleName}
+Multi-Release: true
+# bnd 6 does not know multi-release jars and takes the module descriptor for a class in the wrong directory
+-fixupmessages: "Classes found in the wrong directory: ?META-INF/versions/9/module-info.class=module-info?";restrict:=error;is:=ignore
 Export-Package: com.github.sftwnd.crayfish.common.crc;version="${version;===;${Bundle-Version}}"
-# Lombok is a compile-time dependency: a reference to lombok.Lombok left by @SneakyThrows must not become an import
-Import-Package: !lombok, *
 -noextraheaders: true
 # snapshot builds get the version qualifier SNAPSHOT instead of a timestamp, so that they are reproducible
 -snapshot: SNAPSHOT
@@ -212,7 +190,7 @@ Import-Package: !lombok, *
                         <manifest>
                             <addDefaultImplementationEntries>false</addDefaultImplementationEntries>
                         </manifest>
-                        <manifestFile>${project.build.outputDirectory}/META-INF/MANIFEST.MF</manifestFile>
+                        <manifestFile>${project.build.directory}/bnd/MANIFEST.MF</manifestFile>
                     </archive>
                 </configuration>
             </plugin>
@@ -244,6 +222,12 @@ Import-Package: !lombok, *
                     <version>${maven-compiler-plugin.version}</version>
                 </plugin>
                 <plugin>
+                    <!-- the release profile of the super POM (-DperformRelease=true) uses it without a version -->
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-deploy-plugin</artifactId>
+                    <version>${maven-deploy-plugin.version}</version>
+                </plugin>
+                <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-source-plugin</artifactId>
                     <version>${maven-source-plugin.version}</version>
@@ -252,19 +236,6 @@ Import-Package: !lombok, *
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-javadoc-plugin</artifactId>
                     <version>${maven-javadoc-plugin.version}</version>
-                </plugin>
-                <plugin>
-                    <groupId>org.projectlombok</groupId>
-                    <artifactId>lombok-maven-plugin</artifactId>
-                    <version>${lombok-maven-plugin.version}</version>
-                    <dependencies>
-                        <!-- the plugin depends on Lombok 1.18.20, which fails on JDK 21+ -->
-                        <dependency>
-                            <groupId>org.projectlombok</groupId>
-                            <artifactId>lombok</artifactId>
-                            <version>${lombok.version}</version>
-                        </dependency>
-                    </dependencies>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -323,11 +294,6 @@ Import-Package: !lombok, *
                 <artifactId>junit-jupiter-engine</artifactId>
                 <version>${junit.version}</version>
             </dependency>
-            <dependency>
-                <groupId>org.projectlombok</groupId>
-                <artifactId>lombok</artifactId>
-                <version>${lombok.version}</version>
-            </dependency>
         </dependencies>
     </dependencyManagement>
 
@@ -341,6 +307,31 @@ Import-Package: !lombok, *
             <properties>
                 <maven.compiler.release>8</maven.compiler.release>
             </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <!-- the module descriptor, compiled for Java 9 into META-INF/versions/9: a named module on
+                             Java 9+, while Java 8 ignores it (a build on JDK 8 produces a jar without it) -->
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-compiler-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>compile-module-info</id>
+                                <goals>
+                                    <goal>compile</goal>
+                                </goals>
+                                <configuration>
+                                    <release>9</release>
+                                    <multiReleaseOutput>true</multiReleaseOutput>
+                                    <compileSourceRoots>
+                                        <compileSourceRoot>${project.basedir}/src/main/java9</compileSourceRoot>
+                                    </compileSourceRoots>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
         </profile>
         <profile>
             <id>sign-artifacts</id>
@@ -353,6 +344,28 @@ Import-Package: !lombok, *
             <build>
                 <plugins>
                     <plugin>
+                        <!-- a jar built on JDK 8 has no module descriptor -->
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-enforcer-plugin</artifactId>
+                        <version>${maven-enforcer-plugin.version}</version>
+                        <executions>
+                            <execution>
+                                <id>release-on-jdk9+</id>
+                                <goals>
+                                    <goal>enforce</goal>
+                                </goals>
+                                <configuration>
+                                    <rules>
+                                        <requireJavaVersion>
+                                            <version>[9,)</version>
+                                            <message>A release has to be built on JDK 9+, so that the jar contains the module descriptor</message>
+                                        </requireJavaVersion>
+                                    </rules>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-gpg-plugin</artifactId>
                         <version>${maven-gpg-plugin.version}</version>
@@ -364,13 +377,13 @@ Import-Package: !lombok, *
                                     <goal>sign</goal>
                                 </goals>
                                 <configuration>
+                                    <!-- the passphrase of the key comes from gpg-agent: before the release unlock the key
+                                         with any signature of gpg outside of the batch mode, so that gpg-agent caches it.
+                                         In batch mode the plugin runs gpg with the pinentry mode "error": a locked key fails
+                                         without a prompt. -Dgpg.serverId=gpg.passphrase takes the passphrase of the server
+                                         gpg.passphrase of .mvn/settings.xml (GPG_SIGNING_PASSPHRASE) instead -->
                                     <useAgent>true</useAgent>
-                                    <passphrase>${gpg.passphrase}</passphrase>
-                                    <gpgArguments>
-                                        <arg>--batch</arg>
-                                        <arg>--pinentry-mode</arg>
-                                        <arg>loopback</arg>
-                                    </gpgArguments>
+                                    <passphraseServerId>${gpg.serverId}</passphraseServerId>
                                 </configuration>
                             </execution>
                         </executions>
