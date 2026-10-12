@@ -396,7 +396,8 @@ class CrcModelTest {
     }
 
     private static String hex(final long value, final int digits) {
-        return String.format("0x%0" + digits + "x", value);
+        String hex = Long.toHexString(value);
+        return "0x" + String.join("", Collections.nCopies(digits - hex.length(), "0")) + hex;
     }
 
     @Test
