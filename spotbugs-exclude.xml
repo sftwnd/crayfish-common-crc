@@ -49,11 +49,4 @@
         </Or>
     </Match>
 
-    <!-- the first model registered for a name stays: a later one with the same name is not an error of the index -->
-    <Match>
-        <Bug pattern="RV_RETURN_VALUE_OF_PUTIFABSENT_IGNORED"/>
-        <Class name="com.github.sftwnd.crayfish.common.crc.CrcModel"/>
-        <Method name="index"/>
-    </Match>
-
 </FindBugsFilter>
