@@ -59,6 +59,8 @@
         <bnd-maven-plugin.version>6.4.0</bnd-maven-plugin.version>
         <central-publishing-maven-plugin.version>0.11.0</central-publishing-maven-plugin.version>
         <sonar-maven-plugin.version>5.8.0.7211</sonar-maven-plugin.version>
+        <!-- no such server: the signing takes the passphrase from gpg-agent, see the profile sign-artifacts -->
+        <gpg.passphraseServerId>gpg-agent</gpg.passphraseServerId>
     </properties>
 
     <dependencies>
@@ -341,8 +343,7 @@ Export-Package: com.github.sftwnd.crayfish.common.crc;version="${version;===;${B
             <build>
                 <plugins>
                     <plugin>
-                        <!-- a jar built on JDK 8 has no module descriptor; without the passphrase the unresolved
-                             ${env.GPG_SIGNING_PASSPHRASE} of .mvn/settings.xml fails as an encrypted value -->
+                        <!-- a jar built on JDK 8 has no module descriptor -->
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-enforcer-plugin</artifactId>
                         <version>${maven-enforcer-plugin.version}</version>
@@ -358,10 +359,6 @@ Export-Package: com.github.sftwnd.crayfish.common.crc;version="${version;===;${B
                                             <version>[9,)</version>
                                             <message>A release has to be built on JDK 9+, so that the jar contains the module descriptor</message>
                                         </requireJavaVersion>
-                                        <requireEnvironmentVariable>
-                                            <variableName>GPG_SIGNING_PASSPHRASE</variableName>
-                                            <message>GPG_SIGNING_PASSPHRASE is not set: the passphrase of the signing key, see the server gpg.passphrase in .mvn/settings.xml</message>
-                                        </requireEnvironmentVariable>
                                     </rules>
                                 </configuration>
                             </execution>
@@ -379,13 +376,13 @@ Export-Package: com.github.sftwnd.crayfish.common.crc;version="${version;===;${B
                                     <goal>sign</goal>
                                 </goals>
                                 <configuration>
+                                    <!-- the passphrase of the key comes from gpg-agent: before the release unlock the key
+                                         with any signature of gpg outside of the batch mode, so that gpg-agent caches it.
+                                         In batch mode the plugin runs gpg with the pinentry mode "error": a locked key fails
+                                         without a prompt. -Dgpg.passphraseServerId=gpg.passphrase takes the passphrase of
+                                         the server gpg.passphrase of .mvn/settings.xml (GPG_SIGNING_PASSPHRASE) instead -->
                                     <useAgent>true</useAgent>
-                                    <passphrase>${gpg.passphrase}</passphrase>
-                                    <gpgArguments>
-                                        <arg>--batch</arg>
-                                        <arg>--pinentry-mode</arg>
-                                        <arg>loopback</arg>
-                                    </gpgArguments>
+                                    <passphraseServerId>${gpg.passphraseServerId}</passphraseServerId>
                                 </configuration>
                             </execution>
                         </executions>
