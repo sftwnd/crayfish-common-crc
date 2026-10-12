@@ -205,7 +205,7 @@ public class CrcModel extends CrcDescription {
     }
 
     // number of lookup tables: slicing-by-8 processes 8 bytes per step
-    private static final int TABLES = 8;
+    private static final int TABLE_COUNT = 8;
 
     // the lookup tables, built on first use without a lock: the model takes the tables of its description if they are built
     // already, otherwise it builds them and stores them there. Threads that build them at the same time build identical
@@ -243,7 +243,7 @@ public class CrcModel extends CrcDescription {
     // bytes. The register of a reflected model is in the low bits, the register of the other models is aligned to bit 63,
     // so that the calculation does not depend on the width
     private long[][] _createTables() {
-        long[][] tables = new long[TABLES][256];
+        long[][] tables = new long[TABLE_COUNT][256];
         long[] table = tables[0];
         int align = refin ? 0 : 64 - Math.max(width, 8);
         long crc;
@@ -262,7 +262,7 @@ public class CrcModel extends CrcDescription {
         for (int k = 255; k >= 0; k--) {
             table[k] ^= table[0];
         }
-        for (int t = 1; t < TABLES; t++) {
+        for (int t = 1; t < TABLE_COUNT; t++) {
             for (int k = 0; k < 256; k++) {
                 long previous = tables[t - 1][k];
                 tables[t][k] = refin ? (previous >>> 8) ^ table[(int) (previous & 0xff)]
@@ -332,27 +332,12 @@ public class CrcModel extends CrcDescription {
            the crc value is the register XOR-ed with xorout. The loops are separate methods, so that
            this method stays small enough for the JIT compiler to inline it */
         long[][] tables = lookupTables();
-        long[] t0 = tables[0];
         long xorout = refot ? reflect(xorot) : xorot;
         // less than 24 bytes a byte at a time: the 8-byte loop does not pay off its setup (JMH on JDK 21)
         int blocksEnd = len < 24 ? offset : offset + (len & ~7);
         int end = offset + len;
-        if (refin) {
-            crc = (crc ^ xorout) & widmask(width);
-            if (offset < blocksEnd) {
-                crc = reflectedBlocks(tables, crc, buf, offset, blocksEnd);
-            }
-            crc = reflectedBytes(t0, crc, buf, blocksEnd, end) ^ xorout;
-        } else {
-            // the register aligned to bit 63: the bits above the width are shifted out
-            int shift = 64 - width;
-            long register = (crc ^ xorout) << shift;
-            if (offset < blocksEnd) {
-                register = alignedBlocks(tables, register, buf, offset, blocksEnd);
-            }
-            register = width <= 8 ? narrowBytes(t0, register, buf, blocksEnd, end) : alignedBytes(t0, register, buf, blocksEnd, end);
-            crc = (register >>> shift) ^ xorout;
-        }
+        crc = refin ? reflectedCrc(tables, (crc ^ xorout) & widmask(width), buf, offset, blocksEnd, end) ^ xorout
+                    : alignedCrc(tables, crc ^ xorout, buf, offset, blocksEnd, end) ^ xorout;
         /* post-process and return the CRC */
         if (refot) {
             crc = reflect(crc);
@@ -365,7 +350,31 @@ public class CrcModel extends CrcDescription {
                 + " out of the buffer length " + buf.length);
     }
 
+    // the register of a reflected model, in the low bits
+    private static long reflectedCrc(long[][] tables, long crc, byte[] buf, int offset, int blocksEnd, int end) {
+        if (offset < blocksEnd) {
+            crc = reflectedBlocks(tables, crc, buf, offset, blocksEnd);
+        }
+        return reflectedBytes(tables[0], crc, buf, blocksEnd, end);
+    }
+
+    // the register of the other models, aligned to bit 63: the bits above the width are shifted out
+    private long alignedCrc(long[][] tables, long crc, byte[] buf, int offset, int blocksEnd, int end) {
+        int shift = 64 - width;
+        long register = crc << shift;
+        if (offset < blocksEnd) {
+            register = alignedBlocks(tables, register, buf, offset, blocksEnd);
+        }
+        register = width <= 8 ? narrowBytes(tables[0], register, buf, blocksEnd, end)
+                              : alignedBytes(tables[0], register, buf, blocksEnd, end);
+        return register >>> shift;
+    }
+
+    // The loops below suppress java:S3034: the byte is sign-extended in "crc ^ buf[offset]", and the "& 0xff" of the result
+    // removes the extension; a "& 0xff" of the byte itself would cost an operation per byte.
+
     // a byte at a time, register in the low bits
+    @SuppressWarnings("java:S3034")
     private static long reflectedBytes(long[] t0, long crc, byte[] buf, int offset, int end) {
         for (; offset < end; offset++) {
             crc = (crc >>> 8) ^ t0[(int) ((crc ^ buf[offset]) & 0xff)];
@@ -374,6 +383,7 @@ public class CrcModel extends CrcDescription {
     }
 
     // a byte at a time, register aligned to bit 63
+    @SuppressWarnings("java:S3034")
     private static long alignedBytes(long[] t0, long register, byte[] buf, int offset, int end) {
         for (; offset < end; offset++) {
             register = (register << 8) ^ t0[(int) (((register >>> 56) ^ buf[offset]) & 0xff)];
@@ -382,6 +392,7 @@ public class CrcModel extends CrcDescription {
     }
 
     // a byte at a time, register of width 1..8 in the top byte: no shift of the remaining register
+    @SuppressWarnings("java:S3034")
     private static long narrowBytes(long[] t0, long register, byte[] buf, int offset, int end) {
         for (; offset < end; offset++) {
             register = t0[(int) (((register >>> 56) ^ buf[offset]) & 0xff)];
@@ -391,9 +402,16 @@ public class CrcModel extends CrcDescription {
 
     // 8 bytes at a time, register in the low bits; a loop over the index of the buffer, so that the JIT compiler
     // removes the bounds checks of the buffer
+    @SuppressWarnings("java:S3034")
     private static long reflectedBlocks(long[][] tables, long crc, byte[] buf, int offset, int blocksEnd) {
-        long[] t0 = tables[0], t1 = tables[1], t2 = tables[2], t3 = tables[3],
-               t4 = tables[4], t5 = tables[5], t6 = tables[6], t7 = tables[7];
+        long[] t0 = tables[0];
+        long[] t1 = tables[1];
+        long[] t2 = tables[2];
+        long[] t3 = tables[3];
+        long[] t4 = tables[4];
+        long[] t5 = tables[5];
+        long[] t6 = tables[6];
+        long[] t7 = tables[7];
         for (; offset < blocksEnd; offset += 8) {
             crc = t7[(int) ((crc ^ buf[offset]) & 0xff)]
                 ^ t6[(int) (((crc >>> 8) ^ buf[offset + 1]) & 0xff)]
@@ -408,9 +426,16 @@ public class CrcModel extends CrcDescription {
     }
 
     // 8 bytes at a time, register aligned to bit 63
+    @SuppressWarnings("java:S3034")
     private static long alignedBlocks(long[][] tables, long register, byte[] buf, int offset, int blocksEnd) {
-        long[] t0 = tables[0], t1 = tables[1], t2 = tables[2], t3 = tables[3],
-               t4 = tables[4], t5 = tables[5], t6 = tables[6], t7 = tables[7];
+        long[] t0 = tables[0];
+        long[] t1 = tables[1];
+        long[] t2 = tables[2];
+        long[] t3 = tables[3];
+        long[] t4 = tables[4];
+        long[] t5 = tables[5];
+        long[] t6 = tables[6];
+        long[] t7 = tables[7];
         for (; offset < blocksEnd; offset += 8) {
             register = t7[(int) (((register >>> 56) ^ buf[offset]) & 0xff)]
                      ^ t6[(int) (((register >>> 48) ^ buf[offset + 1]) & 0xff)]
