@@ -66,10 +66,10 @@ JAVA
 "$JAVA_HOME/bin/javac" -d "$WORK/modular/out" --module-path "$JAR" --module-source-path "$WORK/modular" --module crc.check
 OUT=$("$JAVA_HOME/bin/java" --module-path "$JAR:$WORK/modular/out/crc.check" --module crc.check/crc.check.Main)
 echo "module path: $OUT"
-[ "$OUT" = "$MODULE named cbf43926" ] || fail "expected '$MODULE named cbf43926' on the module path"
+[[ "$OUT" = "$MODULE named cbf43926" ]] || fail "expected '$MODULE named cbf43926' on the module path"
 
 # Java 8 ignores the descriptor
-if [ -n "$JAVA8_HOME" ]; then
+if [[ -n "$JAVA8_HOME" ]]; then
     "$JAVA8_HOME/bin/javac" -d "$WORK/plain/out" -cp "$JAR" "$WORK/plain/crc/check/Main.java"
     OUT=$("$JAVA8_HOME/bin/java" -cp "$JAR:$WORK/plain/out" crc.check.Main)
     echo "class path: $OUT"
