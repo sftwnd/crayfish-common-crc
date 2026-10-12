@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0                       https://maven.apache.org/xsd/settings-1.1.0.xsd">
+<settings xmlns="http://maven.apache.org/SETTINGS/1.2.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.2.0 https://maven.apache.org/xsd/settings-1.2.0.xsd">
     <!--
         No secrets in this file: the values come from the environment (~/.mavenrc, not under git).
         CENTRAL_TOKEN_PASSWORD and GPG_SIGNING_PASSPHRASE hold {...} values of mvn -ep (encrypt-password)
