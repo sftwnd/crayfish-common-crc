@@ -95,4 +95,12 @@ _P.S.> The check value is calculated if it is not given. A given check value is 
     if (crcModel != null) {
         long crc=crcModel.getCRC().update("String".getBytes()).getCrc();
     }
+```## Java modules
+The library runs on Java 8+. On Java 9+ it is the named module `com.github.sftwnd.crayfish_common_crc` (since 1.1.0;
+up to 1.0.2 an automatic module of the same name), which exports the package `com.github.sftwnd.crayfish.common.crc`:
+```java
+module my.application {
+    requires com.github.sftwnd.crayfish_common_crc;
+}
 ```
+The module descriptor is in `META-INF/versions/9` of the multi-release jar, so Java 8 ignores it.

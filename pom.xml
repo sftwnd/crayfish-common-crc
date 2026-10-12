@@ -44,7 +44,9 @@
         <javaModuleName>com.github.sftwnd.crayfish_common_crc</javaModuleName>
         <spotbugs-annotations.version>4.7.3</spotbugs-annotations.version>
         <junit.version>5.9.2</junit.version>
-        <maven-compiler-plugin.version>3.10.1</maven-compiler-plugin.version>
+        <!-- 3.11.0+: compileSourceRoots can be configured, for the module descriptor in src/main/java9 -->
+        <maven-compiler-plugin.version>3.15.0</maven-compiler-plugin.version>
+        <maven-enforcer-plugin.version>3.5.0</maven-enforcer-plugin.version>
         <maven-gpg-plugin.version>3.0.1</maven-gpg-plugin.version>
         <maven-jar-plugin.version>3.3.0</maven-jar-plugin.version>
         <maven-javadoc-plugin.version>3.5.0</maven-javadoc-plugin.version>
@@ -163,6 +165,9 @@
 Bundle-SymbolicName: com.github.sftwnd.crayfish.common.crc
 Bundle-License: BSD-3-Clause;link="https://opensource.org/licenses/BSD-3-Clause"
 Automatic-Module-Name: ${javaModuleName}
+Multi-Release: true
+# bnd 6 does not know multi-release jars and takes the module descriptor for a class in the wrong directory
+-fixupmessages: "Classes found in the wrong directory: ?META-INF/versions/9/module-info.class=module-info?";restrict:=error;is:=ignore
 Export-Package: com.github.sftwnd.crayfish.common.crc;version="${version;===;${Bundle-Version}}"
 -noextraheaders: true
 # snapshot builds get the version qualifier SNAPSHOT instead of a timestamp, so that they are reproducible
@@ -289,6 +294,31 @@ Export-Package: com.github.sftwnd.crayfish.common.crc;version="${version;===;${B
             <properties>
                 <maven.compiler.release>8</maven.compiler.release>
             </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <!-- the module descriptor, compiled for Java 9 into META-INF/versions/9: a named module on
+                             Java 9+, while Java 8 ignores it (a build on JDK 8 produces a jar without it) -->
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-compiler-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>compile-module-info</id>
+                                <goals>
+                                    <goal>compile</goal>
+                                </goals>
+                                <configuration>
+                                    <release>9</release>
+                                    <multiReleaseOutput>true</multiReleaseOutput>
+                                    <compileSourceRoots>
+                                        <compileSourceRoot>${project.basedir}/src/main/java9</compileSourceRoot>
+                                    </compileSourceRoots>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
         </profile>
         <profile>
             <id>sign-artifacts</id>
@@ -300,6 +330,28 @@ Export-Package: com.github.sftwnd.crayfish.common.crc;version="${version;===;${B
             </activation>
             <build>
                 <plugins>
+                    <plugin>
+                        <!-- a jar built on JDK 8 has no module descriptor -->
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-enforcer-plugin</artifactId>
+                        <version>${maven-enforcer-plugin.version}</version>
+                        <executions>
+                            <execution>
+                                <id>release-on-jdk9+</id>
+                                <goals>
+                                    <goal>enforce</goal>
+                                </goals>
+                                <configuration>
+                                    <rules>
+                                        <requireJavaVersion>
+                                            <version>[9,)</version>
+                                            <message>A release has to be built on JDK 9+, so that the jar contains the module descriptor</message>
+                                        </requireJavaVersion>
+                                    </rules>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-gpg-plugin</artifactId>
