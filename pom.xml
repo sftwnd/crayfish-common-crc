@@ -114,6 +114,8 @@
                 <artifactId>maven-javadoc-plugin</artifactId>
                 <configuration>
                     <source>${maven.compiler.source}</source>
+                    <!-- an undocumented public or protected member fails the build (JDK 17+ reports it) -->
+                    <failOnWarnings>true</failOnWarnings>
                 </configuration>
                 <executions>
                     <execution>
