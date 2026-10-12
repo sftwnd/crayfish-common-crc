@@ -131,11 +131,10 @@ class CrcDescriptionTest {
     }
 
     @Test
-    void testHashCodeOfVersion102() {
-        // the hash codes of the code that Lombok generated up to this version
-        assertEquals(1512042968, new CrcDescription(32, 0x04C11DB7L, 0xFFFFFFFFL, true, true, 0xFFFFFFFFL).hashCode(), "Wrong hash code of the CRC-32 parameters");
-        assertEquals(-229691942, CrcModel.CRC16_ARC.getCrcDescription().hashCode(), "Wrong hash code of the CRC-16/ARC parameters");
-        assertEquals(557570221, new CrcDescription(CrcModel.CRC64_XZ).hashCode(), "Wrong hash code of the CRC-64/XZ parameters");
+    void testHashCode() {
+        CrcDescription description = new CrcDescription(32, 0x04C11DB7L, 0xFFFFFFFFL, true, true, 0xFFFFFFFFL);
+        assertEquals(description.hashCode(), CrcModel.CRC32.getCrcDescription().hashCode(), "Equal descriptions have to have the same hash code");
+        assertEquals(description.hashCode(), new CrcDescription(description) { }.hashCode(), "A subclass without own state has to have the same hash code");
         getModels().forEach(m -> assertEquals(m.getCrcDescription().hashCode(), new CrcDescription(m).hashCode(),
                 "Model " + m + ": equal descriptions have to have the same hash code"));
     }

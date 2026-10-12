@@ -187,14 +187,9 @@ public class CrcModel extends CrcDescription {
         return other instanceof CrcModel;
     }
 
-    // the hash code of the versions up to 1.0.2, which were built with Lombok; the fields are never null
     @Override
     public int hashCode() {
-        int result = super.hashCode();
-        result = result * PRIME + this.getCheck().hashCode();
-        result = result * PRIME + this.getName().hashCode();
-        result = result * PRIME + this.getCrcDescription().hashCode();
-        return result;
+        return Objects.hash(super.hashCode(), this.getCheck(), this.getName(), this.getCrcDescription());
     }
 
     @Override

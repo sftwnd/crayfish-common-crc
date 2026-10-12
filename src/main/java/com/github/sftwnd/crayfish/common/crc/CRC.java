@@ -206,14 +206,9 @@ public final class CRC {
             && this.model.equals(other.model);
     }
 
-    // the hash code of the versions up to 1.0.2, which were built with Lombok
     @Override
     public int hashCode() {
-        int result = 1;
-        result = result * CrcDescription.PRIME + Long.hashCode(this.crc);
-        result = result * CrcDescription.PRIME + Long.hashCode(this.length);
-        result = result * CrcDescription.PRIME + this.model.hashCode();
-        return result;
+        return Objects.hash(this.model, this.crc, this.length);
     }
 
     /**

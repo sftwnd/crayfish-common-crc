@@ -497,11 +497,11 @@ class CrcModelTest {
         CrcDescription subclass = new CrcDescription(model) { };
         assertNotEquals(model, subclass, "A model must not be equal to a subclass of CrcDescription");
         assertNotEquals(subclass, model, "A subclass of CrcDescription must not be equal to a model");
-        // the hash codes of the code that Lombok generated up to this version
-        assertEquals(-2082618148, CrcModel.CRC32_ISO_HDLC.hashCode(), "Wrong hash code of CRC-32/ISO-HDLC");
-        assertEquals(-1157466210, CrcModel.CRC32.hashCode(), "Wrong hash code of CRC-32");
-        assertEquals(1099760408, CrcModel.CRC16_ARC.hashCode(), "Wrong hash code of CRC-16/ARC");
-        assertEquals(-1393532597, CrcModel.CRC64_XZ.hashCode(), "Wrong hash code of CRC-64/XZ");
+        getModels().forEach(m -> {
+            CrcModel copy = CrcModel.unregistered(m.getName(), m.getCrcDescription());
+            assertEquals(m, copy, "Model " + m + " has to be equal to its unregistered copy");
+            assertEquals(m.hashCode(), copy.hashCode(), "Model " + m + " and its unregistered copy have to have the same hash code");
+        });
     }
 
     @Test

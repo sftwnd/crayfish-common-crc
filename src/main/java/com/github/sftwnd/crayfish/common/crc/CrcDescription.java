@@ -167,22 +167,17 @@ public class CrcDescription {
         return other instanceof CrcDescription;
     }
 
-    // the hash code of the versions up to 1.0.2, which were built with Lombok
+    // not Objects.hash(): it is called on every getCRC() (see CrcModel.modelFor()) and would box the parameters
     @Override
     public int hashCode() {
-        int result = 1;
-        result = result * PRIME + this.getWidth();
-        result = result * PRIME + Long.hashCode(this.getPoly());
-        result = result * PRIME + Long.hashCode(this.getInit());
-        result = result * PRIME + (this.isRefin() ? TRUE_HASH : FALSE_HASH);
-        result = result * PRIME + (this.isRefot() ? TRUE_HASH : FALSE_HASH);
-        result = result * PRIME + Long.hashCode(this.getXorot());
+        int result = Integer.hashCode(this.getWidth());
+        result = 31 * result + Long.hashCode(this.getPoly());
+        result = 31 * result + Long.hashCode(this.getInit());
+        result = 31 * result + Boolean.hashCode(this.isRefin());
+        result = 31 * result + Boolean.hashCode(this.isRefot());
+        result = 31 * result + Long.hashCode(this.getXorot());
         return result;
     }
-
-    static final int PRIME = 59;
-    private static final int TRUE_HASH = 79;
-    private static final int FALSE_HASH = 97;
 
     @Override
     public String toString() {

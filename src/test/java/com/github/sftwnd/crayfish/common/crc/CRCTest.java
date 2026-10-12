@@ -394,10 +394,8 @@ class CRCTest {
         assertNotEquals(crc, CrcModel.CRC32.getCRC(crc.getCrc() ^ 1, 9), "CRCs with different values must not be equal");
         assertNotEquals(crc, CrcModel.CRC32.getCRC(crc.getCrc(), 10), "CRCs with different lengths must not be equal");
         assertNotEquals(crc, CrcModel.PKZIP.getCRC(buff), "CRCs of an alias and its model must not be equal");
-        // the hash codes of the code that Lombok generated up to this version
-        assertEquals(-809632024, CrcModel.CRC32_ISO_HDLC.getCRC(buff).hashCode(), "Wrong hash code of a CRC-32/ISO-HDLC CRC");
-        assertEquals(-2082412769, CrcModel.CRC32_ISO_HDLC.getCRC().hashCode(), "Wrong hash code of an empty CRC-32/ISO-HDLC CRC");
-        assertEquals(1337851152, CrcModel.CRC32_ISO_HDLC.getCRC(CrcModel.CRC32_ISO_HDLC.getCheck(), 3L << 31).hashCode(), "Wrong hash code of a CRC-32/ISO-HDLC CRC of 6 GiB");
+        assertEquals(crc.hashCode(), CrcModel.CRC32.getCRC(buff).hashCode(), "Equal CRCs have to have the same hash code");
+        assertEquals(CrcModel.CRC32.getCRC().hashCode(), CrcModel.CRC32.getCRC().hashCode(), "Equal empty CRCs have to have the same hash code");
     }
 
     @Test
