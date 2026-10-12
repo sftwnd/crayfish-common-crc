@@ -161,6 +161,9 @@
                     </execution>
                 </executions>
                 <configuration>
+                    <!-- not in target/classes: there its Automatic-Module-Name makes javac take target/classes for the module
+                         when it compiles module-info.java in an incremental build -->
+                    <manifestPath>${project.build.directory}/bnd/MANIFEST.MF</manifestPath>
                     <bnd><![CDATA[
 Bundle-SymbolicName: com.github.sftwnd.crayfish.common.crc
 Bundle-License: BSD-3-Clause;link="https://opensource.org/licenses/BSD-3-Clause"
@@ -183,7 +186,7 @@ Export-Package: com.github.sftwnd.crayfish.common.crc;version="${version;===;${B
                         <manifest>
                             <addDefaultImplementationEntries>false</addDefaultImplementationEntries>
                         </manifest>
-                        <manifestFile>${project.build.outputDirectory}/META-INF/MANIFEST.MF</manifestFile>
+                        <manifestFile>${project.build.directory}/bnd/MANIFEST.MF</manifestFile>
                     </archive>
                 </configuration>
             </plugin>
