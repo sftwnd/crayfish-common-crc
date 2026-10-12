@@ -104,6 +104,53 @@ class CrcDescriptionTest {
     }
 
     @Test
+    void testEquals() {
+        CrcDescription description = new CrcDescription(32, 0x04C11DB7L, 0xFFFFFFFFL, true, true, 0xFFFFFFFFL);
+        assertEquals(description, description, "A description has to be equal to itself");
+        assertEquals(description, new CrcDescription(description), "A description has to be equal to its copy");
+        assertEquals(description, new CrcDescription(description) { }, "A description has to be equal to a subclass without own state");
+        assertEquals(new CrcDescription(description) { }, description, "A subclass without own state has to be equal to the description");
+        assertNotEquals(description, null, "A description must not be equal to null");
+        assertNotEquals(description, "CRC-32", "A description must not be equal to another type");
+        // every parameter takes part
+        CrcDescription[] others = {
+                new CrcDescription(31, 0x04C11DB7L, 0x7FFFFFFFL, true, true, 0x7FFFFFFFL),
+                new CrcDescription(32, 0x04C11DB6L, 0xFFFFFFFFL, true, true, 0xFFFFFFFFL),
+                new CrcDescription(32, 0x04C11DB7L, 0xFFFFFFFEL, true, true, 0xFFFFFFFFL),
+                new CrcDescription(32, 0x04C11DB7L, 0xFFFFFFFFL, false, true, 0xFFFFFFFFL),
+                new CrcDescription(32, 0x04C11DB7L, 0xFFFFFFFFL, true, false, 0xFFFFFFFFL),
+                new CrcDescription(32, 0x04C11DB7L, 0xFFFFFFFFL, true, true, 0xFFFFFFFEL)};
+        for (CrcDescription other : others) {
+            assertNotEquals(description, other, "Descriptions with different parameters must not be equal: " + other);
+            assertNotEquals(description.hashCode(), other.hashCode(), "Descriptions with different parameters have to have different hash codes here: " + other);
+        }
+        // a model is compared by its original parameters, and a description is never equal to a model
+        assertEquals(CrcModel.CRC32.getCrcDescription(), description, "The description of CRC-32 has to be equal to its parameters");
+        assertNotEquals(description, CrcModel.CRC32, "A description must not be equal to a model");
+        assertNotEquals(CrcModel.CRC32, description, "A model must not be equal to a description");
+    }
+
+    @Test
+    void testHashCode() {
+        CrcDescription description = new CrcDescription(32, 0x04C11DB7L, 0xFFFFFFFFL, true, true, 0xFFFFFFFFL);
+        assertEquals(description.hashCode(), CrcModel.CRC32.getCrcDescription().hashCode(), "Equal descriptions have to have the same hash code");
+        assertEquals(description.hashCode(), new CrcDescription(description) { }.hashCode(), "A subclass without own state has to have the same hash code");
+        getModels().forEach(m -> assertEquals(m.getCrcDescription().hashCode(), new CrcDescription(m).hashCode(),
+                "Model " + m + ": equal descriptions have to have the same hash code"));
+    }
+
+    @Test
+    void testGetters() {
+        CrcDescription description = new CrcDescription(16, 0x8005, 0x1234, true, false, 0xFFFF);
+        assertEquals(16, description.getWidth(), "Wrong width");
+        assertEquals(0x8005L, description.getPoly(), "Wrong poly");
+        assertEquals(0x1234L, description.getInit(), "Wrong init");
+        assertTrue(description.isRefin(), "Wrong refin");
+        assertFalse(description.isRefot(), "Wrong refout");
+        assertEquals(0xFFFFL, description.getXorot(), "Wrong xorout");
+    }
+
+    @Test
     void testToString() {
         getModels().map(CrcModel::getCrcDescription).forEach(description -> assertDoesNotThrow(description::toString, "CrcDescription::toString hasn't got to throws exception"));
     }

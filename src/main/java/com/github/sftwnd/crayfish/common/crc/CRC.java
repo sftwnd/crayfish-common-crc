@@ -5,8 +5,6 @@
 package com.github.sftwnd.crayfish.common.crc;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import lombok.EqualsAndHashCode;
-import lombok.Getter;
 
 import java.util.Locale;
 import java.util.Objects;
@@ -20,12 +18,9 @@ import static com.github.sftwnd.crayfish.common.crc.CrcModel.crc_general_combine
  * @since 1.0.0
  * @author Andrey D. Shindarev
  */
-// the fields are compared, not the getters:
-// the crc field of a CRC without data always holds the crc of the empty message (see the constructor)
-@EqualsAndHashCode(doNotUseGetters = true)
 public final class CRC {
 
-    @Getter private final CrcModel model;
+    private final CrcModel model;
     @SuppressWarnings("java:S1700")
     long crc;
     // number of processed bytes
@@ -66,6 +61,14 @@ public final class CRC {
      */
     CRC(@NonNull final CrcModel model) {
         this(model, model.init, 0);
+    }
+
+    /**
+     * Get the model of the CRC
+     * @return CRC model
+     */
+    public CrcModel getModel() {
+        return this.model;
     }
 
     /**
@@ -180,6 +183,32 @@ public final class CRC {
                          this.length += c.length;
                  });
         return this;
+    }
+
+    /**
+     * CRCs are equal if they have the same model, crc value and length
+     * @param o object to compare with
+     * @return true if o is a CRC with the same model, crc value and length
+     */
+    @Override
+    public boolean equals(final Object o) {
+        if (o == this) {
+            return true;
+        }
+        if (!(o instanceof CRC)) {
+            return false;
+        }
+        // the fields are compared, not getCrc(): the crc field of a CRC without data holds the crc of the empty message
+        // as well (see the constructor)
+        final CRC other = (CRC) o;
+        return this.crc == other.crc
+            && this.length == other.length
+            && this.model.equals(other.model);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(this.model, this.crc, this.length);
     }
 
     /**

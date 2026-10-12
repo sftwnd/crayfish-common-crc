@@ -383,6 +383,22 @@ class CRCTest {
     }
 
     @Test
+    void testEquals() {
+        byte[] buff = CHECK_BUFF.getBytes(US_ASCII);
+        CRC crc = CrcModel.CRC32.getCRC(buff);
+        assertEquals(crc, crc, "A CRC has to be equal to itself");
+        assertEquals(crc, CrcModel.CRC32.getCRC(buff), "CRCs of the same model over the same data have to be equal");
+        assertNotEquals(crc, null, "A CRC must not be equal to null");
+        assertNotEquals(crc, CrcModel.CRC32, "A CRC must not be equal to its model");
+        assertNotEquals(crc, CrcModel.CRC32.getCRC(buff, 8), "CRCs with different values and lengths must not be equal");
+        assertNotEquals(crc, CrcModel.CRC32.getCRC(crc.getCrc() ^ 1, 9), "CRCs with different values must not be equal");
+        assertNotEquals(crc, CrcModel.CRC32.getCRC(crc.getCrc(), 10), "CRCs with different lengths must not be equal");
+        assertNotEquals(crc, CrcModel.PKZIP.getCRC(buff), "CRCs of an alias and its model must not be equal");
+        assertEquals(crc.hashCode(), CrcModel.CRC32.getCRC(buff).hashCode(), "Equal CRCs have to have the same hash code");
+        assertEquals(CrcModel.CRC32.getCRC().hashCode(), CrcModel.CRC32.getCRC().hashCode(), "Equal empty CRCs have to have the same hash code");
+    }
+
+    @Test
     void testFind() {
         assertNull(CrcModel.lookUp(null), "CrcModel.lookUp(null) has to be null");
         getModels().forEach( model -> assertSame(model, CrcModel.lookUp(model.getName()), "CrcModel.lookUp(\"" + model + "\") has to be same with model"));

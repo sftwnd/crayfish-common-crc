@@ -477,6 +477,34 @@ class CrcModelTest {
     }
 
     @Test
+    void testEqualsAndHashCode() {
+        CrcModel model = construct("CRC-16/TEST-EQUALS", new CrcDescription(16, 0x8BB7, 0x1, false, false, 0x0));
+        CrcModel same = CrcModel.unregistered("CRC-16/TEST-EQUALS", model.getCrcDescription());
+        assertEquals(model, model, "A model has to be equal to itself");
+        assertEquals(model, same, "Models with the same parameters, name and check value have to be equal");
+        assertEquals(model.hashCode(), same.hashCode(), "Equal models have to have the same hash code");
+        assertNotEquals(model, null, "A model must not be equal to null");
+        assertNotEquals(model, "CRC-16/TEST-EQUALS", "A model must not be equal to another type");
+        assertNotEquals(model.getCrcDescription(), model, "A description must not be equal to a model");
+        assertNotEquals(model, model.getCrcDescription(), "A model must not be equal to a description");
+        assertNotEquals(model, CrcModel.unregistered("CRC-16/TEST-EQUALS-OTHER", model.getCrcDescription()), "Models with different names must not be equal");
+        assertNotEquals(model, CrcModel.unregistered("CRC-16/TEST-EQUALS", new CrcDescription(16, 0x8BB7, 0x2, false, false, 0x0)),
+                "Models with different parameters must not be equal");
+        // an alias has the parameters and the check value of its model, but another name
+        assertNotEquals(CrcModel.CRC32_ISO_HDLC, CrcModel.CRC32, "An alias must not be equal to its model");
+        assertEquals(CrcModel.CRC32_ISO_HDLC.getCrcDescription(), CrcModel.CRC32.getCrcDescription(), "An alias has to have the parameters of its model");
+        // a subclass of CrcDescription is never equal to a model, a subclass of CrcModel can't be created
+        CrcDescription subclass = new CrcDescription(model) { };
+        assertNotEquals(model, subclass, "A model must not be equal to a subclass of CrcDescription");
+        assertNotEquals(subclass, model, "A subclass of CrcDescription must not be equal to a model");
+        getModels().forEach(m -> {
+            CrcModel copy = CrcModel.unregistered(m.getName(), m.getCrcDescription());
+            assertEquals(m, copy, "Model " + m + " has to be equal to its unregistered copy");
+            assertEquals(m.hashCode(), copy.hashCode(), "Model " + m + " and its unregistered copy have to have the same hash code");
+        });
+    }
+
+    @Test
     void testCheckValueOverAscii() {
         // the check value of a model without a given one: the CRC of the ASCII bytes of "123456789", whatever the default charset
         CrcDescription crc16 = new CrcDescription(16, 0x7001, 0x0, false, false, 0x0);
