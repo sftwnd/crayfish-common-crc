@@ -8,14 +8,21 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
 import java.lang.reflect.Field;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static com.github.sftwnd.crayfish.common.crc.CrcModel.CHECK_BUFF;
@@ -35,6 +42,7 @@ import static com.github.sftwnd.crayfish.common.crc.CrcModel.lookUp;
 import static com.github.sftwnd.crayfish.common.crc.CrcModel.getModels;
 import static com.github.sftwnd.crayfish.common.crc.CrcModel.reflect;
 import static java.nio.charset.StandardCharsets.US_ASCII;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -351,6 +359,44 @@ class CrcModelTest {
                                   .replaceAll("[-/]", "_");
             assertEquals(expected, field.getName(), "The constant name has to be derived from the model name [" + name + "]");
         }
+    }
+
+    @Test
+    void testJavadocOfConstants() throws IOException, ReflectiveOperationException {
+        // the Javadoc line above every constant shows the model in the notation of the RevEng catalogue, an alias
+        // links to its model: the line has to match the model, also after a change of the parameters
+        List<String> lines = Files.readAllLines(Paths.get("src/main/java/com/github/sftwnd/crayfish/common/crc/CrcModel.java"), UTF_8);
+        Pattern declaration = Pattern.compile("^ {4}public static final CrcModel (\\w+) *= (new CrcModel|alias)\\(");
+        Map<CrcDescription, String> models = new IdentityHashMap<>();
+        int documented = 0;
+        for (int i = 1; i < lines.size(); i++) {
+            Matcher matcher = declaration.matcher(lines.get(i));
+            if (matcher.find()) {
+                String field = matcher.group(1);
+                CrcModel model = (CrcModel) CrcModel.class.getField(field).get(null);
+                String javadoc;
+                if (matcher.group(2).equals("alias")) {
+                    javadoc = model.getName() + ", alias of {@link #" + models.get(model.getCrcDescription()) + "}";
+                } else {
+                    models.put(model.getCrcDescription(), field);
+                    javadoc = model.getName();
+                }
+                int digits = (model.getWidth() + 3) / 4;
+                javadoc += ": width=" + model.getWidth() + " poly=" + hex(model.getPoly(), digits) + " init=" + hex(model.getInit(), digits)
+                         + " refin=" + model.isRefin() + " refout=" + model.isRefot() + " xorout=" + hex(model.getXorot(), digits)
+                         + " check=" + hex(model.getCheck(), digits);
+                assertEquals("    /** " + javadoc + " */", lines.get(i - 1), "Wrong Javadoc of the constant " + field);
+                documented++;
+            }
+        }
+        long constants = Arrays.stream(CrcModel.class.getDeclaredFields())
+                .filter(field -> field.getType() == CrcModel.class && !field.isAnnotationPresent(Deprecated.class))
+                .count();
+        assertEquals(constants, documented, "Every constant that is not deprecated has to be documented");
+    }
+
+    private static String hex(final long value, final int digits) {
+        return String.format("0x%0" + digits + "x", value);
     }
 
     @Test
