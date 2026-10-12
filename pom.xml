@@ -90,6 +90,8 @@
                     <target>${maven.compiler.target}</target>
                     <compilerArgs>
                         <arg>-Xlint:all</arg>
+                        <!-- JDK 21+ reports Java 8 as an obsolete target; Java 8 stays the target of the library -->
+                        <arg>-Xlint:-options</arg>
                     </compilerArgs>
                     <showWarnings>true</showWarnings>
                 </configuration>
