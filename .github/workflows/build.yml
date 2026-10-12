@@ -34,6 +34,27 @@ jobs:
       - name: Build and test
         run: mvn -B -ntp verify
 
+  module:
+    name: Modular jar
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          # the last one is the default: the jar is built on JDK 21, and Java 8 runs a consumer on the class path
+          java-version: |
+            8
+            21
+          cache: maven
+      - name: Build
+        run: mvn -B -ntp package -DskipTests
+      - name: Check the module descriptor, the module path and Java 8
+        run: .github/scripts/check-modular-jar.sh "$JAVA_HOME_8_X64"
+
   sonar:
     name: SonarCloud
     # secrets are not available to pull requests from forks
