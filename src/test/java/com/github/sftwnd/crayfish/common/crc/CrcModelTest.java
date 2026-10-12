@@ -82,7 +82,22 @@ class CrcModelTest {
 
     @Test
     void testGetModels() {
-        assertTrue(getModels().count() >= 101, "Wrong getModels size");
+        // the RevEng CRC catalogue of 11 December 2024 without CRC-82/DARC, which is wider than 64 bits
+        assertEquals(186, getModels().count(), "Wrong number of the predefined model names");
+        assertEquals(112, getModels().map(CrcModel::getCrcDescription).distinct().count(), "Wrong number of the predefined models");
+    }
+
+    @Test
+    void testModelsAddedIn110() {
+        String[] names = {"CRC-8/HITAG", "CRC-8/MIFARE-MAD", "CRC-8/NRSC-5", "CRC-16/M17", "CRC-16/NRSC-5", "CRC-24/OS-9",
+                          "CRC-32/CD-ROM-EDC", "CRC-32/MEF", "CRC-64/MS", "CRC-64/NVME", "CRC-64/REDIS"};
+        for (String name : names) {
+            CrcModel model = lookUp(name);
+            assertNotNull(model, "lookUp(\"" + name + "\") has to return a predefined model");
+            assertSame(model, CrcModel.construct(model.getCrcDescription()), "The primary model of the parameters of " + name + " has to be " + name);
+        }
+        assertSame(CrcModel.CRC16_KERMIT, CrcModel.construct(CrcModel.CRC16_BLUETOOTH.getCrcDescription()), "CRC-16/BLUETOOTH has to be an alias of CRC-16/KERMIT");
+        assertSame(CrcModel.CRC32_ISCSI, CrcModel.construct(CrcModel.CRC32_NVME.getCrcDescription()), "CRC-32/NVME has to be an alias of CRC-32/ISCSI");
     }
 
     @Test
