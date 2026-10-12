@@ -201,23 +201,28 @@ public class CrcModel extends CrcDescription {
     }
 
     void _init() {
-        lookupTable();
+        lookupTables();
     }
 
-    // the lookup table, built on first use without a lock: the model takes the table of its description if it is built
-    // already, otherwise it builds the table and stores it there. Threads that build it at the same time build identical
-    // tables, and the volatile fields publish them completely
-    private long[] lookupTable() {
-        long[] table = this.table_byte;
-        if (table == null) {
-            table = this.crcDescription.table_byte;
-            if (table == null) {
-                table = _createBytewiseTable();
-                this.crcDescription.table_byte = table;
+    // number of lookup tables: slicing-by-8 processes 8 bytes per step
+    private static final int TABLES = 8;
+
+    // the lookup tables, built on first use without a lock: the model takes the tables of its description if they are built
+    // already, otherwise it builds them and stores them there. Threads that build them at the same time build identical
+    // tables, and the volatile fields publish them completely; table_byte refers to the first table
+    private long[][] lookupTables() {
+        long[][] tables = this.tables;
+        if (tables == null) {
+            tables = this.crcDescription.tables;
+            if (tables == null) {
+                tables = _createTables();
+                this.crcDescription.table_byte = tables[0];
+                this.crcDescription.tables = tables;
             }
-            this.table_byte = table;
+            this.table_byte = tables[0];
+            this.tables = tables;
         }
-        return table;
+        return tables;
     }
 
     /**
@@ -234,10 +239,15 @@ public class CrcModel extends CrcDescription {
                    );
     }
 
-    private long[] _createBytewiseTable() {
-        long[] table = new long[256];
+    // slicing-by-8: table 0 is the crc register after a byte from a zero register, table k after the byte and k zero
+    // bytes. The register of a reflected model is in the low bits, the register of the other models is aligned to bit 63,
+    // so that the calculation does not depend on the width
+    private long[][] _createTables() {
+        long[][] tables = new long[TABLES][256];
+        long[] table = tables[0];
+        int align = refin ? 0 : 64 - Math.max(width, 8);
         long crc;
-        for (int k = 0; k < table.length; k++) {
+        for (int k = 0; k < 256; k++) {
             crc = createBitwiseValue(k);
             if (refot) {
                 crc = reflect(crc);
@@ -245,9 +255,21 @@ public class CrcModel extends CrcDescription {
             if (width < 8 && !refin) {
                 crc <<= 8 - width;
             }
-            table[k] = crc;
+            table[k] = crc << align;
         }
-        return table;
+        // the crc value of a byte is the register XOR-ed with a constant, the value of the byte 0: the register remains,
+        // so that the values of several bytes can be XOR-ed
+        for (int k = 255; k >= 0; k--) {
+            table[k] ^= table[0];
+        }
+        for (int t = 1; t < TABLES; t++) {
+            for (int k = 0; k < 256; k++) {
+                long previous = tables[t - 1][k];
+                tables[t][k] = refin ? (previous >>> 8) ^ table[(int) (previous & 0xff)]
+                                     : (previous << 8) ^ table[(int) (previous >>> 56)];
+            }
+        }
+        return tables;
     }
 
     @SuppressWarnings({"java:S3776", "java:S125"})
@@ -296,39 +318,110 @@ public class CrcModel extends CrcDescription {
         /* if requested, return the initial CRC */
         if (buf == null)
             return init;
+        if (len <= 0)
+            return crc;
+        if (offset < 0 || len > buf.length - offset)
+            throw outOfBounds(buf, offset, len);
 
         /* pre-process the CRC */
         if (refot) {
             crc = reflect(crc);
         }
 
-        /* process the input data a byte at a time */
-        long[] table = lookupTable();
+        /* process the input data 8 bytes at a time, then the rest a byte at a time: the tables hold the register,
+           the crc value is the register XOR-ed with xorout. The loops are separate methods, so that
+           this method stays small enough for the JIT compiler to inline it */
+        long[][] tables = lookupTables();
+        long[] t0 = tables[0];
+        long xorout = refot ? reflect(xorot) : xorot;
+        // less than 24 bytes a byte at a time: the 8-byte loop does not pay off its setup (JMH on JDK 21)
+        int blocksEnd = len < 24 ? offset : offset + (len & ~7);
+        int end = offset + len;
         if (refin) {
-            crc &= widmask(width);
-            while (len-- > 0) {
-                crc = (crc >>> 8) ^ table[(int) ((crc ^ buf[offset++]) & 0xff)];
+            crc = (crc ^ xorout) & widmask(width);
+            if (offset < blocksEnd) {
+                crc = reflectedBlocks(tables, crc, buf, offset, blocksEnd);
             }
-        } else if (width <= 8) {
-            int shift = 8 - width;           /* 0..7 */
-            crc <<= shift;
-            while (len-- > 0) {
-                crc = table[(int) ((crc ^ buf[offset++]) & 0xff)];
-            }
-            crc >>>= shift;
+            crc = reflectedBytes(t0, crc, buf, blocksEnd, end) ^ xorout;
         } else {
-            int shift = width - 8;           /* 1..WORDBITS-8 */
-            while (len-- > 0) {
-                crc = (crc << 8) ^
-                      table[(int) (((crc >>> shift) ^ (buf[offset++] & 0xff)) & 0xff)];
+            // the register aligned to bit 63: the bits above the width are shifted out
+            int shift = 64 - width;
+            long register = (crc ^ xorout) << shift;
+            if (offset < blocksEnd) {
+                register = alignedBlocks(tables, register, buf, offset, blocksEnd);
             }
-            crc &= widmask(width);
+            register = width <= 8 ? narrowBytes(t0, register, buf, blocksEnd, end) : alignedBytes(t0, register, buf, blocksEnd, end);
+            crc = (register >>> shift) ^ xorout;
         }
         /* post-process and return the CRC */
         if (refot) {
             crc = reflect(crc);
         }
         return crc;
+    }
+
+    private static ArrayIndexOutOfBoundsException outOfBounds(byte[] buf, int offset, int len) {
+        return new ArrayIndexOutOfBoundsException("CRC::update - offset " + offset + " and length " + len
+                + " out of the buffer length " + buf.length);
+    }
+
+    // a byte at a time, register in the low bits
+    private static long reflectedBytes(long[] t0, long crc, byte[] buf, int offset, int end) {
+        for (; offset < end; offset++) {
+            crc = (crc >>> 8) ^ t0[(int) ((crc ^ buf[offset]) & 0xff)];
+        }
+        return crc;
+    }
+
+    // a byte at a time, register aligned to bit 63
+    private static long alignedBytes(long[] t0, long register, byte[] buf, int offset, int end) {
+        for (; offset < end; offset++) {
+            register = (register << 8) ^ t0[(int) (((register >>> 56) ^ buf[offset]) & 0xff)];
+        }
+        return register;
+    }
+
+    // a byte at a time, register of width 1..8 in the top byte: no shift of the remaining register
+    private static long narrowBytes(long[] t0, long register, byte[] buf, int offset, int end) {
+        for (; offset < end; offset++) {
+            register = t0[(int) (((register >>> 56) ^ buf[offset]) & 0xff)];
+        }
+        return register;
+    }
+
+    // 8 bytes at a time, register in the low bits; a loop over the index of the buffer, so that the JIT compiler
+    // removes the bounds checks of the buffer
+    private static long reflectedBlocks(long[][] tables, long crc, byte[] buf, int offset, int blocksEnd) {
+        long[] t0 = tables[0], t1 = tables[1], t2 = tables[2], t3 = tables[3],
+               t4 = tables[4], t5 = tables[5], t6 = tables[6], t7 = tables[7];
+        for (; offset < blocksEnd; offset += 8) {
+            crc = t7[(int) ((crc ^ buf[offset]) & 0xff)]
+                ^ t6[(int) (((crc >>> 8) ^ buf[offset + 1]) & 0xff)]
+                ^ t5[(int) (((crc >>> 16) ^ buf[offset + 2]) & 0xff)]
+                ^ t4[(int) (((crc >>> 24) ^ buf[offset + 3]) & 0xff)]
+                ^ t3[(int) (((crc >>> 32) ^ buf[offset + 4]) & 0xff)]
+                ^ t2[(int) (((crc >>> 40) ^ buf[offset + 5]) & 0xff)]
+                ^ t1[(int) (((crc >>> 48) ^ buf[offset + 6]) & 0xff)]
+                ^ t0[(int) (((crc >>> 56) ^ buf[offset + 7]) & 0xff)];
+        }
+        return crc;
+    }
+
+    // 8 bytes at a time, register aligned to bit 63
+    private static long alignedBlocks(long[][] tables, long register, byte[] buf, int offset, int blocksEnd) {
+        long[] t0 = tables[0], t1 = tables[1], t2 = tables[2], t3 = tables[3],
+               t4 = tables[4], t5 = tables[5], t6 = tables[6], t7 = tables[7];
+        for (; offset < blocksEnd; offset += 8) {
+            register = t7[(int) (((register >>> 56) ^ buf[offset]) & 0xff)]
+                     ^ t6[(int) (((register >>> 48) ^ buf[offset + 1]) & 0xff)]
+                     ^ t5[(int) (((register >>> 40) ^ buf[offset + 2]) & 0xff)]
+                     ^ t4[(int) (((register >>> 32) ^ buf[offset + 3]) & 0xff)]
+                     ^ t3[(int) (((register >>> 24) ^ buf[offset + 4]) & 0xff)]
+                     ^ t2[(int) (((register >>> 16) ^ buf[offset + 5]) & 0xff)]
+                     ^ t1[(int) (((register >>> 8) ^ buf[offset + 6]) & 0xff)]
+                     ^ t0[(int) ((register ^ buf[offset + 7]) & 0xff)];
+        }
+        return register;
     }
 
     // registered models: a stream of the list works on a snapshot, so registration does not break running streams

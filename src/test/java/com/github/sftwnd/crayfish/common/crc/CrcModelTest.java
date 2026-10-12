@@ -20,6 +20,7 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Random;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -41,6 +42,7 @@ import static com.github.sftwnd.crayfish.common.crc.CrcModel.crc_general_combine
 import static com.github.sftwnd.crayfish.common.crc.CrcModel.lookUp;
 import static com.github.sftwnd.crayfish.common.crc.CrcModel.getModels;
 import static com.github.sftwnd.crayfish.common.crc.CrcModel.reflect;
+import static com.github.sftwnd.crayfish.common.crc.CrcModel.widmask;
 import static java.nio.charset.StandardCharsets.US_ASCII;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -133,6 +135,53 @@ class CrcModelTest {
                         "Model " + m + ": crc of the byte 0x" + Integer.toHexString(value) + " has to be equal to the bitwise calculated value");
             }
         });
+    }
+
+    @Test
+    void testCrcBytewiseLengthsAndOffsets() {
+        // slicing-by-8 from 24 bytes on: blocks of 8 bytes and the rest, at an offset that is not a multiple of 8
+        byte[] buff = new byte[64];
+        new Random(62).nextBytes(buff);
+        getModels().forEach(m -> {
+            for (int len = 0; len <= 40; len++) {
+                assertEquals(CrcReference.crc(m.getCrcDescription(), buff, 3, len), m.getCRC(buff, 3, len).getCrc(),
+                        "Model " + m + ": crc of " + len + " bytes has to be equal to the bitwise calculated value");
+            }
+            long expected = CrcReference.crc(m.getCrcDescription(), buff, 3, 40);
+            for (int split = 0; split <= 40; split++) {
+                assertEquals(expected, m.getCRC(buff, 3, split).update(buff, 3 + split, 40 - split).getCrc(),
+                        "Model " + m + ": crc of 40 bytes updated in two parts at " + split + " has to be equal to the bitwise calculated value");
+            }
+        });
+    }
+
+    @Test
+    void testCrcBytewiseOutOfBounds() {
+        CRC crc = CrcModel.CRC32.getCRC(CHECK_BUFF.getBytes(US_ASCII));
+        byte[] buff = new byte[16];
+        assertThrows(ArrayIndexOutOfBoundsException.class, () -> crc.update(buff, 5, 12), "The bytes beyond the buffer have to be reported");
+        assertThrows(ArrayIndexOutOfBoundsException.class, () -> crc.update(buff, -1, 8), "A negative offset has to be reported");
+        assertEquals(CrcModel.CRC32.getCheck().longValue(), crc.getCrc(), "A failed update must not change the crc");
+        assertEquals(9, crc.getLength(), "A failed update must not change the length");
+    }
+
+    @Test
+    void testCrcBytewiseAllWidths() {
+        // up to 48 bytes: a byte at a time below 24 bytes, 8 bytes at a time and the rest from 24 bytes on
+        byte[] buff = new byte[48];
+        new Random(64).nextBytes(buff);
+        for (int width = 1; width <= 64; width++) {
+            long mask = widmask(width);
+            for (int kind = 0; kind < 4; kind++) {
+                CrcDescription description = new CrcDescription(width, 0x42F0E1EBA9EA3693L & mask, 0x0123456789ABCDEFL & mask,
+                        (kind & 1) != 0, (kind & 2) != 0, 0xFEDCBA9876543210L & mask);
+                CrcModel model = CrcModel.unregistered(description);
+                for (int len = 0; len <= buff.length; len++) {
+                    assertEquals(CrcReference.crc(description, buff, 0, len), model.getCRC(buff, 0, len).getCrc(),
+                            "Model " + model + ": crc of " + len + " bytes has to be equal to the bitwise calculated value");
+                }
+            }
+        }
     }
 
     @Test

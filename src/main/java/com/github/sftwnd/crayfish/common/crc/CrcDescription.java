@@ -243,8 +243,9 @@ public class CrcDescription {
 
     /**
      * Lookup table of the calculation, built by {@link CrcModel} on first use and kept in the model and in its
-     * original description, so that the aliases of a model share it. An internal cache, not a CRC parameter: it takes
-     * no part in equals and hashCode, and it is not meant to be used outside this library
+     * original description, so that the aliases of a model share it: since 1.1.0 the first of the 8 tables of
+     * the calculation, 8 bytes per step (slicing-by-8). An internal cache, not a CRC parameter: it takes no part
+     * in equals and hashCode, and it is not meant to be used outside this library
      */
     @SuppressWarnings({
             // java:S116 Field names should comply with a naming convention
@@ -255,5 +256,9 @@ public class CrcDescription {
             "java:S3077"
     })
     protected volatile long[] table_byte = null;
+
+    // the 8 lookup tables of the calculation, table_byte is the first one: built and published like table_byte
+    @SuppressWarnings("java:S3077")
+    volatile long[][] tables = null;
 
 }
