@@ -547,11 +547,13 @@ class CrcModelTest {
         assertThrows(IllegalArgumentException.class, () -> construct("CRC-32", CRC16_XMODEM), "The name of a predefined model has to be rejected for another model");
         // a name registered at run time
         CrcModel model = construct("CRC-24/TEST-NAME", new CrcDescription(24, 0x123457, 0x0, false, false, 0x0));
-        assertThrows(IllegalArgumentException.class, () -> construct("CRC-24/TEST-NAME", new CrcDescription(24, 0x123459, 0x0, false, false, 0x0)),
+        CrcDescription otherParameters = new CrcDescription(24, 0x123459, 0x0, false, false, 0x0);
+        assertThrows(IllegalArgumentException.class, () -> construct("CRC-24/TEST-NAME", otherParameters),
                 "The name of a registered model has to be rejected for other parameters");
         assertSame(model, construct("CRC-24/TEST-NAME", new CrcDescription(model)), "The name with its own parameters has to return the registered model");
         // the misspelled names of 1.0.x belong to their predefined models
-        assertThrows(IllegalArgumentException.class, () -> construct("CCRC-5/G-704", new CrcDescription(5, 0x15, 0x1, true, true, 0x0)),
+        CrcDescription g704Other = new CrcDescription(5, 0x15, 0x1, true, true, 0x0);
+        assertThrows(IllegalArgumentException.class, () -> construct("CCRC-5/G-704", g704Other),
                 "A misspelled name of 1.0.x has to be rejected for other parameters");
         assertSame(CrcModel.CRC5_G_704, construct("CCRC-5/G-704", CrcModel.CRC5_ITU), "A misspelled name of 1.0.x with its parameters has to return the predefined model");
         // every name is found by lookUp() and stays with its model
@@ -569,7 +571,8 @@ class CrcModelTest {
                 "A wrong check value has to be rejected for new parameters");
         assertTrue(wrong.getMessage().contains("0x1234") && wrong.getMessage().contains("0x14AF"), "Wrong message: " + wrong.getMessage());
         // the parameters of CRC-16/ARC with a check value that is not the one of CRC-16/ARC
-        assertThrows(IllegalArgumentException.class, () -> construct("Y", new CrcDescription(16, 0x8005, 0x0, true, true, 0x0), 0x1234L),
+        CrcDescription arc = new CrcDescription(16, 0x8005, 0x0, true, true, 0x0);
+        assertThrows(IllegalArgumentException.class, () -> construct("Y", arc, 0x1234L),
                 "A wrong check value has to be rejected for the parameters of a predefined model");
         assertThrows(IllegalArgumentException.class, () -> construct(CRC64_GO_ISO, 0L), "A wrong check value has to be rejected for a predefined model");
         assertEquals(modelCount, getModels().count(), "Rejected calls must not register models");
