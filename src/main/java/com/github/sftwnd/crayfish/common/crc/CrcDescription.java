@@ -13,11 +13,26 @@ import java.util.Objects;
  */
 public class CrcDescription {
 
+    /** CRC width in bits: 1..64 */
     protected final int     width;
+    /**
+     * Polynomial, without the x^width term. In a {@link CrcModel} the polynomial processed for the calculation:
+     * reflected if refin is true; {@link #getPoly()} returns the parameter
+     */
     protected final long    poly;
+    /**
+     * Initial value of the CRC register. In a {@link CrcModel} the value processed for the calculation:
+     * reflected if refout is true, and XOR-ed with xorout; {@link #getInit()} returns the parameter
+     */
     protected final long    init;
+    /** True if the input bytes are reflected (refin) */
     protected final boolean refin;
+    /**
+     * True if the CRC is reflected before the final XOR (refout). In a {@link CrcModel} the value processed for
+     * the calculation: refout XOR refin; {@link #isRefot()} returns the parameter
+     */
     protected final boolean refot;
+    /** Value XOR-ed to the CRC at the end (xorout) */
     protected final long    xorot;
 
     /**
@@ -226,6 +241,11 @@ public class CrcDescription {
         return getCRC(crc, (long) len);
     }
 
+    /**
+     * Lookup table of the calculation, built by {@link CrcModel} on first use and kept in the model and in its
+     * original description, so that the aliases of a model share it. An internal cache, not a CRC parameter: it takes
+     * no part in equals and hashCode, and it is not meant to be used outside this library
+     */
     @SuppressWarnings({
             // java:S116 Field names should comply with a naming convention
             // Names of original C algorithm methods has been saved
@@ -234,7 +254,6 @@ public class CrcDescription {
             // table items are not mutable and use of table is controlled in CrcModel carefully
             "java:S3077"
     })
-    // The lazily built lookup table is a cache, not a CRC parameter, so it is excluded from equals and hashCode
     protected volatile long[] table_byte = null;
 
 }
