@@ -39,14 +39,4 @@
         </Or>
     </Match>
 
-    <!-- the lock of the registry is the list of the registered models: lookup, checks and registration are one step -->
-    <Match>
-        <Bug pattern="JLM_JSR166_UTILCONCURRENT_MONITORENTER"/>
-        <Class name="com.github.sftwnd.crayfish.common.crc.CrcModel"/>
-        <Or>
-            <Method name="construct"/>
-            <Method name="removeRegisteredModels"/>
-        </Or>
-    </Match>
-
 </FindBugsFilter>
