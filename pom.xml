@@ -46,6 +46,7 @@
         <junit.version>5.9.2</junit.version>
         <!-- 3.11.0+: compileSourceRoots can be configured, for the module descriptor in src/main/java9 -->
         <maven-compiler-plugin.version>3.15.0</maven-compiler-plugin.version>
+        <maven-deploy-plugin.version>3.1.4</maven-deploy-plugin.version>
         <maven-enforcer-plugin.version>3.5.0</maven-enforcer-plugin.version>
         <maven-gpg-plugin.version>3.0.1</maven-gpg-plugin.version>
         <maven-jar-plugin.version>3.3.0</maven-jar-plugin.version>
@@ -218,6 +219,12 @@ Export-Package: com.github.sftwnd.crayfish.common.crc;version="${version;===;${B
                     <version>${maven-compiler-plugin.version}</version>
                 </plugin>
                 <plugin>
+                    <!-- the release profile of the super POM (-DperformRelease=true) uses it without a version -->
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-deploy-plugin</artifactId>
+                    <version>${maven-deploy-plugin.version}</version>
+                </plugin>
+                <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-source-plugin</artifactId>
                     <version>${maven-source-plugin.version}</version>
@@ -334,7 +341,8 @@ Export-Package: com.github.sftwnd.crayfish.common.crc;version="${version;===;${B
             <build>
                 <plugins>
                     <plugin>
-                        <!-- a jar built on JDK 8 has no module descriptor -->
+                        <!-- a jar built on JDK 8 has no module descriptor; without the passphrase the unresolved
+                             ${env.GPG_SIGNING_PASSPHRASE} of .mvn/settings.xml fails as an encrypted value -->
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-enforcer-plugin</artifactId>
                         <version>${maven-enforcer-plugin.version}</version>
@@ -350,6 +358,10 @@ Export-Package: com.github.sftwnd.crayfish.common.crc;version="${version;===;${B
                                             <version>[9,)</version>
                                             <message>A release has to be built on JDK 9+, so that the jar contains the module descriptor</message>
                                         </requireJavaVersion>
+                                        <requireEnvironmentVariable>
+                                            <variableName>GPG_SIGNING_PASSPHRASE</variableName>
+                                            <message>GPG_SIGNING_PASSPHRASE is not set: the passphrase of the signing key, see the server gpg.passphrase in .mvn/settings.xml</message>
+                                        </requireEnvironmentVariable>
                                     </rules>
                                 </configuration>
                             </execution>
