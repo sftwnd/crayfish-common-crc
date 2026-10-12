@@ -467,8 +467,11 @@ public class CrcModel extends CrcDescription {
         index(model);
     }
 
+    // a name belongs to one model: construct() checks it under the lock, the names of the predefined models are unique
     private static void index(@NonNull final CrcModel model) {
-        modelsByName.putIfAbsent(model.getName(), model);
+        if (modelsByName.putIfAbsent(model.getName(), model) != null) {
+            throw new IllegalStateException("CrcModel::index - the name is already registered: " + model.getName());
+        }
         modelsByParameters.merge(model.getCrcDescription(), Collections.singletonList(model), (registered, added) -> {
             List<CrcModel> all = new ArrayList<>(registered);
             all.addAll(added);
