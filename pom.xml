@@ -59,8 +59,9 @@
         <bnd-maven-plugin.version>6.4.0</bnd-maven-plugin.version>
         <central-publishing-maven-plugin.version>0.11.0</central-publishing-maven-plugin.version>
         <sonar-maven-plugin.version>5.8.0.7211</sonar-maven-plugin.version>
-        <!-- no such server: the signing takes the passphrase from gpg-agent, see the profile sign-artifacts -->
-        <gpg.passphraseServerId>gpg-agent</gpg.passphraseServerId>
+        <!-- the server with the passphrase of the signing key: no such server, so the signing takes the passphrase
+             from gpg-agent, see the profile sign-artifacts -->
+        <gpg.serverId>gpg-agent</gpg.serverId>
     </properties>
 
     <dependencies>
@@ -379,10 +380,10 @@ Export-Package: com.github.sftwnd.crayfish.common.crc;version="${version;===;${B
                                     <!-- the passphrase of the key comes from gpg-agent: before the release unlock the key
                                          with any signature of gpg outside of the batch mode, so that gpg-agent caches it.
                                          In batch mode the plugin runs gpg with the pinentry mode "error": a locked key fails
-                                         without a prompt. -Dgpg.passphraseServerId=gpg.passphrase takes the passphrase of
-                                         the server gpg.passphrase of .mvn/settings.xml (GPG_SIGNING_PASSPHRASE) instead -->
+                                         without a prompt. -Dgpg.serverId=gpg.passphrase takes the passphrase of the server
+                                         gpg.passphrase of .mvn/settings.xml (GPG_SIGNING_PASSPHRASE) instead -->
                                     <useAgent>true</useAgent>
-                                    <passphraseServerId>${gpg.passphraseServerId}</passphraseServerId>
+                                    <passphraseServerId>${gpg.serverId}</passphraseServerId>
                                 </configuration>
                             </execution>
                         </executions>
