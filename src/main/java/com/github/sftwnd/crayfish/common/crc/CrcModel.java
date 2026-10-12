@@ -452,12 +452,16 @@ public class CrcModel extends CrcDescription {
     // registered models: a stream of the list works on a snapshot, so registration does not break running streams
     private static final List<CrcModel> models = new CopyOnWriteArrayList<>();
 
+    // the lock of the registry: lookup, checks and registration of a model are one step. Not the list itself:
+    // a concurrent collection does not synchronize on its monitor
+    private static final Object REGISTRY_LOCK = new Object();
+
     // predefined models in declaration order, every primary model before its aliases: they add themselves
     // while the class is initialized, so the list has to be declared before them; it is not changed afterwards
     private static final List<CrcModel> predefinedModels = new ArrayList<>();
 
     // indexes of all registered models, the predefined ones included: the first model for every name, and the models
-    // for every parameter set in the order of registration; they are changed while holding the lock on models
+    // for every parameter set in the order of registration; they are changed while holding REGISTRY_LOCK
     private static final Map<String, CrcModel> modelsByName = new ConcurrentHashMap<>();
     private static final Map<CrcDescription, List<CrcModel>> modelsByParameters = new ConcurrentHashMap<>();
 
@@ -490,7 +494,7 @@ public class CrcModel extends CrcDescription {
 
     // removes the models registered at run time, the predefined models stay: the tests start from the same registry
     static void removeRegisteredModels() {
-        synchronized (models) {
+        synchronized (REGISTRY_LOCK) {
             models.clear();
             modelsByName.clear();
             modelsByParameters.clear();
@@ -630,7 +634,7 @@ public class CrcModel extends CrcDescription {
         }
         // lookup, checks and registration as one step: concurrent calls register the model only once,
         // and a name is never registered for two parameter sets
-        synchronized (models) {
+        synchronized (REGISTRY_LOCK) {
             Optional<CrcModel> model = findModel(name, crcDescription);
             if (model.isPresent() && (name == null || model.get().getName().equals(name))) {
                 return verifyCheck(model.get(), value);
@@ -697,7 +701,7 @@ public class CrcModel extends CrcDescription {
         return description.getClass() == CrcDescription.class ? description : new CrcDescription(description);
     }
 
-    // has to be called while holding the lock on models
+    // has to be called while holding REGISTRY_LOCK
     private static @NonNull CrcModel registerModel(@Nullable String name, @NonNull CrcDescription crcDescription, @Nullable Long checkValue) {
         // a misspelled name of 1.0.x with the parameters of its model denotes the predefined model
         CrcModel legacy = name == null ? null : legacyModel(name);
