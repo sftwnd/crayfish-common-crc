@@ -84,7 +84,7 @@ public class CrcDescription {
     }
 
     // a parameter with bits above the width gives wrong CRC values or fails later inside CrcModel
-    private static void checkFits(final String parameter, final long value, final int width, final long mask) {
+    private static void checkFits(@NonNull final String parameter, final long value, final int width, final long mask) {
         if ((value & ~mask) != 0) {
             String hint;
             if ((value | mask) == -1L) {
@@ -212,7 +212,7 @@ public class CrcDescription {
      * {@link CrcModel#construct(CrcDescription)}
      * @return created CRC
      */
-    public CRC getCRC() {
+    public @NonNull CRC getCRC() {
         return CrcModel.modelFor(this).getCRC();
     }
 
@@ -226,7 +226,7 @@ public class CrcDescription {
      * @return created CRC
      * @since 1.1.0
      */
-    public CRC getCRC(long crc, long len) {
+    public @NonNull CRC getCRC(long crc, long len) {
         return CrcModel.modelFor(this).getCRC(crc, len);
     }
 
@@ -237,7 +237,7 @@ public class CrcDescription {
      * @param len initial processed length: number of bytes processed so far
      * @return created CRC
      */
-    public CRC getCRC(long crc, int len) {
+    public @NonNull CRC getCRC(long crc, int len) {
         return getCRC(crc, (long) len);
     }
 

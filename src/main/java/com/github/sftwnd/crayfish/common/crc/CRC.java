@@ -4,7 +4,9 @@
  */
 package com.github.sftwnd.crayfish.common.crc;
 
+import edu.umd.cs.findbugs.annotations.CheckReturnValue;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 
 import java.util.Locale;
 import java.util.Objects;
@@ -67,7 +69,7 @@ public final class CRC {
      * Get the model of the CRC
      * @return CRC model
      */
-    public CrcModel getModel() {
+    public @NonNull CrcModel getModel() {
         return this.model;
     }
 
@@ -75,7 +77,7 @@ public final class CRC {
      * Copy CRC
      * @return copy of current CRC
      */
-    public CRC copy() {
+    public @NonNull CRC copy() {
         return new CRC(this);
     }
 
@@ -104,7 +106,7 @@ public final class CRC {
      * @param len count of bytes to calculate
      * @return CRC with updated result (same as this)
      */
-    public CRC update(byte[] buff, int offset, int len) {
+    public @NonNull CRC update(@Nullable byte[] buff, int offset, int len) {
         if (buff != null && len > 0) {
             if (this.length == 0) {
                 this.crc = model.init;
@@ -121,7 +123,7 @@ public final class CRC {
      * @param len count of bytes to calculate
      * @return CRC with updated result (same as this)
      */
-    public CRC update(byte[] buff, int len) {
+    public @NonNull CRC update(@Nullable byte[] buff, int len) {
         return update(buff, 0, len);
     }
 
@@ -130,7 +132,7 @@ public final class CRC {
      * @param buff buffer to calculate, null does not change the CRC
      * @return CRC with updated result (same as this)
      */
-    public CRC update(byte[] buff) {
+    public @NonNull CRC update(@Nullable byte[] buff) {
         return update(buff, 0, buff == null ? 0 : buff.length);
     }
 
@@ -143,6 +145,7 @@ public final class CRC {
      * @return combined crc value
      * @since 1.1.0
      */
+    @CheckReturnValue
     public long combine(long crc2, long len2) {
         return combinedValue(crc2 & CrcModel.widmask(model.getWidth()), len2);
     }
@@ -154,6 +157,7 @@ public final class CRC {
      * @param len2 length of the next buffer
      * @return combined crc value
      */
+    @CheckReturnValue
     public long combine(long crc2, int len2) {
         return combine(crc2, (long) len2);
     }
@@ -172,7 +176,7 @@ public final class CRC {
      * @return current CRC, combined with CRC of parameter
      * @throws IllegalArgumentException if the CRC of the next buffer uses other CRC parameters
      */
-    public CRC combine(CRC crc) {
+    public @NonNull CRC combine(@Nullable CRC crc) {
         if (crc != null && !model.getCrcDescription().equals(crc.model.getCrcDescription())) {
             throw new IllegalArgumentException("CRC::combine - incompatible models: " + model + " and " + crc.model);
         }
