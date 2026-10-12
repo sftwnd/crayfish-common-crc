@@ -1,6 +1,6 @@
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=sftwnd_crayfish_common_crc&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=sftwnd_crayfish_common_crc) [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=sftwnd_crayfish_common_crc&metric=coverage)](https://sonarcloud.io/summary/new_code?id=sftwnd_crayfish_common_crc) [![Build](https://github.com/sftwnd/crayfish-common-crc/actions/workflows/build.yml/badge.svg)](https://github.com/sftwnd/crayfish-common-crc/actions/workflows/build.yml) [![License](https://img.shields.io/github/license/sftwnd/crayfish-common-crc)](https://github.com/sftwnd/crayfish-common-crc/blob/master/LICENSE)
 # Crayfish Common CRC
-Generic Java CRC implementation (CRC-16, CRC-32, CRC-64, etc.) with 101 predefined CRC algorithms (173 names including aliases), such as CRC-32/ISO-HDLC, CRC-64/ECMA-182 and CRC-8/SMBUS.
+Generic Java CRC implementation (CRC-16, CRC-32, CRC-64, etc.) with 112 predefined CRC algorithms (186 names including aliases), such as CRC-32/ISO-HDLC, CRC-64/ECMA-182 and CRC-8/SMBUS.
 The parameters and check values of the predefined models are those of the [RevEng CRC catalogue](https://reveng.sourceforge.io/crc-catalogue/all.htm).
 ## Create CRC
 ### Full case with description

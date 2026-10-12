@@ -807,6 +807,8 @@ public class CrcModel extends CrcDescription {
     public static final CrcModel CRC8_GSM_A              = new CrcModel("CRC-8/GSM-A", 8, 0x1D, 0x0, false, false, 0x0, 0x37L);
     /** CRC-8/GSM-B: width=8 poly=0x49 init=0x00 refin=false refout=false xorout=0xff check=0x94 */
     public static final CrcModel CRC8_GSM_B              = new CrcModel("CRC-8/GSM-B", 8, 0x49, 0x0, false, false, 0xFF, 0x94L);
+    /** CRC-8/HITAG: width=8 poly=0x1d init=0xff refin=false refout=false xorout=0x00 check=0xb4 */
+    public static final CrcModel CRC8_HITAG              = new CrcModel("CRC-8/HITAG", 8, 0x1D, 0xFF, false, false, 0x0, 0xB4L);
     /** CRC-8/I-CODE: width=8 poly=0x1d init=0xfd refin=false refout=false xorout=0x00 check=0x7e */
     public static final CrcModel CRC8_I_CODE             = new CrcModel("CRC-8/I-CODE", 8, 0x1D, 0xFD, false, false, 0x0, 0x7EL);
     /** @deprecated since 1.0.2, use {@link #CRC8_I_CODE} */
@@ -824,6 +826,10 @@ public class CrcModel extends CrcDescription {
     public static final CrcModel CRC8_MAXIM              = alias("CRC-8/MAXIM", CRC8_MAXIM_DOW);
     /** DOW-CRC, alias of {@link #CRC8_MAXIM_DOW}: width=8 poly=0x31 init=0x00 refin=true refout=true xorout=0x00 check=0xa1 */
     public static final CrcModel DOW_CRC                 = alias("DOW-CRC", CRC8_MAXIM_DOW);
+    /** CRC-8/MIFARE-MAD: width=8 poly=0x1d init=0xc7 refin=false refout=false xorout=0x00 check=0x99 */
+    public static final CrcModel CRC8_MIFARE_MAD         = new CrcModel("CRC-8/MIFARE-MAD", 8, 0x1D, 0xC7, false, false, 0x0, 0x99L);
+    /** CRC-8/NRSC-5: width=8 poly=0x31 init=0xff refin=false refout=false xorout=0x00 check=0xf7 */
+    public static final CrcModel CRC8_NRSC_5             = new CrcModel("CRC-8/NRSC-5", 8, 0x31, 0xFF, false, false, 0x0, 0xF7L);
     /** CRC-8/OPENSAFETY: width=8 poly=0x2f init=0x00 refin=false refout=false xorout=0x00 check=0x3e */
     public static final CrcModel CRC8_OPENSAFETY         = new CrcModel("CRC-8/OPENSAFETY", 8, 0x2F, 0x0, false, false, 0x0, 0x3EL);
     /** CRC-8/ROHC: width=8 poly=0x07 init=0xff refin=true refout=true xorout=0x00 check=0xd0 */
@@ -947,6 +953,8 @@ public class CrcModel extends CrcDescription {
     public static final CrcModel CRC16_GSM               = new CrcModel("CRC-16/GSM", 16, 0x1021, 0x0, false, false, 0xFFFF, 0xCE3CL);
     /** CRC-16/KERMIT: width=16 poly=0x1021 init=0x0000 refin=true refout=true xorout=0x0000 check=0x2189 */
     public static final CrcModel CRC16_KERMIT            = new CrcModel("CRC-16/KERMIT", 16, 0x1021, 0x0, true, true, 0x0, 0x2189L);
+    /** CRC-16/BLUETOOTH, alias of {@link #CRC16_KERMIT}: width=16 poly=0x1021 init=0x0000 refin=true refout=true xorout=0x0000 check=0x2189 */
+    public static final CrcModel CRC16_BLUETOOTH         = alias("CRC-16/BLUETOOTH", CRC16_KERMIT);
     /** CRC-16/CCITT, alias of {@link #CRC16_KERMIT}: width=16 poly=0x1021 init=0x0000 refin=true refout=true xorout=0x0000 check=0x2189 */
     public static final CrcModel CRC16_CCITT             = alias("CRC-16/CCITT", CRC16_KERMIT);
     /** CRC-16/CCITT-TRUE, alias of {@link #CRC16_KERMIT}: width=16 poly=0x1021 init=0x0000 refin=true refout=true xorout=0x0000 check=0x2189 */
@@ -959,6 +967,8 @@ public class CrcModel extends CrcDescription {
     public static final CrcModel KERMIT                  = alias("KERMIT", CRC16_KERMIT);
     /** CRC-16/LJ1200: width=16 poly=0x6f63 init=0x0000 refin=false refout=false xorout=0x0000 check=0xbdf4 */
     public static final CrcModel CRC16_LJ1200            = new CrcModel("CRC-16/LJ1200", 16, 0x6F63, 0x0, false, false, 0x0, 0xBDF4L);
+    /** CRC-16/M17: width=16 poly=0x5935 init=0xffff refin=false refout=false xorout=0x0000 check=0x772b */
+    public static final CrcModel CRC16_M17               = new CrcModel("CRC-16/M17", 16, 0x5935, 0xFFFF, false, false, 0x0, 0x772BL);
     /** CRC-16/MAXIM-DOW: width=16 poly=0x8005 init=0x0000 refin=true refout=true xorout=0xffff check=0x44c2 */
     public static final CrcModel CRC16_MAXIM_DOW         = new CrcModel("CRC-16/MAXIM-DOW", 16, 0x8005, 0x0, true, true, 0xFFFF, 0x44C2L);
     /** CRC-16/MAXIM, alias of {@link #CRC16_MAXIM_DOW}: width=16 poly=0x8005 init=0x0000 refin=true refout=true xorout=0xffff check=0x44c2 */
@@ -969,6 +979,8 @@ public class CrcModel extends CrcDescription {
     public static final CrcModel CRC16_MODBUS            = new CrcModel("CRC-16/MODBUS", 16, 0x8005, 0xFFFF, true, true, 0x0, 0x4B37L);
     /** MODBUS, alias of {@link #CRC16_MODBUS}: width=16 poly=0x8005 init=0xffff refin=true refout=true xorout=0x0000 check=0x4b37 */
     public static final CrcModel MODBUS                  = alias("MODBUS", CRC16_MODBUS);
+    /** CRC-16/NRSC-5: width=16 poly=0x080b init=0xffff refin=true refout=true xorout=0x0000 check=0xa066 */
+    public static final CrcModel CRC16_NRSC_5            = new CrcModel("CRC-16/NRSC-5", 16, 0x80B, 0xFFFF, true, true, 0x0, 0xA066L);
     /** CRC-16/OPENSAFETY-A: width=16 poly=0x5935 init=0x0000 refin=false refout=false xorout=0x0000 check=0x5d38 */
     public static final CrcModel CRC16_OPENSAFETY_A      = new CrcModel("CRC-16/OPENSAFETY-A", 16, 0x5935, 0x0, false, false, 0x0, 0x5D38L);
     /** CRC-16/OPENSAFETY-B: width=16 poly=0x755b init=0x0000 refin=false refout=false xorout=0x0000 check=0x20fe */
@@ -1044,6 +1056,8 @@ public class CrcModel extends CrcDescription {
     public static final CrcModel CRC24_LTE_A             = new CrcModel("CRC-24/LTE-A", 24, 0x864CFB, 0x0, false, false, 0x0, 0xCDE703L);
     /** CRC-24/LTE-B: width=24 poly=0x800063 init=0x000000 refin=false refout=false xorout=0x000000 check=0x23ef52 */
     public static final CrcModel CRC24_LTE_B             = new CrcModel("CRC-24/LTE-B", 24, 0x800063, 0x0, false, false, 0x0, 0x23EF52L);
+    /** CRC-24/OS-9: width=24 poly=0x800063 init=0xffffff refin=false refout=false xorout=0xffffff check=0x200fa5 */
+    public static final CrcModel CRC24_OS_9              = new CrcModel("CRC-24/OS-9", 24, 0x800063, 0xFFFFFF, false, false, 0xFFFFFF, 0x200FA5L);
 
     // CRC-30
     /** CRC-30/CDMA: width=30 poly=0x2030b9c7 init=0x3fffffff refin=false refout=false xorout=0x3fffffff check=0x04c34abf */
@@ -1089,6 +1103,8 @@ public class CrcModel extends CrcDescription {
     public static final CrcModel CRC32_INTERLAKEN        = alias("CRC-32/INTERLAKEN", CRC32_ISCSI);
     /** CRC-32C, alias of {@link #CRC32_ISCSI}: width=32 poly=0x1edc6f41 init=0xffffffff refin=true refout=true xorout=0xffffffff check=0xe3069283 */
     public static final CrcModel CRC32_C                 = alias("CRC-32C", CRC32_ISCSI);
+    /** CRC-32/NVME, alias of {@link #CRC32_ISCSI}: width=32 poly=0x1edc6f41 init=0xffffffff refin=true refout=true xorout=0xffffffff check=0xe3069283 */
+    public static final CrcModel CRC32_NVME              = alias("CRC-32/NVME", CRC32_ISCSI);
     /** CRC-32/BASE91-D: width=32 poly=0xa833982b init=0xffffffff refin=true refout=true xorout=0xffffffff check=0x87315576 */
     public static final CrcModel CRC32_BASE91_D          = new CrcModel("CRC-32/BASE91-D", 32, 0xA833982BL, 0xFFFFFFFFL, true, true, 0xFFFFFFFFL, 0x87315576L);
     /** CRC-32D, alias of {@link #CRC32_BASE91_D}: width=32 poly=0xa833982b init=0xffffffff refin=true refout=true xorout=0xffffffff check=0x87315576 */
@@ -1097,6 +1113,8 @@ public class CrcModel extends CrcDescription {
     public static final CrcModel CRC32_JAMCRC            = new CrcModel("CRC-32/JAMCRC", 32, 0x04C11DB7L, 0xFFFFFFFFL, true, true, 0x00000000L, 0x340BC6D9L);
     /** JAMCRC, alias of {@link #CRC32_JAMCRC}: width=32 poly=0x04c11db7 init=0xffffffff refin=true refout=true xorout=0x00000000 check=0x340bc6d9 */
     public static final CrcModel JAMCRC                  = alias("JAMCRC", CRC32_JAMCRC);
+    /** CRC-32/MEF: width=32 poly=0x741b8cd7 init=0xffffffff refin=true refout=true xorout=0x00000000 check=0xd2c22f51 */
+    public static final CrcModel CRC32_MEF               = new CrcModel("CRC-32/MEF", 32, 0x741B8CD7L, 0xFFFFFFFFL, true, true, 0x00000000L, 0xD2C22F51L);
     /** CRC-32/MPEG-2: width=32 poly=0x04c11db7 init=0xffffffff refin=false refout=false xorout=0x00000000 check=0x0376e6e7 */
     public static final CrcModel CRC32_MPEG_2            = new CrcModel("CRC-32/MPEG-2", 32, 0x04C11DB7L, 0xFFFFFFFFL, false, false, 0x00000000L, 0x0376E6E7L);
     /** CRC-32/CKSUM: width=32 poly=0x04c11db7 init=0x00000000 refin=false refout=false xorout=0xffffffff check=0x765e7680 */
@@ -1105,6 +1123,8 @@ public class CrcModel extends CrcDescription {
     public static final CrcModel CKSUM                   = alias("CKSUM", CRC32_CKSUM);
     /** CRC-32/POSIX, alias of {@link #CRC32_CKSUM}: width=32 poly=0x04c11db7 init=0x00000000 refin=false refout=false xorout=0xffffffff check=0x765e7680 */
     public static final CrcModel CRC32_POSIX             = alias("CRC-32/POSIX", CRC32_CKSUM);
+    /** CRC-32/CD-ROM-EDC: width=32 poly=0x8001801b init=0x00000000 refin=true refout=true xorout=0x00000000 check=0x6ec2edc4 */
+    public static final CrcModel CRC32_CD_ROM_EDC        = new CrcModel("CRC-32/CD-ROM-EDC", 32, 0x8001801BL, 0x00000000L, true, true, 0x00000000L, 0x6EC2EDC4L);
     /** CRC-32/AIXM: width=32 poly=0x814141ab init=0x00000000 refin=false refout=false xorout=0x00000000 check=0x3010bf7f */
     public static final CrcModel CRC32_AIXM              = new CrcModel("CRC-32/AIXM", 32, 0x814141ABL, 0x00000000L, false, false, 0x00000000L, 0x3010BF7FL);
     /** CRC-32Q, alias of {@link #CRC32_AIXM}: width=32 poly=0x814141ab init=0x00000000 refin=false refout=false xorout=0x00000000 check=0x3010bf7f */
@@ -1133,5 +1153,11 @@ public class CrcModel extends CrcDescription {
     public static final CrcModel CRC64_XZ                = new CrcModel("CRC-64/XZ", 64, 0x42F0E1EBA9EA3693L, 0xFFFFFFFFFFFFFFFFL, true, true, 0xFFFFFFFFFFFFFFFFL,0x995DC9BBDF1939FAL);
     /** CRC-64/GO-ECMA, alias of {@link #CRC64_XZ}: width=64 poly=0x42f0e1eba9ea3693 init=0xffffffffffffffff refin=true refout=true xorout=0xffffffffffffffff check=0x995dc9bbdf1939fa */
     public static final CrcModel CRC64_GO_ECMA           = alias("CRC-64/GO-ECMA", CRC64_XZ);
+    /** CRC-64/MS: width=64 poly=0x259c84cba6426349 init=0xffffffffffffffff refin=true refout=true xorout=0x0000000000000000 check=0x75d4b74f024eceea */
+    public static final CrcModel CRC64_MS                = new CrcModel("CRC-64/MS", 64, 0x259C84CBA6426349L, 0xFFFFFFFFFFFFFFFFL, true, true, 0x0000000000000000L, 0x75D4B74F024ECEEAL);
+    /** CRC-64/NVME: width=64 poly=0xad93d23594c93659 init=0xffffffffffffffff refin=true refout=true xorout=0xffffffffffffffff check=0xae8b14860a799888 */
+    public static final CrcModel CRC64_NVME              = new CrcModel("CRC-64/NVME", 64, 0xAD93D23594C93659L, 0xFFFFFFFFFFFFFFFFL, true, true, 0xFFFFFFFFFFFFFFFFL, 0xAE8B14860A799888L);
+    /** CRC-64/REDIS: width=64 poly=0xad93d23594c935a9 init=0x0000000000000000 refin=true refout=true xorout=0x0000000000000000 check=0xe9c6d914c4b8d9ca */
+    public static final CrcModel CRC64_REDIS             = new CrcModel("CRC-64/REDIS", 64, 0xAD93D23594C935A9L, 0x0000000000000000L, true, true, 0x0000000000000000L, 0xE9C6D914C4B8D9CAL);
 
 }
