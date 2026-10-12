@@ -32,7 +32,7 @@ jobs:
           java-version: ${{ matrix.java }}
           cache: maven
       - name: Build and test
-        run: mvn -B -ntp verify
+        run: ./mvnw -B -ntp verify
 
   module:
     name: Modular jar
@@ -51,7 +51,7 @@ jobs:
             21
           cache: maven
       - name: Build
-        run: mvn -B -ntp package -DskipTests
+        run: ./mvnw -B -ntp package -DskipTests
       - name: Check the module descriptor, the module path and Java 8
         run: .github/scripts/check-modular-jar.sh "$JAVA_HOME_8_X64"
 
@@ -82,7 +82,7 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: >-
-          mvn -B -ntp verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
+          ./mvnw -B -ntp verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
           -Dsonar.host.url=https://sonarcloud.io
           -Dsonar.organization=sftwnd-github
           -Dsonar.projectKey=sftwnd_crayfish_common_crc
