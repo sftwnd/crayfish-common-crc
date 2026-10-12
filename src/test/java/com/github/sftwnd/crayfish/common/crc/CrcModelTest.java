@@ -539,6 +539,21 @@ class CrcModelTest {
     }
 
     @Test
+    void testIndexRejectsRegisteredName() {
+        CrcDescription crc32 = CrcModel.CRC32.getCrcDescription();
+        long modelCount = getModels().count();
+        long parameterCount = getModels(m -> m.getCrcDescription().equals(crc32)).count();
+        IllegalStateException exception = assertThrows(IllegalStateException.class, () -> CrcModel.index(CrcModel.CRC32),
+                "A name that is registered already has to be rejected");
+        assertTrue(exception.getMessage().contains("CRC-32"), "Wrong message: " + exception.getMessage());
+        // the exception comes before the index by the parameters is changed
+        assertEquals(modelCount, getModels().count(), "The registry must not change");
+        assertEquals(parameterCount, getModels(m -> m.getCrcDescription().equals(crc32)).count(), "The index by the parameters must not change");
+        assertSame(CrcModel.CRC32, lookUp("CRC-32"), "lookUp(\"CRC-32\") has to return the same model");
+        assertSame(CrcModel.CRC32_ISO_HDLC, construct(crc32), "The primary model of the parameters has to stay the same");
+    }
+
+    @Test
     void testNameOfOtherParameters() {
         long modelCount = getModels().count();
         // CRC-16/XMODEM parameters under the name of the predefined 32-bit CRC-32
