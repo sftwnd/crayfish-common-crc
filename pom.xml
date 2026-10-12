@@ -42,7 +42,7 @@
         <maven.compiler.target>${java.version}</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <javaModuleName>com.github.sftwnd.crayfish_common_crc</javaModuleName>
-        <spotbugs-annotations.version>4.7.3</spotbugs-annotations.version>
+        <spotbugs-annotations.version>4.10.5</spotbugs-annotations.version>
         <junit.version>5.9.2</junit.version>
         <!-- 3.11.0+: compileSourceRoots can be configured, for the module descriptor in src/main/java9 -->
         <maven-compiler-plugin.version>3.15.0</maven-compiler-plugin.version>
@@ -58,6 +58,8 @@
         <!-- bnd 7 requires Java 17, the build has to run on Java 8 -->
         <bnd-maven-plugin.version>6.4.0</bnd-maven-plugin.version>
         <central-publishing-maven-plugin.version>0.11.0</central-publishing-maven-plugin.version>
+        <!-- the plugin version is the SpotBugs version plus a plugin revision; it analyzes with that SpotBugs (needs Java 11+) -->
+        <spotbugs-maven-plugin.version>4.10.5.0</spotbugs-maven-plugin.version>
         <sonar-maven-plugin.version>5.8.0.7211</sonar-maven-plugin.version>
         <!-- the server with the passphrase of the signing key: no such server, so the signing takes the passphrase
              from gpg-agent, see the profile sign-artifacts -->
@@ -268,6 +270,11 @@ Export-Package: com.github.sftwnd.crayfish.common.crc;version="${version;===;${B
                     <version>${central-publishing-maven-plugin.version}</version>
                 </plugin>
                 <plugin>
+                    <groupId>com.github.spotbugs</groupId>
+                    <artifactId>spotbugs-maven-plugin</artifactId>
+                    <version>${spotbugs-maven-plugin.version}</version>
+                </plugin>
+                <plugin>
                     <!-- SonarCloud analysis in the GitHub Actions workflow -->
                     <groupId>org.sonarsource.scanner.maven</groupId>
                     <artifactId>sonar-maven-plugin</artifactId>
@@ -327,6 +334,40 @@ Export-Package: com.github.sftwnd.crayfish.common.crc;version="${version;===;${B
                                         <compileSourceRoot>${project.basedir}/src/main/java9</compileSourceRoot>
                                     </compileSourceRoots>
                                 </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <profile>
+            <!-- SpotBugs itself runs on Java 11+, so the build on JDK 8 skips the analysis: the classes are the same
+                 Java 8 bytecode (release 8) on every JDK -->
+            <id>spotbugs</id>
+            <activation>
+                <jdk>[11,)</jdk>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>com.github.spotbugs</groupId>
+                        <artifactId>spotbugs-maven-plugin</artifactId>
+                        <configuration>
+                            <effort>Max</effort>
+                            <threshold>Low</threshold>
+                            <!-- a finding fails the build -->
+                            <failOnError>true</failOnError>
+                            <!-- the library classes only, the tests are not analyzed -->
+                            <includeTests>false</includeTests>
+                            <excludeFilterFile>${project.basedir}/spotbugs-exclude.xml</excludeFilterFile>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>spotbugs-check</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>check</goal>
+                                </goals>
                             </execution>
                         </executions>
                     </plugin>

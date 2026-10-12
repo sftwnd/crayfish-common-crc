@@ -30,9 +30,9 @@ public class CrcModel extends CrcDescription {
     public static final String CHECK_BUFF = "123456789";
 
     /** Name of the model, see {@link #getName()} */
-    public  final String name;
+    public  final @NonNull String name;
     /** Check value of the model, see {@link #getCheck()} */
-    public  final Long check;
+    public  final @NonNull Long check;
     private final CrcDescription crcDescription;
 
     // predefined model: it is added to the predefined models in declaration order
@@ -59,7 +59,7 @@ public class CrcModel extends CrcDescription {
      * Get the name of the model
      * @return name of the model
      */
-    public String getName() {
+    public @NonNull String getName() {
         return this.name;
     }
 
@@ -67,7 +67,7 @@ public class CrcModel extends CrcDescription {
      * Get the check value: the crc of the ASCII bytes of {@link #CHECK_BUFF}
      * @return check value
      */
-    public Long getCheck() {
+    public @NonNull Long getCheck() {
         return this.check;
     }
 
@@ -75,7 +75,7 @@ public class CrcModel extends CrcDescription {
      * Get the original parameters of the model
      * @return parameters of the model
      */
-    public CrcDescription getCrcDescription() {
+    public @NonNull CrcDescription getCrcDescription() {
         return this.crcDescription;
     }
 
@@ -110,7 +110,7 @@ public class CrcModel extends CrcDescription {
      * @param len used buffer size
      * @return created CRC
      */
-    public @NonNull CRC getCRC(byte[] buff, int offset, int len) {
+    public @NonNull CRC getCRC(@Nullable byte[] buff, int offset, int len) {
         return getCRC().update(buff, offset, len);
     }
 
@@ -120,7 +120,7 @@ public class CrcModel extends CrcDescription {
      * @param len used buffer size
      * @return created CRC
      */
-    public @NonNull CRC getCRC(byte[] buff, int len) {
+    public @NonNull CRC getCRC(@Nullable byte[] buff, int len) {
         return getCRC(buff, 0, len);
     }
 
@@ -129,7 +129,7 @@ public class CrcModel extends CrcDescription {
      * @param buff buffer
      * @return created CRC
      */
-    public @NonNull CRC getCRC(byte[] buff) {
+    public @NonNull CRC getCRC(@Nullable byte[] buff) {
         return getCRC(buff, 0, buff == null ? 0 : buff.length);
     }
 
@@ -653,7 +653,7 @@ public class CrcModel extends CrcDescription {
         }
     }
 
-    private static CrcModel verifyCheck(@NonNull final CrcModel model, @Nullable final Long value) {
+    private static @NonNull CrcModel verifyCheck(@NonNull final CrcModel model, @Nullable final Long value) {
         if (value != null && (value & widmask(model.getWidth())) != model.getCheck()) {
             throw wrongCheck(value, model.getCheck(), model.getCrcDescription());
         }
@@ -669,7 +669,7 @@ public class CrcModel extends CrcDescription {
         return check;
     }
 
-    private static IllegalArgumentException wrongCheck(final long value, final long check, @NonNull final CrcDescription description) {
+    private static @NonNull IllegalArgumentException wrongCheck(final long value, final long check, @NonNull final CrcDescription description) {
         return new IllegalArgumentException("CrcModel::construct - wrong check value 0x" + Long.toHexString(value).toUpperCase()
                 + " for " + description + ": the crc of \"" + CHECK_BUFF + "\" is 0x" + Long.toHexString(check).toUpperCase());
     }
@@ -677,7 +677,7 @@ public class CrcModel extends CrcDescription {
     // registered model with the same parameters: the model with the requested name, otherwise the model passed in
     // if it is registered, otherwise the first registered one, which later registrations do not change:
     // the primary predefined model, or the model registered first at run time
-    private static Optional<CrcModel> findModel(@Nullable final String name, @NonNull final CrcDescription crcDescription) {
+    private static @NonNull Optional<CrcModel> findModel(@Nullable final String name, @NonNull final CrcDescription crcDescription) {
         List<CrcModel> registered = modelsByParameters.getOrDefault(parameters(crcDescription), Collections.emptyList());
         Optional<CrcModel> model = registered.stream().filter(m -> m.getName().equals(name)).findFirst();
         if (!model.isPresent()) {
@@ -687,7 +687,7 @@ public class CrcModel extends CrcDescription {
     }
 
     // the parameters of a description as key of the index: a plain CrcDescription, as the models keep it
-    private static CrcDescription parameters(@NonNull final CrcDescription description) {
+    private static @NonNull CrcDescription parameters(@NonNull final CrcDescription description) {
         if (description instanceof CrcModel) {
             return ((CrcModel) description).getCrcDescription();
         }
@@ -695,7 +695,7 @@ public class CrcModel extends CrcDescription {
     }
 
     // has to be called while holding the lock on models
-    private static CrcModel registerModel(@Nullable String name, @NonNull CrcDescription crcDescription, @Nullable Long checkValue) {
+    private static @NonNull CrcModel registerModel(@Nullable String name, @NonNull CrcDescription crcDescription, @Nullable Long checkValue) {
         // a misspelled name of 1.0.x with the parameters of its model denotes the predefined model
         CrcModel legacy = name == null ? null : legacyModel(name);
         if (legacy != null && legacy.getCrcDescription().equals(crcDescription)) {
