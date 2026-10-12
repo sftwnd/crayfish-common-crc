@@ -197,7 +197,7 @@ public class CrcModel extends CrcDescription {
         return name;
     }
 
-    protected void _init() {
+    void _init() {
         lookupTable();
     }
 
@@ -289,7 +289,7 @@ public class CrcModel extends CrcDescription {
         return crc ^ xorot;
     }
 
-    protected long crcBytewise(long crc, byte[] buf, int offset, int len) {
+    long crcBytewise(long crc, byte[] buf, int offset, int len) {
         /* if requested, return the initial CRC */
         if (buf == null)
             return init;
@@ -624,11 +624,11 @@ public class CrcModel extends CrcDescription {
         return alias;
     }
 
-    protected final long reflect(long value) {
+    final long reflect(long value) {
         return reflect(value, getWidth());
     }
 
-    protected static long reflect(long value, int bits) {
+    static long reflect(long value, int bits) {
         long mask = widmask(bits);
         long rmask = ~mask;
         long prefix = value & rmask;
@@ -636,7 +636,7 @@ public class CrcModel extends CrcDescription {
         return prefix | suffix;
     }
 
-    protected static long widmask(int width) {
+    static long widmask(int width) {
         return (((1L << (width-1)) - 1L) << 1) | 1L;
     }
 
@@ -656,12 +656,7 @@ public class CrcModel extends CrcDescription {
         }
     }
 
-    // kept for the binary compatibility with the versions up to 1.0.2
-    protected static long crc_general_combine(long crc1, long crc2, int len2, int width, long init, long poly, long xorot, boolean reflect) {
-        return crc_general_combine(crc1, crc2, (long) len2, width, init, poly, xorot, reflect);
-    }
-
-    protected static long crc_general_combine(long crc1, long crc2, long len2, int width, long init, long poly, long xorot, boolean reflect) {
+    static long crc_general_combine(long crc1, long crc2, long len2, int width, long init, long poly, long xorot, boolean reflect) {
         int n;
         long col;
         long[] even = new long[width];          /* even-power-of-two zeros operator */
