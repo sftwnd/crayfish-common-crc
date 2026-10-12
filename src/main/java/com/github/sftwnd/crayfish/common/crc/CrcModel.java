@@ -201,25 +201,16 @@ public class CrcModel extends CrcDescription {
     }
 
     void _init() {
-        lookupTables();
+        tables();
     }
 
-    // number of lookup tables: slicing-by-8 processes 8 bytes per step
-    private static final int TABLE_COUNT = 8;
-
-    // the lookup tables, built on first use without a lock: the model takes the tables of its description if they are built
-    // already, otherwise it builds them and stores them there. Threads that build them at the same time build identical
-    // tables, and the volatile fields publish them completely; table_byte refers to the first table
-    private long[][] lookupTables() {
+    // the lookup tables are those of the description the model was created from: the aliases of a model share them.
+    // The model keeps the reference, so that a calculation does not go through the description
+    @Override
+    long[][] tables() {
         long[][] tables = this.tables;
         if (tables == null) {
-            tables = this.crcDescription.tables;
-            if (tables == null) {
-                tables = _createTables();
-                this.crcDescription.table_byte = tables[0];
-                this.crcDescription.tables = tables;
-            }
-            this.table_byte = tables[0];
+            tables = this.crcDescription.tables();
             this.tables = tables;
         }
         return tables;
@@ -230,88 +221,13 @@ public class CrcModel extends CrcDescription {
      * the getters return the original parameters
      */
     @SuppressWarnings("java:S3358")
-    private static CrcDescription _config(@NonNull final CrcDescription model) {
+    static CrcDescription _config(@NonNull final CrcDescription model) {
         return new CrcDescription(
                        model,
                        model.refin ? CrcModel.reflect(model.poly, model.width) : model.poly,
                        (model.refot ? CrcModel.reflect(model.init, model.width) : model.init) ^ model.xorot,
                        model.refot ^ model.refin
                    );
-    }
-
-    // slicing-by-8: table 0 is the crc register after a byte from a zero register, table k after the byte and k zero
-    // bytes. The register of a reflected model is in the low bits, the register of the other models is aligned to bit 63,
-    // so that the calculation does not depend on the width
-    private long[][] _createTables() {
-        long[][] tables = new long[TABLE_COUNT][256];
-        long[] table = tables[0];
-        int align = refin ? 0 : 64 - Math.max(width, 8);
-        long crc;
-        for (int k = 0; k < 256; k++) {
-            crc = createBitwiseValue(k);
-            if (refot) {
-                crc = reflect(crc);
-            }
-            if (width < 8 && !refin) {
-                crc <<= 8 - width;
-            }
-            table[k] = crc << align;
-        }
-        // the crc value of a byte is the register XOR-ed with a constant, the value of the byte 0: the register remains,
-        // so that the values of several bytes can be XOR-ed
-        for (int k = 255; k >= 0; k--) {
-            table[k] ^= table[0];
-        }
-        for (int t = 1; t < TABLE_COUNT; t++) {
-            for (int k = 0; k < 256; k++) {
-                long previous = tables[t - 1][k];
-                tables[t][k] = refin ? (previous >>> 8) ^ table[(int) (previous & 0xff)]
-                                     : (previous << 8) ^ table[(int) (previous >>> 56)];
-            }
-        }
-        return tables;
-    }
-
-    @SuppressWarnings({"java:S3776", "java:S125"})
-    private long createBitwiseValue(int k) {
-        /* if requested, return the initial CRC: if (k < 0) return init; */
-        long poly = this.poly;
-        /* pre-process the CRC */
-        long crc = xorot;
-        if (refot) {
-            crc = reflect(crc);
-        }
-        /* process the input data a bit at a time */
-        if (refin) {
-            crc &= widmask(width);
-            crc ^= k;
-            for (int i = 0; i < 8; i++) {
-                crc = ((crc & 1) != 0) ? (crc >>> 1) ^ poly : crc >>> 1;
-            }
-        } else if (width <= 8) {
-            int shift = 8 - width;           /* 0..7 */
-            poly <<= shift;
-            crc <<= shift;
-            crc ^= k;
-            for (int i = 0; i < 8; i++) {
-                crc = (crc & 0x80) != 0 ? (crc << 1) ^ poly : crc << 1;
-            }
-            crc >>= shift;
-            crc &= widmask(width);
-        } else {
-            long mask = 1L << (width - 1);
-            int shift = width - 8;           /* 1..WORDBITS-8 */
-            crc ^= ((long) k) << shift;
-            for (int i = 0; i < 8; i++) {
-                crc = ((crc & mask) != 0) ? (crc << 1) ^ poly : crc << 1;
-            }
-            crc &= widmask(width);
-        }
-        /* post-process and return the CRC */
-        if (refot) {
-            crc = reflect(crc);
-        }
-        return crc ^ xorot;
     }
 
     long crcBytewise(long crc, byte[] buf, int offset, int len) {
@@ -331,7 +247,7 @@ public class CrcModel extends CrcDescription {
         /* process the input data 8 bytes at a time, then the rest a byte at a time: the tables hold the register,
            the crc value is the register XOR-ed with xorout. The loops are separate methods, so that
            this method stays small enough for the JIT compiler to inline it */
-        long[][] tables = lookupTables();
+        long[][] tables = tables();
         long xorout = refot ? reflect(xorot) : xorot;
         // less than 24 bytes a byte at a time: the 8-byte loop does not pay off its setup (JMH on JDK 21)
         int blocksEnd = len < 24 ? offset : offset + (len & ~7);
