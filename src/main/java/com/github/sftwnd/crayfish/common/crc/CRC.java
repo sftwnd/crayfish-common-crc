@@ -8,7 +8,6 @@ import edu.umd.cs.findbugs.annotations.CheckReturnValue;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 
-import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -222,8 +221,12 @@ public final class CRC {
      */
     @Override
     public String toString() {
-        int digits = (model.getWidth() + 3) / 4;
-        return this.getModel().toString()+"[crc:0x"+String.format(Locale.ROOT, "%0" + digits + "x", getCrc())+",len:"+this.length+"]";
+        final String hex = Long.toHexString(getCrc());
+        final StringBuilder builder = new StringBuilder().append(this.getModel()).append("[crc:0x");
+        for (int i = hex.length(); i < (model.getWidth() + 3) / 4; i++) {
+            builder.append('0');
+        }
+        return builder.append(hex).append(",len:").append(this.length).append(']').toString();
     }
     
 }
