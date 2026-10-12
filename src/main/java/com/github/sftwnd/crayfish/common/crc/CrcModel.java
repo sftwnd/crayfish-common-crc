@@ -26,9 +26,12 @@ import java.util.stream.Stream;
 @SuppressWarnings({"java:S100", "java:S107"})
 public class CrcModel extends CrcDescription {
 
+    /** Data of the check value: the check value of a model is the crc of the ASCII bytes of this string */
     public static final String CHECK_BUFF = "123456789";
 
+    /** Name of the model, see {@link #getName()} */
     public  final String name;
+    /** Check value of the model, see {@link #getCheck()} */
     public  final Long check;
     private final CrcDescription crcDescription;
 
