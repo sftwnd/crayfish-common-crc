@@ -383,6 +383,9 @@ class CRCTest {
     }
 
     @Test
+    // assertNotEquals(a, b) calls a.equals(b): the object under test has to be the first argument, and with null first
+    // equals is not called at all, so the arguments are not swapped for java:S3415 (expected value, actual value)
+    @SuppressWarnings("java:S3415")
     void testEquals() {
         byte[] buff = CHECK_BUFF.getBytes(US_ASCII);
         CRC crc = CrcModel.CRC32.getCRC(buff);

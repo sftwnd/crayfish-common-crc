@@ -591,6 +591,9 @@ class CrcModelTest {
     }
 
     @Test
+    // assertNotEquals(a, b) calls a.equals(b): the object under test has to be the first argument, and with null first
+    // equals is not called at all, so the arguments are not swapped for java:S3415 (expected value, actual value)
+    @SuppressWarnings("java:S3415")
     void testEqualsAndHashCode() {
         CrcModel model = construct("CRC-16/TEST-EQUALS", new CrcDescription(16, 0x8BB7, 0x1, false, false, 0x0));
         CrcModel same = CrcModel.unregistered("CRC-16/TEST-EQUALS", model.getCrcDescription());

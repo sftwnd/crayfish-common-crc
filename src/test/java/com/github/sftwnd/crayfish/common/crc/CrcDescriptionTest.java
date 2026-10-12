@@ -104,6 +104,9 @@ class CrcDescriptionTest {
     }
 
     @Test
+    // assertNotEquals(a, b) calls a.equals(b): the object under test has to be the first argument, and with null first
+    // equals is not called at all, so the arguments are not swapped for java:S3415 (expected value, actual value)
+    @SuppressWarnings("java:S3415")
     void testEquals() {
         CrcDescription description = new CrcDescription(32, 0x04C11DB7L, 0xFFFFFFFFL, true, true, 0xFFFFFFFFL);
         assertEquals(description, description, "A description has to be equal to itself");
