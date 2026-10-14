@@ -62,8 +62,10 @@ class CrcDescriptionTest {
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> description.model("CRC-16/ARC"),
                 "A name of other parameters has to be rejected");
         assertEquals("CrcDescription::model - CRC-16/KERMIT has no name CRC-16/ARC", exception.getMessage(), "Wrong message");
-        assertThrows(UnsupportedOperationException.class, () -> description.names().add("CRC-TEST"), "The names have to be unmodifiable");
-        assertThrows(UnsupportedOperationException.class, () -> description.aliases().add("CRC-TEST"), "The aliases have to be unmodifiable");
+        List<String> descriptionNames = description.names();
+        assertThrows(UnsupportedOperationException.class, () -> descriptionNames.add("CRC-TEST"), "The names have to be unmodifiable");
+        List<String> descriptionAliases = description.aliases();
+        assertThrows(UnsupportedOperationException.class, () -> descriptionAliases.add("CRC-TEST"), "The aliases have to be unmodifiable");
         assertEquals("width=16  poly=0x1021  init=0x0000  refin=true  refout=true  xorout=0x0000  check=0x2189  name=\"CRC-16/KERMIT\"",
                 description.toString(), "Wrong format");
     }

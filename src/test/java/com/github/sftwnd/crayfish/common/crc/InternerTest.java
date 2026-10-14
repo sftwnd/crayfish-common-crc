@@ -147,7 +147,9 @@ class InternerTest {
     void testEvictionOfTheClassDirectory() {
         // the unit tests use target/classes, not the multi-release jar: the version of Eviction before Java 9
         assertFalse(Eviction.isAsynchronous(), "The pool has to remove the entries itself");
-        assertThrows(UnsupportedOperationException.class, () -> Eviction.register(new Object(), () -> { }),
+        Object referent = new Object();
+        Runnable action = () -> { };
+        assertThrows(UnsupportedOperationException.class, () -> Eviction.register(referent, action),
                 "No cleaner is registered before Java 9");
     }
 

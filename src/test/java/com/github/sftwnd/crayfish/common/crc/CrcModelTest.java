@@ -178,7 +178,8 @@ class CrcModelTest {
         long check = CrcReference.crc(parameters, CHECK);
         CrcModel.Builder builder = CrcModel.builder(21).poly(0x102899L).init(0x1FFFFFL).refin(true).refout(false).xorout(0x1L);
         assertEquals(parameters, builder.check(check).build().parameters(), "The check value of other parameters has to be accepted");
-        assertThrows(IllegalArgumentException.class, () -> builder.check(check ^ 0x1L).build(), "A wrong check value of other parameters has to be rejected");
+        CrcModel.Builder wrongCheck = builder.check(check ^ 0x1L);
+        assertThrows(IllegalArgumentException.class, wrongCheck::build, "A wrong check value of other parameters has to be rejected");
     }
 
     @Test

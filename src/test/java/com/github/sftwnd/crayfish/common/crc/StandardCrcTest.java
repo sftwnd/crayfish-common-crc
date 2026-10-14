@@ -100,8 +100,10 @@ class StandardCrcTest {
             assertEquals(crc.crcName().replaceAll("[^A-Z0-9]", "_"), crc.name(), "Wrong name of the constant of " + crc.crcName());
             assertTrue(crc.crcName().startsWith("CRC-" + crc.parameters().width() + "/"), crc + ": the name has to start with CRC-{width}/");
             assertFalse(crc.crcName().contains("_"), crc + ": a name of the catalogue has got no '_', unlike a name made of the parameters");
-            assertThrows(UnsupportedOperationException.class, () -> crc.names().add("CRC-TEST"), crc + ": the names have to be unmodifiable");
-            assertThrows(UnsupportedOperationException.class, () -> crc.aliases().add("CRC-TEST"), crc + ": the aliases have to be unmodifiable");
+            List<String> crcNames = crc.names();
+            assertThrows(UnsupportedOperationException.class, () -> crcNames.add("CRC-TEST"), crc + ": the names have to be unmodifiable");
+            List<String> crcAliases = crc.aliases();
+            assertThrows(UnsupportedOperationException.class, () -> crcAliases.add("CRC-TEST"), crc + ": the aliases have to be unmodifiable");
         }
     }
 
