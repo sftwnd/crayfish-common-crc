@@ -5,352 +5,178 @@
 package com.github.sftwnd.crayfish.common.crc;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 
-import java.util.Objects;
+import java.nio.charset.StandardCharsets;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
 
 /**
- * CRC algorithm parameters holder
+ * The description of a CRC parameter set: its names, its check value and the internal structures of the calculation.
+ * There is one description per parameter set: every model and every CRC of the parameters, by any name, refers to it,
+ * and the lookup tables of the calculation are built once, on the first calculation with data.
+ * <p>
+ * The parameters of an algorithm of the catalogue ({@link StandardCrc}) have its name and its aliases. Other parameters
+ * have a name made of the parameters, {@code CRC-{width}/P{poly}_I{init}[_RI][_RO][_X{xorout}]} with hexadecimal values
+ * (for example {@code CRC-16/P1234_I0_RI_RO}), and no aliases.
+ * <p>
+ * The descriptions are kept in a pool that refers to them weakly: when no model and no CRC of the parameters is used,
+ * the garbage collector collects the description with its lookup tables, and the next model of the parameters gets
+ * a new description. The system property {@value #RETENTION_PROPERTY} {@code = soft} makes the pool refer to them
+ * softly instead: an unused description is kept until the memory runs short. The property is read once, when the pool
+ * is used first. On Java 9+ a cleaner thread removes the entry of a collected description from the pool, before Java 9
+ * the pool removes such entries when it is used.
+ * <p>
+ * A description is unique for its parameters, so it is compared by identity. Descriptions are immutable and thread-safe.
+ *
+ * @since 2.0.0
+ * @author Andrey D. Shindarev
  */
-public class CrcDescription {
-
-    /** CRC width in bits: 1..64 */
-    protected final int     width;
-    /**
-     * Polynomial, without the x^width term. In a {@link CrcModel} the polynomial processed for the calculation:
-     * reflected if refin is true; {@link #getPoly()} returns the parameter
-     */
-    protected final long    poly;
-    /**
-     * Initial value of the CRC register. In a {@link CrcModel} the value processed for the calculation:
-     * reflected if refout is true, and XOR-ed with xorout; {@link #getInit()} returns the parameter
-     */
-    protected final long    init;
-    /** True if the input bytes are reflected (refin) */
-    protected final boolean refin;
-    /**
-     * True if the CRC is reflected before the final XOR (refout). In a {@link CrcModel} the value processed for
-     * the calculation: refout XOR refin; {@link #isRefot()} returns the parameter
-     */
-    protected final boolean refot;
-    /** Value XOR-ed to the CRC at the end (xorout) */
-    protected final long    xorot;
+public final class CrcDescription {
 
     /**
-     * Create description with the CRC parameters
-     * @param width CRC width in bits: 1..64
-     * @param poly polynomial, without the x^width term: for example 0x04C11DB7 for CRC-32, not 0x104C11DB7
-     * @param init initial value of the CRC register
-     * @param refin true if the input bytes are reflected
-     * @param refot true if the CRC is reflected before the final XOR
-     * @param xorot value XOR-ed to the CRC at the end
-     * @throws IllegalArgumentException if the width is not in 1..64, or if poly, init or xorot do not fit into
-     *         width bits (since 1.1.0)
+     * System property of the references of the pool to the descriptions: {@code weak} (the default) or {@code soft}
      */
-    public CrcDescription(final int width, final long poly, final long init, final boolean refin, final boolean refot, final long xorot) {
-        if (width < 1 || width > 64) {
-            throw new IllegalArgumentException("CRC_model_d::new - width has to be in 1..64: " + width);
+    public static final String RETENTION_PROPERTY = "com.github.sftwnd.crayfish.common.crc.retention";
+
+    private static final byte[] CHECK_DATA = CrcParameters.CHECK_INPUT.getBytes(StandardCharsets.US_ASCII);
+
+    // the descriptions in use: one per parameter set
+    private static final Interner<CrcParameters, CrcDescription> DESCRIPTIONS = new Interner<>(Retention.configured());
+
+    private final CrcParameters parameters;
+    private final @Nullable StandardCrc standard;
+    private final List<String> names;
+    private final List<String> aliases;
+    private final long check;
+    private final CrcEngine engine;
+    // the models of the names, in the order of the names: a model is unique for its description and name
+    private final CrcModel[] models;
+
+    private CrcDescription(@NonNull final CrcParameters parameters) {
+        this.parameters = parameters;
+        this.standard = StandardCrc.find(parameters).orElse(null);
+        this.engine = new CrcEngine(parameters);
+        if (this.standard != null) {
+            this.names = this.standard.names();
+            this.aliases = this.standard.aliases();
+            this.check = this.standard.check();
+        } else {
+            this.names = Collections.singletonList(parameters.parametricName());
+            this.aliases = Collections.emptyList();
+            this.check = checkValue(this.engine);
         }
-        long mask = CrcModel.widmask(width);
-        checkFits("poly", poly, width, mask);
-        checkFits("init", init, width, mask);
-        checkFits("xorot", xorot, width, mask);
-        this.width = width;
-        this.poly = poly;
-        this.init = init;
-        this.refin = refin;
-        this.refot = refot;
-        this.xorot = xorot;
-    }
-
-    /**
-     * Create description with the parameters of another description or model
-     * @param model description or model to copy the parameters from
-     */
-    @SuppressWarnings("CopyConstructorMissesField")
-    public CrcDescription(@NonNull final CrcDescription model) {
-        this(Objects.requireNonNull(model, "CRC_model_d::new - model is null").getWidth(),
-             model.getPoly(), model.getInit(), model.isRefin(), model.isRefot(), model.getXorot());
-    }
-
-    // the parameters of a checked description, processed for the calculation by CrcModel: the reflected values
-    // and the XOR of init with xorot keep the width, so they are not checked again
-    CrcDescription(@NonNull final CrcDescription model, final long poly, final long init, final boolean refot) {
-        this.width = model.width;
-        this.poly = poly;
-        this.init = init;
-        this.refin = model.refin;
-        this.refot = refot;
-        this.xorot = model.xorot;
-    }
-
-    // a parameter with bits above the width gives wrong CRC values or fails later inside CrcModel
-    private static void checkFits(@NonNull final String parameter, final long value, final int width, final long mask) {
-        if ((value & ~mask) != 0) {
-            String hint;
-            if ((value | mask) == -1L) {
-                // all bits above the width are set: typically an int literal such as 0xFFFFFFFF, which is -1
-                hint = " (an int literal is sign-extended: use a long literal such as 0x"
-                     + Long.toHexString(value & mask).toUpperCase() + "L)";
-            } else {
-                hint = "poly".equals(parameter) ? " (poly without the x^" + width + " term)" : "";
-            }
-            throw new IllegalArgumentException("CRC_model_d::new - " + parameter + " 0x" + Long.toHexString(value).toUpperCase()
-                    + " does not fit into the width " + width + hint);
+        this.models = new CrcModel[this.names.size()];
+        for (int index = 0; index < this.models.length; index++) {
+            this.models[index] = new CrcModel(this, index);
         }
     }
 
-    /**
-     * Get the CRC width
-     * @return CRC width in bits: 1..64
-     */
-    public int getWidth() {
-        return this.width;
+    // the description of the parameters: the one in use, or a new one
+    static @NonNull CrcDescription of(@NonNull final CrcParameters parameters) {
+        return DESCRIPTIONS.intern(parameters, CrcDescription::new);
+    }
+
+    // the pool of the descriptions, for the tests
+    static @NonNull Interner<CrcParameters, CrcDescription> descriptions() {
+        return DESCRIPTIONS;
+    }
+
+    // the check value of the parameters a bit at a time: the lookup tables are not built
+    static long checkValue(@NonNull final CrcEngine engine) {
+        return engine.bitwise(CHECK_DATA);
     }
 
     /**
-     * Get the polynomial
-     * @return polynomial, without the x^width term
+     * Get the parameters
+     * @return parameters of the description
      */
-    public long getPoly() {
-        return this.poly;
+    public @NonNull CrcParameters parameters() {
+        return this.parameters;
     }
 
     /**
-     * Get the initial value of the CRC register
-     * @return initial value of the CRC register
+     * Get the name: the name of the algorithm of the catalogue, or the name made of the parameters
+     * @return name of the description, it starts with {@code CRC-{width}/}
      */
-    public long getInit() {
-        return this.init;
+    public @NonNull String name() {
+        return this.names.get(0);
     }
 
     /**
-     * Whether the input bytes are reflected
-     * @return true if the input bytes are reflected
+     * Get the aliases: the aliases of the algorithm of the catalogue in its order
+     * @return unmodifiable list of the aliases, empty for parameters outside the catalogue
      */
-    public boolean isRefin() {
-        return this.refin;
+    public @NonNull List<String> aliases() {
+        return this.aliases;
     }
 
     /**
-     * Whether the CRC is reflected before the final XOR
-     * @return true if the CRC is reflected before the final XOR
+     * Get all names: the name, followed by the aliases
+     * @return unmodifiable list of the names, the name first
      */
-    public boolean isRefot() {
-        return this.refot;
+    public @NonNull List<String> names() {
+        return this.names;
     }
 
     /**
-     * Get the value XOR-ed to the CRC at the end
-     * @return value XOR-ed to the CRC at the end
+     * Get the check value: the CRC of the ASCII bytes of {@link CrcParameters#CHECK_INPUT}
+     * @return check value
      */
-    public long getXorot() {
-        return this.xorot;
+    public long check() {
+        return this.check;
     }
 
     /**
-     * Descriptions are equal if they have the same CRC parameters.
-     * The parameters are compared with the getters, so a {@link CrcModel} is compared by its original parameters,
-     * and the lookup table, a cache, is not compared
-     * @param o object to compare with
-     * @return true if o is a description with the same parameters
+     * Get the algorithm of the catalogue with these parameters
+     * @return the algorithm of the catalogue, empty for parameters outside the catalogue
      */
-    @Override
-    public boolean equals(final Object o) {
-        if (o == this) {
-            return true;
+    public @NonNull Optional<StandardCrc> standard() {
+        return Optional.ofNullable(this.standard);
+    }
+
+    /**
+     * Get the model with the name of the description
+     * @return model with the name of the description
+     */
+    public @NonNull CrcModel model() {
+        return this.models[0];
+    }
+
+    /**
+     * Get the model with one of the names of the description
+     * @param name name or alias of the description
+     * @return model with the name
+     * @throws IllegalArgumentException if the description has no such name
+     */
+    public @NonNull CrcModel model(@NonNull final String name) {
+        int index = this.names.indexOf(name);
+        if (index < 0) {
+            throw new IllegalArgumentException("CrcDescription::model - " + name() + " has no name " + name);
         }
-        if (!(o instanceof CrcDescription)) {
-            return false;
-        }
-        final CrcDescription other = (CrcDescription) o;
-        return other.canEqual(this)
-            && this.getWidth() == other.getWidth()
-            && this.getPoly() == other.getPoly()
-            && this.getInit() == other.getInit()
-            && this.isRefin() == other.isRefin()
-            && this.isRefot() == other.isRefot()
-            && this.getXorot() == other.getXorot();
+        return this.models[index];
+    }
+
+    // the model of a name that denotes these parameters: the model of the name if the description has it,
+    // otherwise the model with the name of the description (a name made of the parameters of the catalogue)
+    @NonNull CrcModel modelOf(@NonNull final String name) {
+        int index = this.names.indexOf(name);
+        return this.models[Math.max(index, 0)];
+    }
+
+    @NonNull CrcEngine engine() {
+        return this.engine;
     }
 
     /**
-     * Whether the other object can be equal to this one: a subclass with additional state overrides it,
-     * so that equals() stays symmetric
-     * @param other object to compare with
-     * @return true if other is a CrcDescription
+     * The description in the format of the catalogue: the parameters, the check value and the name, for example
+     * {@code width=16  poly=0x8005  init=0x0000  refin=true  refout=true  xorout=0x0000  check=0xbb3d  name="CRC-16/ARC"}
+     * @return description as string
      */
-    protected boolean canEqual(final Object other) {
-        return other instanceof CrcDescription;
-    }
-
-    // not Objects.hash(): it is called on every getCRC() (see CrcModel.modelFor()) and would box the parameters
-    @Override
-    public int hashCode() {
-        int result = Integer.hashCode(this.getWidth());
-        result = 31 * result + Long.hashCode(this.getPoly());
-        result = 31 * result + Long.hashCode(this.getInit());
-        result = 31 * result + Boolean.hashCode(this.isRefin());
-        result = 31 * result + Boolean.hashCode(this.isRefot());
-        result = 31 * result + Long.hashCode(this.getXorot());
-        return result;
-    }
-
     @Override
     public String toString() {
-        return "CRC-" + getWidth()+"/P"+Long.toHexString(poly).toUpperCase()
-             + "_I" +(init == 0 ? "0" : Long.toHexString(init).toUpperCase())
-             + (refin ? "_RI" : "")
-             + (refot ? "_RO" : "")
-             + (xorot == 0 ? "" : "_X"+Long.toHexString(xorot).toUpperCase());
-    }
-
-    /**
-     * Create CRC for these parameters.
-     * The CRC uses the model registered for the parameters, as {@link CrcModel#construct(CrcDescription)} returns it:
-     * for predefined parameters the primary predefined model. Since 1.1.0 no model is registered for parameters
-     * without a registered model: the CRC uses a model that {@link CrcModel#getModels()} and
-     * {@link CrcModel#lookUp(String)} do not know. To register the parameters, use
-     * {@link CrcModel#construct(CrcDescription)}
-     * @return created CRC
-     */
-    public @NonNull CRC getCRC() {
-        return CrcModel.modelFor(this).getCRC();
-    }
-
-    /**
-     * Create CRC for these parameters, continuing the calculation from a known crc value.
-     * The model is looked up as in {@link #getCRC()}.
-     * @param crc initial crc value: crc of the bytes processed so far. Bits above the CRC width are ignored,
-     *            so a CRC-32 kept in an int can be passed as is. If len is 0, crc is ignored:
-     *            a CRC without processed data has the crc of the empty message
-     * @param len initial processed length: number of bytes processed so far
-     * @return created CRC
-     * @since 1.1.0
-     */
-    public @NonNull CRC getCRC(long crc, long len) {
-        return CrcModel.modelFor(this).getCRC(crc, len);
-    }
-
-    /**
-     * Create CRC for these parameters, continuing the calculation from a known crc value: the same as
-     * {@link #getCRC(long, long)}, kept for the binary compatibility with the versions up to 1.0.2
-     * @param crc initial crc value: crc of the bytes processed so far
-     * @param len initial processed length: number of bytes processed so far
-     * @return created CRC
-     */
-    public @NonNull CRC getCRC(long crc, int len) {
-        return getCRC(crc, (long) len);
-    }
-
-    /**
-     * Lookup table of the calculation, built on first use and kept in the description, so that the aliases of a model
-     * share it: since 1.1.0 the first of the 8 tables of the calculation, 8 bytes per step (slicing-by-8).
-     * An internal cache, not a CRC parameter: it takes no part in equals and hashCode, and it is not meant
-     * to be used outside this library
-     */
-    @SuppressWarnings({
-            // java:S116 Field names should comply with a naming convention
-            // Names of original C algorithm methods has been saved
-            "java:S116",
-            // java:S3077 Non-primitive fields should not be "volatile"
-            // table items are not mutable and use of table is controlled in CrcModel carefully
-            "java:S3077"
-    })
-    protected volatile long[] table_byte = null;
-
-    // the 8 lookup tables of the calculation, table_byte is the first one: built and published like table_byte
-    @SuppressWarnings("java:S3077")
-    volatile long[][] tables = null;
-
-    // number of lookup tables: slicing-by-8 processes 8 bytes per step
-    private static final int TABLE_COUNT = 8;
-
-    // the lookup tables, built on first use without a lock. The tables are built by the parameters processed for the
-    // calculation, see CrcModel._config(): CrcModel returns the tables of its original description, so that the aliases
-    // of a model share them. Threads that build them at the same time build identical tables, and the volatile fields
-    // publish them completely; table_byte refers to the first table
-    long[][] tables() {
-        long[][] tables = this.tables;
-        if (tables == null) {
-            tables = CrcModel._config(this).createTables();
-            this.table_byte = tables[0];
-            this.tables = tables;
-        }
-        return tables;
-    }
-
-    // slicing-by-8: table 0 is the crc register after a byte from a zero register, table k after the byte and k zero
-    // bytes. The register of a reflected model is in the low bits, the register of the other models is aligned to bit 63,
-    // so that the calculation does not depend on the width
-    private long[][] createTables() {
-        long[][] tables = new long[TABLE_COUNT][256];
-        long[] table = tables[0];
-        int align = refin ? 0 : 64 - Math.max(width, 8);
-        long crc;
-        for (int k = 0; k < 256; k++) {
-            crc = createBitwiseValue(k);
-            if (refot) {
-                crc = CrcModel.reflect(crc, width);
-            }
-            if (width < 8 && !refin) {
-                crc <<= 8 - width;
-            }
-            table[k] = crc << align;
-        }
-        // the crc value of a byte is the register XOR-ed with a constant, the value of the byte 0: the register remains,
-        // so that the values of several bytes can be XOR-ed
-        for (int k = 255; k >= 0; k--) {
-            table[k] ^= table[0];
-        }
-        for (int t = 1; t < TABLE_COUNT; t++) {
-            for (int k = 0; k < 256; k++) {
-                long previous = tables[t - 1][k];
-                tables[t][k] = refin ? (previous >>> 8) ^ table[(int) (previous & 0xff)]
-                                     : (previous << 8) ^ table[(int) (previous >>> 56)];
-            }
-        }
-        return tables;
-    }
-
-    @SuppressWarnings({"java:S3776", "java:S125"})
-    private long createBitwiseValue(int k) {
-        /* if requested, return the initial CRC: if (k < 0) return init; */
-        long poly = this.poly;
-        /* pre-process the CRC */
-        long crc = xorot;
-        if (refot) {
-            crc = CrcModel.reflect(crc, width);
-        }
-        /* process the input data a bit at a time */
-        if (refin) {
-            crc &= CrcModel.widmask(width);
-            crc ^= k;
-            for (int i = 0; i < 8; i++) {
-                crc = ((crc & 1) != 0) ? (crc >>> 1) ^ poly : crc >>> 1;
-            }
-        } else if (width <= 8) {
-            int shift = 8 - width;           /* 0..7 */
-            poly <<= shift;
-            crc <<= shift;
-            crc ^= k;
-            for (int i = 0; i < 8; i++) {
-                crc = (crc & 0x80) != 0 ? (crc << 1) ^ poly : crc << 1;
-            }
-            crc >>= shift;
-            crc &= CrcModel.widmask(width);
-        } else {
-            long mask = 1L << (width - 1);
-            int shift = width - 8;           /* 1..WORDBITS-8 */
-            crc ^= ((long) k) << shift;
-            for (int i = 0; i < 8; i++) {
-                crc = ((crc & mask) != 0) ? (crc << 1) ^ poly : crc << 1;
-            }
-            crc &= CrcModel.widmask(width);
-        }
-        /* post-process and return the CRC */
-        if (refot) {
-            crc = CrcModel.reflect(crc, width);
-        }
-        return crc ^ xorot;
+        return this.parameters + "  check=" + CrcParameters.hex(this.check, this.parameters.width()) + "  name=\"" + name() + '"';
     }
 
 }

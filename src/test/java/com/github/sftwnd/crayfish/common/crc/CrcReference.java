@@ -5,8 +5,8 @@
 package com.github.sftwnd.crayfish.common.crc;
 
 /**
- * Bit-at-a-time CRC calculation from the model parameters (width, poly, init, refin, refot, xorot).
- * It does not use the lookup tables of CrcModel and is used to calculate the expected values in tests.
+ * Bit-at-a-time CRC calculation of the Rocksoft model from the parameters (width, poly, init, refin, refout, xorout).
+ * It does not use the code of the library and is used to calculate the expected values in tests.
  */
 final class CrcReference {
 
@@ -15,45 +15,44 @@ final class CrcReference {
 
     /**
      * Calculate CRC of the buffer fragment bit by bit
-     * @param description CRC parameters
+     * @param parameters CRC parameters
      * @param buff buffer
      * @param offset start offset on buffer
      * @param len count of bytes to calculate
      * @return CRC value
      */
-    static long crc(CrcDescription description, byte[] buff, int offset, int len) {
-        int width = description.getWidth();
+    static long crc(CrcParameters parameters, byte[] buff, int offset, int len) {
+        int width = parameters.width();
         long top = 1L << (width - 1);
         long mask = top | (top - 1);
-        long poly = description.getPoly() & mask;
-        long register = description.getInit() & mask;
+        long register = parameters.init();
         for (int i = offset; i < offset + len; i++) {
             int value = buff[i] & 0xff;
-            if (description.isRefin()) {
+            if (parameters.refin()) {
                 value = Integer.reverse(value) >>> 24;
             }
             for (int bit = 7; bit >= 0; bit--) {
                 boolean feedback = (((value >>> bit) & 1) != 0) != ((register & top) != 0);
                 register = (register << 1) & mask;
                 if (feedback) {
-                    register ^= poly;
+                    register ^= parameters.poly();
                 }
             }
         }
-        if (description.isRefot()) {
+        if (parameters.refout()) {
             register = Long.reverse(register) >>> (Long.SIZE - width);
         }
-        return (register ^ description.getXorot()) & mask;
+        return (register ^ parameters.xorout()) & mask;
     }
 
     /**
      * Calculate CRC of the whole buffer bit by bit
-     * @param description CRC parameters
+     * @param parameters CRC parameters
      * @param buff buffer
      * @return CRC value
      */
-    static long crc(CrcDescription description, byte[] buff) {
-        return crc(description, buff, 0, buff.length);
+    static long crc(CrcParameters parameters, byte[] buff) {
+        return crc(parameters, buff, 0, buff.length);
     }
 
 }
