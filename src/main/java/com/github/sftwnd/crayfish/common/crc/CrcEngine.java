@@ -21,6 +21,8 @@ final class CrcEngine {
     private final long mask;
     private final boolean refin;
     private final boolean refout;
+    // a register aligned to bit 63 of a width up to 8 bits: the whole register is in the top byte
+    private final boolean narrow;
     private final long xorout;
     // the shift of a register aligned to bit 63
     private final int shift;
@@ -44,6 +46,7 @@ final class CrcEngine {
         this.mask = CrcParameters.mask(width);
         this.refin = parameters.refin();
         this.refout = parameters.refout();
+        this.narrow = !refin && width <= Byte.SIZE;
         this.xorout = parameters.xorout();
         this.shift = Long.SIZE - width;
         this.poly = refin ? reflect(parameters.poly()) : parameters.poly() << shift;
@@ -125,14 +128,14 @@ final class CrcEngine {
             if (offset < blocksEnd) {
                 register = alignedBlocks(slices, register, data, offset, blocksEnd);
             }
-            register = alignedBytes(slices[0], register, data, blocksEnd, end);
+            register = narrow ? narrowBytes(slices[0], register, data, blocksEnd, end)
+                              : alignedBytes(slices[0], register, data, blocksEnd, end);
         }
         return value(register);
     }
 
     // The loops below suppress java:S3034: the byte is sign-extended in "crc ^ data[offset]", and the "& 0xff" of
     // the result removes the extension; a "& 0xff" of the byte itself would cost an operation per byte.
-    // A register aligned to bit 63 of a width up to 8 bits is shifted out completely by "<< 8".
 
     // a byte at a time, reflected register in the low bits
     @SuppressWarnings("java:S3034")
@@ -150,6 +153,17 @@ final class CrcEngine {
         long crc = register;
         for (int i = offset; i < end; i++) {
             crc = (crc << 8) ^ t0[(int) (((crc >>> 56) ^ data[i]) & 0xff)];
+        }
+        return crc;
+    }
+
+    // a byte at a time, register aligned to bit 63 of a width up to 8 bits: "crc << 8" is 0, so the register is
+    // the table entry alone, without the shift and the XOR on every byte
+    @SuppressWarnings("java:S3034")
+    private static long narrowBytes(final long[] t0, final long register, final byte[] data, final int offset, final int end) {
+        long crc = register;
+        for (int i = offset; i < end; i++) {
+            crc = t0[(int) (((crc >>> 56) ^ data[i]) & 0xff)];
         }
         return crc;
     }
