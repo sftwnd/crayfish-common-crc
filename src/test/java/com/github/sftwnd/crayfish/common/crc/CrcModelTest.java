@@ -11,6 +11,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Random;
 
 import static java.nio.charset.StandardCharsets.US_ASCII;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -207,6 +208,58 @@ class CrcModelTest {
         assertSame(model.crc(), model.crc(0x1234L, 0), "The value of the empty data has to be ignored");
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> model.crc(0x0L, -1L), "A negative length has to be rejected");
         assertEquals("CrcModel::crc - length is negative: -1", exception.getMessage(), "Wrong message");
+    }
+
+    @Test
+    void testValue() {
+        // the lengths around the start of the 8-byte loop (24 bytes) and of its blocks
+        int[] lengths = {0, 1, 7, 8, 9, 23, 24, 25, 31, 32, 33, 100, 257};
+        byte[] data = new byte[300];
+        new Random(88).nextBytes(data);
+        List<CrcModel> models = new ArrayList<>();
+        for (StandardCrc standard : StandardCrc.values()) {
+            models.add(standard.model());
+        }
+        // parameter sets outside the catalogue
+        models.add(CrcModel.of(3, 0x5L, 0x7L, false, false, 0x0L));
+        models.add(CrcModel.of(13, 0x1CF5L, 0x0L, true, false, 0x1FFFL));
+        models.add(CrcModel.of(21, 0x102899L, 0x1FFFFFL, true, false, 0x1L));
+        models.add(CrcModel.of(64, 0x42F0E1EBA9EA3693L, 0x1L, false, true, 0x0L));
+        for (CrcModel model : models) {
+            assertEquals(model.check(), model.value(CHECK), model + ": wrong value of the check data");
+            assertEquals(model.crc().value(), model.value(new byte[0]), model + ": wrong value of the empty data");
+            for (int length : lengths) {
+                byte[] part = Arrays.copyOf(data, length);
+                assertEquals(model.crc(part).value(), model.value(part), model + ": wrong value of " + length + " bytes");
+                assertEquals(model.crc(data, 0, length).value(), model.value(data, length),
+                        model + ": wrong value of the first " + length + " bytes");
+                assertEquals(model.crc(data, 13, length).value(), model.value(data, 13, length),
+                        model + ": wrong value of " + length + " bytes at the offset 13");
+            }
+        }
+        CrcParameters parameters = CrcParameters.of(13, 0x1CF5L, 0x0L, true, false, 0x1FFFL);
+        assertEquals(CrcReference.crc(parameters, data, 5, 250), CrcModel.of(parameters).value(data, 5, 250),
+                "The value has to be the CRC of the reference");
+    }
+
+    @Test
+    void testValueBounds() {
+        CrcModel model = CrcModel.of("CRC-16/ARC");
+        byte[] data = new byte[16];
+        assertEquals(model.crc().value(), model.value(data, 16, 0), "The empty part at the end of the data has to be accepted");
+        assertEquals(model.crc().value(), model.value(data, 0), "The empty first part of the data has to be accepted");
+        assertThrows(ArrayIndexOutOfBoundsException.class, () -> model.value(data, 17), "More bytes than the data has to be rejected");
+        assertThrows(ArrayIndexOutOfBoundsException.class, () -> model.value(data, -1), "A negative length has to be rejected");
+        assertThrows(ArrayIndexOutOfBoundsException.class, () -> model.value(data, 5, 12), "The bytes beyond the data have to be rejected");
+        assertThrows(ArrayIndexOutOfBoundsException.class, () -> model.value(data, -1, 8), "A negative offset has to be rejected");
+        assertThrows(ArrayIndexOutOfBoundsException.class, () -> model.value(data, 17, 0), "An offset beyond the data has to be rejected");
+        ArrayIndexOutOfBoundsException exception = assertThrows(ArrayIndexOutOfBoundsException.class,
+                () -> model.value(data, Integer.MAX_VALUE, 2), "An overflowing end has to be rejected");
+        assertEquals("CrcModel::value - offset 2147483647 and length 2 out of the buffer length 16", exception.getMessage(), "Wrong message");
+        NullPointerException nullData = assertThrows(NullPointerException.class, () -> model.value(null), "value(null) has to throw NullPointerException");
+        assertEquals("CrcModel::value - data is null", nullData.getMessage(), "Wrong message");
+        assertThrows(NullPointerException.class, () -> model.value(null, 0), "value(null, 0) has to throw NullPointerException");
+        assertThrows(NullPointerException.class, () -> model.value(null, 0, 0), "value(null, 0, 0) has to throw NullPointerException");
     }
 
 }

@@ -179,6 +179,45 @@ public final class CrcModel {
         return length == 0 ? this.empty : new CRC(this, value & this.engine.mask(), length);
     }
 
+    /**
+     * Calculate the CRC value of the data, without a {@link CRC} object: {@code crc(data).value()}
+     * @param data data
+     * @return CRC value of the data
+     */
+    public long value(@NonNull final byte[] data) {
+        Objects.requireNonNull(data, "CrcModel::value - data is null");
+        return value(data, 0, data.length);
+    }
+
+    /**
+     * Calculate the CRC value of the first bytes of the data, without a {@link CRC} object: {@code value(data, 0, length)}
+     * @param data data
+     * @param length number of the first bytes of the data
+     * @return CRC value of the first bytes of the data
+     * @throws ArrayIndexOutOfBoundsException if the length is negative or exceeds the length of the data
+     */
+    public long value(@NonNull final byte[] data, final int length) {
+        return value(data, 0, length);
+    }
+
+    /**
+     * Calculate the CRC value of a part of the data, without a {@link CRC} object: {@code crc(data, offset, length).value()}
+     * @param data data
+     * @param offset offset of the part in the data
+     * @param length length of the part
+     * @return CRC value of the part of the data
+     * @throws ArrayIndexOutOfBoundsException if the part is not inside the data
+     */
+    public long value(@NonNull final byte[] data, final int offset, final int length) {
+        Objects.requireNonNull(data, "CrcModel::value - data is null");
+        if (offset < 0 || length < 0 || length > data.length - offset) {
+            throw new ArrayIndexOutOfBoundsException("CrcModel::value - offset " + offset + " and length " + length
+                    + " out of the buffer length " + data.length);
+        }
+        long empty = this.engine.empty();
+        return length == 0 ? empty : this.engine.update(empty, data, offset, length);
+    }
+
     @NonNull CrcEngine engine() {
         return this.engine;
     }

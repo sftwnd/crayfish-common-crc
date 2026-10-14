@@ -21,6 +21,7 @@
  * </ul>
  * <pre>{@code
  * CrcModel model = CrcModel.of("CRC-32C");
+ * long single = model.value(data);   // the CRC value of one buffer
  * CRC crc = model.crc().update(part1).update(part2);
  * long value = crc.value();
  * }</pre>
