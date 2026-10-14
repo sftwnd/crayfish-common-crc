@@ -60,8 +60,8 @@ implementation 'com.github.sftwnd.crayfish.common:crayfish-common-crc:2.0.0'
 
 ```java
     byte[] data = "123456789".getBytes(StandardCharsets.US_ASCII);
-    long modbus = CrcModel.of("CRC-16/MODBUS").crc(data).value();   // 0x4B37
-    long crc32c = CrcModel.of("CRC-32C").crc(data).value();         // 0xE3069283
+    long modbus = CrcModel.of("CRC-16/MODBUS").value(data);   // 0x4B37
+    long crc32c = CrcModel.of("CRC-32C").value(data);         // 0xE3069283
 ```
 
 ## Concepts
@@ -120,12 +120,15 @@ throw `IllegalArgumentException`.
 
 ```java
     CrcModel model = CrcModel.of("CRC-16/ARC");
-    long value = model.crc(data).value();
+    long value = model.value(data);                                  // the CRC value only, no CRC object
+    long first = model.value(data, length);                          // the first length bytes
+    long part = model.value(data, offset, length);                   // a part of the data
     CRC crc = model.crc().update(part1).update(part2, 0, length2);   // part1 followed by a part of part2
     long processed = crc.length();
 ```
 
-`model.crc()` is the CRC of the empty data. A CRC is immutable, so the result of `update()` has to be used:
+`model.value(...)` equals `model.crc(...).value()` without creating a `CRC`; a `CRC` is needed to continue a calculation,
+to combine CRCs or to keep the length. `model.crc()` is the CRC of the empty data. A CRC is immutable, so the result of `update()` has to be used:
 
 ```java
     CRC crc = model.crc();
@@ -227,7 +230,8 @@ CRC-82/DARC of the catalogue is not predefined: the CRC value is a `long`, the w
 | `CrcModel.unregistered(crcDescription)` | `CrcModel.of(parameters)`: the same name made of the parameters |
 | `CrcModel.getModels()` | `StandardCrc.values()` |
 | `CrcModel.CHECK_BUFF` | `CrcParameters.CHECK_INPUT` |
-| `model.getCRC(data).getCrc()` | `model.crc(data).value()` |
+| `model.getCRC(data).getCrc()` | `model.value(data)` |
+| `model.getCRC(data, length).getCrc()` | `model.value(data, length)` |
 | `model.getCRC(crc, length)` | `model.crc(value, length)` |
 | `crc.update(data)` changes the CRC | `crc = crc.update(data)`: a new CRC |
 | `crc.combine(crc2)` changes the CRC | `crc = crc.combine(crc2)`: a new CRC |
