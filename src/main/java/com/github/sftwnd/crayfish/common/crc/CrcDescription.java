@@ -161,6 +161,11 @@ public final class CrcDescription {
         return this.models[index];
     }
 
+    // the model of the name with the index in the names
+    @NonNull CrcModel model(final int index) {
+        return this.models[index];
+    }
+
     // the model of a name that denotes these parameters: the model of the name if the description has it,
     // otherwise the model with the name of the description (a name made of the parameters of the catalogue)
     @NonNull CrcModel modelOf(@NonNull final String name) {

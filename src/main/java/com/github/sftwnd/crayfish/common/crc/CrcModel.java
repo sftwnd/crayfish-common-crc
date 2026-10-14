@@ -5,6 +5,7 @@
 package com.github.sftwnd.crayfish.common.crc;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -50,7 +51,11 @@ public final class CrcModel {
      * @throws IllegalArgumentException if the name is unknown
      */
     public static @NonNull CrcModel of(@NonNull final String name) {
-        return find(name).orElseThrow(() -> new IllegalArgumentException("CrcModel::of - unknown CRC name: " + name));
+        CrcModel model = lookUp(name);
+        if (model == null) {
+            throw new IllegalArgumentException("CrcModel::of - unknown CRC name: " + name);
+        }
+        return model;
     }
 
     /**
@@ -59,13 +64,19 @@ public final class CrcModel {
      * @return model with the name, empty if the name is unknown
      */
     public static @NonNull Optional<CrcModel> find(@NonNull final String name) {
+        return Optional.ofNullable(lookUp(name));
+    }
+
+    // the model of a name, null if the name is unknown: a name of the catalogue gives the index of its model,
+    // without a search in the names of the description
+    private static @Nullable CrcModel lookUp(@NonNull final String name) {
         Objects.requireNonNull(name, "CrcModel::find - name is null");
-        Optional<StandardCrc> standard = StandardCrc.find(name);
-        if (standard.isPresent()) {
-            return Optional.of(CrcDescription.of(standard.get().parameters()).model(name));
+        StandardCrc.Name standard = StandardCrc.name(name);
+        if (standard != null) {
+            return CrcDescription.of(standard.standard.parameters()).model(standard.index);
         }
         CrcParameters parameters = CrcParameters.parse(name);
-        return parameters == null ? Optional.empty() : Optional.of(CrcDescription.of(parameters).modelOf(name));
+        return parameters == null ? null : CrcDescription.of(parameters).modelOf(name);
     }
 
     /**
