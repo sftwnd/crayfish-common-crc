@@ -30,9 +30,9 @@ public class CrcModel extends CrcDescription {
     public static final String CHECK_BUFF = "123456789";
 
     /** Name of the model, see {@link #getName()} */
-    public  final String name;
+    public  final @NonNull String name;
     /** Check value of the model, see {@link #getCheck()} */
-    public  final Long check;
+    public  final @NonNull Long check;
     private final CrcDescription crcDescription;
 
     // predefined model: it is added to the predefined models in declaration order
@@ -59,7 +59,7 @@ public class CrcModel extends CrcDescription {
      * Get the name of the model
      * @return name of the model
      */
-    public String getName() {
+    public @NonNull String getName() {
         return this.name;
     }
 
@@ -67,7 +67,7 @@ public class CrcModel extends CrcDescription {
      * Get the check value: the crc of the ASCII bytes of {@link #CHECK_BUFF}
      * @return check value
      */
-    public Long getCheck() {
+    public @NonNull Long getCheck() {
         return this.check;
     }
 
@@ -75,7 +75,7 @@ public class CrcModel extends CrcDescription {
      * Get the original parameters of the model
      * @return parameters of the model
      */
-    public CrcDescription getCrcDescription() {
+    public @NonNull CrcDescription getCrcDescription() {
         return this.crcDescription;
     }
 
@@ -110,7 +110,7 @@ public class CrcModel extends CrcDescription {
      * @param len used buffer size
      * @return created CRC
      */
-    public @NonNull CRC getCRC(byte[] buff, int offset, int len) {
+    public @NonNull CRC getCRC(@Nullable byte[] buff, int offset, int len) {
         return getCRC().update(buff, offset, len);
     }
 
@@ -120,7 +120,7 @@ public class CrcModel extends CrcDescription {
      * @param len used buffer size
      * @return created CRC
      */
-    public @NonNull CRC getCRC(byte[] buff, int len) {
+    public @NonNull CRC getCRC(@Nullable byte[] buff, int len) {
         return getCRC(buff, 0, len);
     }
 
@@ -129,7 +129,7 @@ public class CrcModel extends CrcDescription {
      * @param buff buffer
      * @return created CRC
      */
-    public @NonNull CRC getCRC(byte[] buff) {
+    public @NonNull CRC getCRC(@Nullable byte[] buff) {
         return getCRC(buff, 0, buff == null ? 0 : buff.length);
     }
 
@@ -201,25 +201,16 @@ public class CrcModel extends CrcDescription {
     }
 
     void _init() {
-        lookupTables();
+        tables();
     }
 
-    // number of lookup tables: slicing-by-8 processes 8 bytes per step
-    private static final int TABLE_COUNT = 8;
-
-    // the lookup tables, built on first use without a lock: the model takes the tables of its description if they are built
-    // already, otherwise it builds them and stores them there. Threads that build them at the same time build identical
-    // tables, and the volatile fields publish them completely; table_byte refers to the first table
-    private long[][] lookupTables() {
+    // the lookup tables are those of the description the model was created from: the aliases of a model share them.
+    // The model keeps the reference, so that a calculation does not go through the description
+    @Override
+    long[][] tables() {
         long[][] tables = this.tables;
         if (tables == null) {
-            tables = this.crcDescription.tables;
-            if (tables == null) {
-                tables = _createTables();
-                this.crcDescription.table_byte = tables[0];
-                this.crcDescription.tables = tables;
-            }
-            this.table_byte = tables[0];
+            tables = this.crcDescription.tables();
             this.tables = tables;
         }
         return tables;
@@ -230,88 +221,13 @@ public class CrcModel extends CrcDescription {
      * the getters return the original parameters
      */
     @SuppressWarnings("java:S3358")
-    private static CrcDescription _config(@NonNull final CrcDescription model) {
+    static CrcDescription _config(@NonNull final CrcDescription model) {
         return new CrcDescription(
                        model,
                        model.refin ? CrcModel.reflect(model.poly, model.width) : model.poly,
                        (model.refot ? CrcModel.reflect(model.init, model.width) : model.init) ^ model.xorot,
                        model.refot ^ model.refin
                    );
-    }
-
-    // slicing-by-8: table 0 is the crc register after a byte from a zero register, table k after the byte and k zero
-    // bytes. The register of a reflected model is in the low bits, the register of the other models is aligned to bit 63,
-    // so that the calculation does not depend on the width
-    private long[][] _createTables() {
-        long[][] tables = new long[TABLE_COUNT][256];
-        long[] table = tables[0];
-        int align = refin ? 0 : 64 - Math.max(width, 8);
-        long crc;
-        for (int k = 0; k < 256; k++) {
-            crc = createBitwiseValue(k);
-            if (refot) {
-                crc = reflect(crc);
-            }
-            if (width < 8 && !refin) {
-                crc <<= 8 - width;
-            }
-            table[k] = crc << align;
-        }
-        // the crc value of a byte is the register XOR-ed with a constant, the value of the byte 0: the register remains,
-        // so that the values of several bytes can be XOR-ed
-        for (int k = 255; k >= 0; k--) {
-            table[k] ^= table[0];
-        }
-        for (int t = 1; t < TABLE_COUNT; t++) {
-            for (int k = 0; k < 256; k++) {
-                long previous = tables[t - 1][k];
-                tables[t][k] = refin ? (previous >>> 8) ^ table[(int) (previous & 0xff)]
-                                     : (previous << 8) ^ table[(int) (previous >>> 56)];
-            }
-        }
-        return tables;
-    }
-
-    @SuppressWarnings({"java:S3776", "java:S125"})
-    private long createBitwiseValue(int k) {
-        /* if requested, return the initial CRC: if (k < 0) return init; */
-        long poly = this.poly;
-        /* pre-process the CRC */
-        long crc = xorot;
-        if (refot) {
-            crc = reflect(crc);
-        }
-        /* process the input data a bit at a time */
-        if (refin) {
-            crc &= widmask(width);
-            crc ^= k;
-            for (int i = 0; i < 8; i++) {
-                crc = ((crc & 1) != 0) ? (crc >>> 1) ^ poly : crc >>> 1;
-            }
-        } else if (width <= 8) {
-            int shift = 8 - width;           /* 0..7 */
-            poly <<= shift;
-            crc <<= shift;
-            crc ^= k;
-            for (int i = 0; i < 8; i++) {
-                crc = (crc & 0x80) != 0 ? (crc << 1) ^ poly : crc << 1;
-            }
-            crc >>= shift;
-            crc &= widmask(width);
-        } else {
-            long mask = 1L << (width - 1);
-            int shift = width - 8;           /* 1..WORDBITS-8 */
-            crc ^= ((long) k) << shift;
-            for (int i = 0; i < 8; i++) {
-                crc = ((crc & mask) != 0) ? (crc << 1) ^ poly : crc << 1;
-            }
-            crc &= widmask(width);
-        }
-        /* post-process and return the CRC */
-        if (refot) {
-            crc = reflect(crc);
-        }
-        return crc ^ xorot;
     }
 
     long crcBytewise(long crc, byte[] buf, int offset, int len) {
@@ -331,7 +247,7 @@ public class CrcModel extends CrcDescription {
         /* process the input data 8 bytes at a time, then the rest a byte at a time: the tables hold the register,
            the crc value is the register XOR-ed with xorout. The loops are separate methods, so that
            this method stays small enough for the JIT compiler to inline it */
-        long[][] tables = lookupTables();
+        long[][] tables = tables();
         long xorout = refot ? reflect(xorot) : xorot;
         // less than 24 bytes a byte at a time: the 8-byte loop does not pay off its setup (JMH on JDK 21)
         int blocksEnd = len < 24 ? offset : offset + (len & ~7);
@@ -452,12 +368,16 @@ public class CrcModel extends CrcDescription {
     // registered models: a stream of the list works on a snapshot, so registration does not break running streams
     private static final List<CrcModel> models = new CopyOnWriteArrayList<>();
 
+    // the lock of the registry: lookup, checks and registration of a model are one step. Not the list itself:
+    // a concurrent collection does not synchronize on its monitor
+    private static final Object REGISTRY_LOCK = new Object();
+
     // predefined models in declaration order, every primary model before its aliases: they add themselves
     // while the class is initialized, so the list has to be declared before them; it is not changed afterwards
     private static final List<CrcModel> predefinedModels = new ArrayList<>();
 
     // indexes of all registered models, the predefined ones included: the first model for every name, and the models
-    // for every parameter set in the order of registration; they are changed while holding the lock on models
+    // for every parameter set in the order of registration; they are changed while holding REGISTRY_LOCK
     private static final Map<String, CrcModel> modelsByName = new ConcurrentHashMap<>();
     private static final Map<CrcDescription, List<CrcModel>> modelsByParameters = new ConcurrentHashMap<>();
 
@@ -467,8 +387,12 @@ public class CrcModel extends CrcDescription {
         index(model);
     }
 
-    private static void index(@NonNull final CrcModel model) {
-        modelsByName.putIfAbsent(model.getName(), model);
+    // a name belongs to one model: construct() checks it under the lock, the names of the predefined models are unique;
+    // not private for the tests: the case is not reachable through the API
+    static void index(@NonNull final CrcModel model) {
+        if (modelsByName.putIfAbsent(model.getName(), model) != null) {
+            throw new IllegalStateException("CrcModel::index - the name is already registered: " + model.getName());
+        }
         modelsByParameters.merge(model.getCrcDescription(), Collections.singletonList(model), (registered, added) -> {
             List<CrcModel> all = new ArrayList<>(registered);
             all.addAll(added);
@@ -487,7 +411,7 @@ public class CrcModel extends CrcDescription {
 
     // removes the models registered at run time, the predefined models stay: the tests start from the same registry
     static void removeRegisteredModels() {
-        synchronized (models) {
+        synchronized (REGISTRY_LOCK) {
             models.clear();
             modelsByName.clear();
             modelsByParameters.clear();
@@ -627,7 +551,7 @@ public class CrcModel extends CrcDescription {
         }
         // lookup, checks and registration as one step: concurrent calls register the model only once,
         // and a name is never registered for two parameter sets
-        synchronized (models) {
+        synchronized (REGISTRY_LOCK) {
             Optional<CrcModel> model = findModel(name, crcDescription);
             if (model.isPresent() && (name == null || model.get().getName().equals(name))) {
                 return verifyCheck(model.get(), value);
@@ -653,7 +577,7 @@ public class CrcModel extends CrcDescription {
         }
     }
 
-    private static CrcModel verifyCheck(@NonNull final CrcModel model, @Nullable final Long value) {
+    private static @NonNull CrcModel verifyCheck(@NonNull final CrcModel model, @Nullable final Long value) {
         if (value != null && (value & widmask(model.getWidth())) != model.getCheck()) {
             throw wrongCheck(value, model.getCheck(), model.getCrcDescription());
         }
@@ -669,7 +593,7 @@ public class CrcModel extends CrcDescription {
         return check;
     }
 
-    private static IllegalArgumentException wrongCheck(final long value, final long check, @NonNull final CrcDescription description) {
+    private static @NonNull IllegalArgumentException wrongCheck(final long value, final long check, @NonNull final CrcDescription description) {
         return new IllegalArgumentException("CrcModel::construct - wrong check value 0x" + Long.toHexString(value).toUpperCase()
                 + " for " + description + ": the crc of \"" + CHECK_BUFF + "\" is 0x" + Long.toHexString(check).toUpperCase());
     }
@@ -677,7 +601,7 @@ public class CrcModel extends CrcDescription {
     // registered model with the same parameters: the model with the requested name, otherwise the model passed in
     // if it is registered, otherwise the first registered one, which later registrations do not change:
     // the primary predefined model, or the model registered first at run time
-    private static Optional<CrcModel> findModel(@Nullable final String name, @NonNull final CrcDescription crcDescription) {
+    private static @NonNull Optional<CrcModel> findModel(@Nullable final String name, @NonNull final CrcDescription crcDescription) {
         List<CrcModel> registered = modelsByParameters.getOrDefault(parameters(crcDescription), Collections.emptyList());
         Optional<CrcModel> model = registered.stream().filter(m -> m.getName().equals(name)).findFirst();
         if (!model.isPresent()) {
@@ -687,15 +611,15 @@ public class CrcModel extends CrcDescription {
     }
 
     // the parameters of a description as key of the index: a plain CrcDescription, as the models keep it
-    private static CrcDescription parameters(@NonNull final CrcDescription description) {
+    private static @NonNull CrcDescription parameters(@NonNull final CrcDescription description) {
         if (description instanceof CrcModel) {
             return ((CrcModel) description).getCrcDescription();
         }
         return description.getClass() == CrcDescription.class ? description : new CrcDescription(description);
     }
 
-    // has to be called while holding the lock on models
-    private static CrcModel registerModel(@Nullable String name, @NonNull CrcDescription crcDescription, @Nullable Long checkValue) {
+    // has to be called while holding REGISTRY_LOCK
+    private static @NonNull CrcModel registerModel(@Nullable String name, @NonNull CrcDescription crcDescription, @Nullable Long checkValue) {
         // a misspelled name of 1.0.x with the parameters of its model denotes the predefined model
         CrcModel legacy = name == null ? null : legacyModel(name);
         if (legacy != null && legacy.getCrcDescription().equals(crcDescription)) {

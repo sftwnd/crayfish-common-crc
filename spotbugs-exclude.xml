@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SpotBugs filter: every exclusion is a decision of the design, scoped to the class, the field or the method -->
+<FindBugsFilter xmlns="https://github.com/spotbugs/filter/3.0.0"
+                xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                xsi:schemaLocation="https://github.com/spotbugs/filter/3.0.0 https://raw.githubusercontent.com/spotbugs/spotbugs/4.10.5/spotbugs/etc/findbugsfilter.xsd">
+
+    <!-- the constructors validate the parameters and throw IllegalArgumentException; the exception is the contract.
+         CrcDescription checks before it assigns the first field, CrcModel throws from the this(...) arguments -->
+    <Match>
+        <Bug pattern="CT_CONSTRUCTOR_THROW"/>
+        <Or>
+            <Class name="com.github.sftwnd.crayfish.common.crc.CrcDescription"/>
+            <Class name="com.github.sftwnd.crayfish.common.crc.CrcModel"/>
+        </Or>
+    </Match>
+
+    <!-- upper case of the hexadecimal digits a-f of Long.toHexString: no locale dependent letters -->
+    <Match>
+        <Bug pattern="DM_CONVERT_CASE"/>
+        <Or>
+            <Class name="com.github.sftwnd.crayfish.common.crc.CrcDescription"/>
+            <Class name="com.github.sftwnd.crayfish.common.crc.CrcModel"/>
+        </Or>
+        <Or>
+            <Method name="checkFits"/>
+            <Method name="toString"/>
+            <Method name="wrongCheck"/>
+        </Or>
+    </Match>
+
+    <!-- the lookup tables are built on first use without a lock: the volatile reference publishes the complete tables,
+         the tables are never changed afterwards. table_byte is the protected field of the first table for the subclasses -->
+    <Match>
+        <Bug pattern="VO_VOLATILE_REFERENCE_TO_ARRAY,URF_UNREAD_PUBLIC_OR_PROTECTED_FIELD"/>
+        <Class name="com.github.sftwnd.crayfish.common.crc.CrcDescription"/>
+        <Or>
+            <Field name="table_byte"/>
+            <Field name="tables"/>
+        </Or>
+    </Match>
+
+</FindBugsFilter>
