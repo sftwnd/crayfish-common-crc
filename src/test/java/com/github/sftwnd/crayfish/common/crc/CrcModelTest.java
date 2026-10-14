@@ -4,649 +4,209 @@
  */
 package com.github.sftwnd.crayfish.common.crc;
 
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-import java.io.IOException;
-import java.lang.reflect.Field;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
-import java.util.IdentityHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.Random;
-import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
-import static com.github.sftwnd.crayfish.common.crc.CrcModel.CHECK_BUFF;
-import static com.github.sftwnd.crayfish.common.crc.CrcModel.CKSUM;
-import static com.github.sftwnd.crayfish.common.crc.CrcModel.CRC16_XMODEM;
-import static com.github.sftwnd.crayfish.common.crc.CrcModel.CRC32_AIXM;
-import static com.github.sftwnd.crayfish.common.crc.CrcModel.CRC32_CKSUM;
-import static com.github.sftwnd.crayfish.common.crc.CrcModel.CRC32_POSIX;
-import static com.github.sftwnd.crayfish.common.crc.CrcModel.CRC32_Q;
-import static com.github.sftwnd.crayfish.common.crc.CrcModel.CRC4_G_704;
-import static com.github.sftwnd.crayfish.common.crc.CrcModel.CRC4_ITU;
-import static com.github.sftwnd.crayfish.common.crc.CrcModel.CRC64_GO_ISO;
-import static com.github.sftwnd.crayfish.common.crc.CrcModel.CRC64_XZ;
-import static com.github.sftwnd.crayfish.common.crc.CrcModel.construct;
-import static com.github.sftwnd.crayfish.common.crc.CrcModel.crc_general_combine;
-import static com.github.sftwnd.crayfish.common.crc.CrcModel.lookUp;
-import static com.github.sftwnd.crayfish.common.crc.CrcModel.getModels;
-import static com.github.sftwnd.crayfish.common.crc.CrcModel.reflect;
-import static com.github.sftwnd.crayfish.common.crc.CrcModel.widmask;
 import static java.nio.charset.StandardCharsets.US_ASCII;
-import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CrcModelTest {
 
-    // every test starts with the predefined models only
-    @AfterEach
-    void cleanUp() {
-        CrcModel.removeRegisteredModels();
-    }
+    private static final byte[] CHECK = CrcParameters.CHECK_INPUT.getBytes(US_ASCII);
 
     @Test
-    void testPoly() {
-        getModels().forEach(
-                m -> assertEquals(m.isRefin() ? reflect(m.getPoly(), m.getWidth()) : m.getPoly(), m.poly, "Wrong poly field initialization in constructor")
-        );
-    }
-
-    @Test
-    void testInit() {
-        getModels().forEach(
-                m -> assertEquals((m.isRefot() ? CrcModel.reflect(m.getInit(), m.getWidth()) : m.getInit()) ^ m.getXorot(), m.init, "Wrong init field initialization in constructor")
-        );
-    }
-
-    @Test
-    void testRefot() {
-        getModels().forEach(
-                m -> assertEquals(m.isRefot() ^ m.isRefin(), m.refot, "Wrong refot field initialization in constructor")
-        );
-    }
-
-    @Test
-    void testGetModels() {
-        // the RevEng CRC catalogue of 11 December 2024 without CRC-82/DARC, which is wider than 64 bits
-        assertEquals(186, getModels().count(), "Wrong number of the predefined model names");
-        assertEquals(112, getModels().map(CrcModel::getCrcDescription).distinct().count(), "Wrong number of the predefined models");
-    }
-
-    @Test
-    void testModelsAddedIn110() {
-        String[] names = {"CRC-8/HITAG", "CRC-8/MIFARE-MAD", "CRC-8/NRSC-5", "CRC-16/M17", "CRC-16/NRSC-5", "CRC-24/OS-9",
-                          "CRC-32/CD-ROM-EDC", "CRC-32/MEF", "CRC-64/MS", "CRC-64/NVME", "CRC-64/REDIS"};
-        for (String name : names) {
-            CrcModel model = lookUp(name);
-            assertNotNull(model, "lookUp(\"" + name + "\") has to return a predefined model");
-            assertSame(model, CrcModel.construct(model.getCrcDescription()), "The primary model of the parameters of " + name + " has to be " + name);
+    void testOfEveryName() {
+        for (StandardCrc standard : StandardCrc.values()) {
+            List<CrcModel> models = new ArrayList<>();
+            for (String name : standard.names()) {
+                CrcModel model = CrcModel.of(name);
+                assertEquals(name, model.name(), "The model has to have the name it was chosen by");
+                assertEquals(name, model.toString(), "toString() has to be the name of the model");
+                assertSame(model, CrcModel.of(name), "A model is unique for its description and name: " + name);
+                assertSame(model, CrcModel.find(name).orElse(null), "find() has to find the model of " + name);
+                assertSame(model, model.description().model(name), "The description has to give the model of " + name);
+                assertEquals(Optional.of(standard), model.description().standard(), "Wrong algorithm of the model " + name);
+                assertEquals(standard.parameters(), model.parameters(), "Wrong parameters of the model " + name);
+                assertEquals(standard.check(), model.check(), "Wrong check value of the model " + name);
+                models.add(model);
+            }
+            CrcModel primary = models.get(0);
+            assertTrue(models.stream().allMatch(model -> model.description() == primary.description()),
+                    standard + ": the models of the name and of the aliases have to share the description");
+            assertSame(primary, standard.model(), standard + ": the model of the algorithm has to have its name");
+            assertSame(primary, CrcModel.of(standard.parameters()), standard + ": the model of the parameters has to have the name of the algorithm");
+            assertSame(primary, primary.description().model(), standard + ": the model of the description has to have its name");
         }
-        assertSame(CrcModel.CRC16_KERMIT, CrcModel.construct(CrcModel.CRC16_BLUETOOTH.getCrcDescription()), "CRC-16/BLUETOOTH has to be an alias of CRC-16/KERMIT");
-        assertSame(CrcModel.CRC32_ISCSI, CrcModel.construct(CrcModel.CRC32_NVME.getCrcDescription()), "CRC-32/NVME has to be an alias of CRC-32/ISCSI");
     }
 
     @Test
-    void testGetModelsByName() {
-        getModels().forEach(
-                m -> {
-                    CrcModel model = getModels(mdl -> mdl.getName().equals(m.getName())).findFirst().orElse(null);
-                    assertSame(m, model, "getModels(byName) result is wrong");
-                }
-        );
+    void testOfParametersOfTheCatalogue() {
+        CrcModel model = CrcModel.of(32, 0x04C11DB7L, 0xFFFFFFFFL, true, true, 0xFFFFFFFFL);
+        assertEquals("CRC-32/ISO-HDLC", model.name(), "The model of the parameters of the catalogue has to have the name of the algorithm");
+        assertSame(CrcModel.of("PKZIP").description(), model.description(), "The parameters and the alias have to share the description");
+        assertEquals(Arrays.asList("CRC-32/ISO-HDLC", "CRC-32", "CRC-32/ADCCP", "CRC-32/V-42", "CRC-32/XZ", "PKZIP"),
+                model.description().names(), "The description of the parameters has to have the names of the algorithm");
     }
 
     @Test
-    void testCrcBytewise() {
-        getModels().filter(m -> m.getCheck() != null).forEach(m -> {
-            m._init();
-            long crc = m.crcBytewise(m.init, CHECK_BUFF.getBytes(US_ASCII), 0, 9);
-            assertEquals(m.getCheck().longValue(), crc, "Update crc by '123456789' buffer has to be equals check value");
-            crc = m.crcBytewise(m.init, null, 0, 9);
-            assertEquals(m.init, crc, "Update crc by null buffer has got to return init value");
-            crc = m.crcBytewise(m.init, null, 0, -1);
-            assertEquals(m.init, crc, "Update crc by buffer with -1 length has got to return init value");
-        });
+    void testOfOtherParameters() {
+        CrcModel model = CrcModel.of(16, 0x1234L, 0xFFFFL, false, true, 0xFFL);
+        String name = "CRC-16/P1234_IFFFF_RO_XFF";
+        assertEquals(name, model.name(), "Parameters outside the catalogue have to have the name made of the parameters");
+        assertEquals(Collections.singletonList(name), model.description().names(), "Parameters outside the catalogue have to have one name");
+        assertEquals(Collections.emptyList(), model.description().aliases(), "Parameters outside the catalogue have got no aliases");
+        assertFalse(model.description().standard().isPresent(), "Parameters outside the catalogue have got no algorithm of the catalogue");
+        assertEquals(CrcReference.crc(model.parameters(), CHECK), model.check(), "The check value has to be calculated");
+        assertSame(model, CrcModel.of(name), "The name made of the parameters has to give the model");
+        assertSame(model, CrcModel.of(model.parameters()), "Equal parameters have to give the model");
     }
 
     @Test
-    void testCrcBytewiseAllByteValues() {
-        getModels().forEach(m -> {
-            m._init();
-            for (int value = 0; value < 256; value++) {
-                byte[] buff = {(byte) value};
-                assertEquals(CrcReference.crc(m.getCrcDescription(), buff), m.crcBytewise(m.init, buff, 0, 1),
-                        "Model " + m + ": crc of the byte 0x" + Integer.toHexString(value) + " has to be equal to the bitwise calculated value");
-            }
-        });
-    }
-
-    @Test
-    void testCrcBytewiseLengthsAndOffsets() {
-        // slicing-by-8 from 24 bytes on: blocks of 8 bytes and the rest, at an offset that is not a multiple of 8
-        byte[] buff = new byte[64];
-        new Random(62).nextBytes(buff);
-        getModels().forEach(m -> {
-            for (int len = 0; len <= 40; len++) {
-                assertEquals(CrcReference.crc(m.getCrcDescription(), buff, 3, len), m.getCRC(buff, 3, len).getCrc(),
-                        "Model " + m + ": crc of " + len + " bytes has to be equal to the bitwise calculated value");
-            }
-            long expected = CrcReference.crc(m.getCrcDescription(), buff, 3, 40);
-            for (int split = 0; split <= 40; split++) {
-                assertEquals(expected, m.getCRC(buff, 3, split).update(buff, 3 + split, 40 - split).getCrc(),
-                        "Model " + m + ": crc of 40 bytes updated in two parts at " + split + " has to be equal to the bitwise calculated value");
-            }
-        });
-    }
-
-    @Test
-    void testCrcBytewiseOutOfBounds() {
-        CRC crc = CrcModel.CRC32.getCRC(CHECK_BUFF.getBytes(US_ASCII));
-        byte[] buff = new byte[16];
-        assertThrows(ArrayIndexOutOfBoundsException.class, () -> crc.update(buff, 5, 12), "The bytes beyond the buffer have to be reported");
-        assertThrows(ArrayIndexOutOfBoundsException.class, () -> crc.update(buff, -1, 8), "A negative offset has to be reported");
-        assertEquals(CrcModel.CRC32.getCheck().longValue(), crc.getCrc(), "A failed update must not change the crc");
-        assertEquals(9, crc.getLength(), "A failed update must not change the length");
-    }
-
-    @Test
-    void testCrcBytewiseAllWidths() {
-        // up to 48 bytes: a byte at a time below 24 bytes, 8 bytes at a time and the rest from 24 bytes on
-        byte[] buff = new byte[48];
-        new Random(64).nextBytes(buff);
+    void testOfTheNameOfEveryModel() {
         for (int width = 1; width <= 64; width++) {
-            long mask = widmask(width);
+            long mask = CrcParameters.mask(width);
             for (int kind = 0; kind < 4; kind++) {
-                CrcDescription description = new CrcDescription(width, 0x42F0E1EBA9EA3693L & mask, 0x0123456789ABCDEFL & mask,
-                        (kind & 1) != 0, (kind & 2) != 0, 0xFEDCBA9876543210L & mask);
-                CrcModel model = CrcModel.unregistered(description);
-                for (int len = 0; len <= buff.length; len++) {
-                    assertEquals(CrcReference.crc(description, buff, 0, len), model.getCRC(buff, 0, len).getCrc(),
-                            "Model " + model + ": crc of " + len + " bytes has to be equal to the bitwise calculated value");
-                }
+                CrcModel model = CrcModel.of(width, 0x42F0E1EBA9EA3693L & mask, 0x0123456789ABCDEFL & mask, (kind & 1) != 0, (kind & 2) != 0,
+                        kind < 2 ? 0x0L : 0xFEDCBA9876543210L & mask);
+                assertTrue(model.name().startsWith("CRC-" + width + "/"), "The name has to start with CRC-{width}/: " + model);
+                assertSame(model, CrcModel.of(model.name()), "The name of a model has to give the model: " + model);
             }
         }
     }
 
     @Test
-    void testCrcBytewiseNonReflectedInputReflectedOutput() {
-        // width <= 8 with refin = false and refot = true: the result of the narrow table lookup is reflected
-        CrcModel crc8 = construct("CRC-8/TEST-REFIN-FALSE-REFOUT-TRUE", new CrcDescription(8, 0x07, 0x00, false, true, 0x00));
-        CrcModel crc5 = construct("CRC-5/TEST-REFIN-FALSE-REFOUT-TRUE", new CrcDescription(5, 0x15, 0x1E, false, true, 0x03));
-        assertEquals(0x91L, crc8.getCRC(new byte[]{(byte) 0x80}).getCrc(), "Wrong crc of the byte 0x80 for model " + crc8);
-        assertEquals(0x2L, crc5.getCRC(new byte[]{(byte) 0x80}).getCrc(), "Wrong crc of the byte 0x80 for model " + crc5);
-        byte[] allValues = new byte[256];
-        for (int value = 0; value < allValues.length; value++) {
-            allValues[value] = (byte) value;
+    void testParametricNameOfTheCatalogue() {
+        // a name made of the parameters, kept before the parameters became an algorithm of the catalogue
+        CrcModel model = CrcModel.of("CRC-32/P4C11DB7_IFFFFFFFF_RI_RO_XFFFFFFFF");
+        assertSame(CrcModel.of("CRC-32/ISO-HDLC"), model, "The name made of the parameters of the catalogue has to give the model of the algorithm");
+    }
+
+    @Test
+    void testUnknownNames() {
+        for (String name : new String[]{"CRC-32/UNKNOWN", "crc-32", "CRC-32 ", "", "CRC-16/P1234_I0_X0", "CRC-82/DARC"}) {
+            assertFalse(CrcModel.find(name).isPresent(), "\"" + name + "\" has not got to be found");
+            IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> CrcModel.of(name),
+                    "\"" + name + "\" has to be rejected");
+            assertEquals("CrcModel::of - unknown CRC name: " + name, exception.getMessage(), "Wrong message");
         }
-        for (CrcModel m : new CrcModel[]{crc8, crc5}) {
-            for (int value = 0; value < 256; value++) {
-                byte[] buff = {(byte) value};
-                assertEquals(CrcReference.crc(m.getCrcDescription(), buff), m.getCRC(buff).getCrc(),
-                        "Model " + m + ": crc of the byte 0x" + Integer.toHexString(value) + " has to be equal to the bitwise calculated value");
-            }
-            long expected = CrcReference.crc(m.getCrcDescription(), allValues);
-            assertEquals(expected, m.getCRC(allValues).getCrc(),
-                    "Model " + m + ": crc of the bytes 0x00..0xFF has to be equal to the bitwise calculated value");
-            assertEquals(expected, m.getCRC(allValues, 0, 100).update(allValues, 100, 156).getCrc(),
-                    "Model " + m + ": crc of the bytes 0x00..0xFF updated in two parts has to be equal to the bitwise calculated value");
-            assertEquals(expected, m.getCRC(allValues, 0, 100).combine(m.getCRC(allValues, 100, 156)).getCrc(),
-                    "Model " + m + ": combined crc of two parts of the bytes 0x00..0xFF has to be equal to the bitwise calculated value");
+        assertThrows(NullPointerException.class, () -> CrcModel.of((String) null), "of(null name) has to throw NullPointerException");
+        assertThrows(NullPointerException.class, () -> CrcModel.find(null), "find(null) has to throw NullPointerException");
+        assertThrows(NullPointerException.class, () -> CrcModel.of((CrcParameters) null), "of(null parameters) has to throw NullPointerException");
+    }
+
+    @Test
+    void testBuilder() {
+        assertSame(CrcModel.of("CRC-32/ISO-HDLC"),
+                CrcModel.builder(32).poly(0x04C11DB7L).init(0xFFFFFFFFL).reflected(true).xorout(0xFFFFFFFFL).build(), "Wrong model of the builder");
+        // init and xorout are 0 if they are not set
+        assertSame(CrcModel.of("CRC-16/XMODEM"), CrcModel.builder(16).poly(0x1021L).reflected(false).build(), "Wrong model with the default init and xorout");
+        // refin and refout set one by one
+        assertSame(CrcModel.of("CRC-12/UMTS"), CrcModel.builder(12).poly(0x80FL).refin(false).refout(true).build(), "Wrong model of refin and refout");
+        // a builder builds the model of its current values
+        CrcModel.Builder builder = CrcModel.builder(16).poly(0x8005L).reflected(true);
+        assertSame(CrcModel.of("CRC-16/ARC"), builder.build(), "Wrong model of the builder");
+        assertSame(CrcModel.of("CRC-16/MODBUS"), builder.init(0xFFFFL).build(), "Wrong model of the builder after init()");
+        assertSame(CrcModel.of("CRC-16/USB"), builder.xorout(0xFFFFL).build(), "Wrong model of the builder after xorout()");
+        assertEquals("CRC-16/P1234_I0_RI_RO", CrcModel.builder(16).poly(0x1234L).reflected(true).build().name(), "Wrong name of other parameters");
+    }
+
+    private static void assertMissing(String missing, CrcModel.Builder builder) {
+        IllegalStateException exception = assertThrows(IllegalStateException.class, builder::build, "build() has to report: " + missing);
+        assertEquals("CrcModel.Builder::build - not set: " + missing, exception.getMessage(), "Wrong message");
+    }
+
+    @Test
+    void testBuilderRequiredElements() {
+        assertMissing("poly, refin, refout", CrcModel.builder(8));
+        assertMissing("poly", CrcModel.builder(8).reflected(true));
+        assertMissing("refin, refout", CrcModel.builder(8).poly(0x07L));
+        assertMissing("refout", CrcModel.builder(8).poly(0x07L).refin(true));
+        assertMissing("refin", CrcModel.builder(8).poly(0x07L).refout(true));
+        // init, xorout and check are optional
+        assertMissing("poly, refout", CrcModel.builder(8).refin(false).init(0xFFL).xorout(0xFFL).check(0x4BL));
+    }
+
+    @Test
+    void testBuilderWidth() {
+        for (int width : new int[]{0, 65}) {
+            IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> CrcModel.builder(width),
+                    "The width " + width + " has to be rejected");
+            assertEquals("CrcModel::builder - width has to be in 1..64: " + width, exception.getMessage(), "Wrong message");
         }
+        CrcModel.Builder builder = CrcModel.builder(16);
+        assertEquals("CrcModel.Builder::poly - poly 0x18005 does not fit into the width 16 (poly without the x^16 term)",
+                assertThrows(IllegalArgumentException.class, () -> builder.poly(0x18005L), "A poly above the width has to be rejected").getMessage(),
+                "Wrong message");
+        assertEquals("CrcModel.Builder::init - init 0x10000 does not fit into the width 16",
+                assertThrows(IllegalArgumentException.class, () -> builder.init(0x10000L), "An init above the width has to be rejected").getMessage(),
+                "Wrong message");
+        assertEquals("CrcModel.Builder::xorout - xorout 0xFFFFFFFFFFFFFFFF does not fit into the width 16 (an int literal is sign-extended: "
+                        + "use a long literal such as 0xFFFFL)",
+                assertThrows(IllegalArgumentException.class, () -> builder.xorout(-1L), "A xorout above the width has to be rejected").getMessage(),
+                "Wrong message");
+        assertEquals("CrcModel.Builder::check - check 0x10000 does not fit into the width 16",
+                assertThrows(IllegalArgumentException.class, () -> builder.check(0x10000L), "A check above the width has to be rejected").getMessage(),
+                "Wrong message");
+        // the rejected values are not set
+        assertMissing("poly, refin, refout", builder);
+        assertSame(CrcModel.of("CRC-64/WE"), CrcModel.builder(64).poly(0x42F0E1EBA9EA3693L).init(-1L).reflected(false).xorout(-1L)
+                .check(0x62EC59E3F1A4F00AL).build(), "A width of 64 bits takes every value");
     }
 
     @Test
-    void testGetModelsByDescription() {
-        getModels().forEach(
-                m -> {
-                    CrcModel model = getModels(mdl -> mdl.getCrcDescription().equals(m.getCrcDescription())).findFirst().orElse(null);
-                    assertNotNull(model, "getModels(byDescription: '"+m.getName()+"') result hasn't got to be null");
-                    assertEquals(m.getCrcDescription(), model.getCrcDescription(), "getModels(byDescription: '"+m.getName()+"').crcDescription value is wrong for model: "+m.getName());
-                }
-        );
-    }
-
-    @Test
-    void testCRCLengthArg() {
-        Assertions.assertThrows(
-                IllegalArgumentException.class
-               ,() -> CRC64_XZ.getCRC(0, -1)
-               ,"getCrc(length < 0) had to throw IllegalArgumentException"
-        );
-    }
-
-    @Test
-    void testGetCRC() {
-        getModels().forEach(
-                m -> {
-                    CRC crc = m.getCRC();
-                    assertSame(m, Optional.of(crc).map(CRC::getModel).orElse(null), "Wrong model in the CRC, created by getCRC");
-                }
-        );
-    }
-
-    @Test
-    void testGetCRCCrcVal() {
-        getModels().filter(m -> m.getCheck()!= null).forEach(
-                m -> {
-                    long crcVal = 0x17;
-                    int  lenVal = 47;
-                    CRC crc = m.getCRC(crcVal, lenVal);
-                    assertSame(m, Optional.of(crc).map(CRC::getModel).orElse(null), "Wrong model in the CRC, created by getCRC(crc, len)");
-                    // 0x17 does not fit into the 3- and 4-bit models: the bits above the width are ignored
-                    assertEquals(crcVal & CrcModel.widmask(m.getWidth()), Optional.of(crc).map(CRC::getCrc).orElse(null), "Wrong crc in the CRC, created by getCRC(crc, len)");
-                    assertEquals(lenVal, Optional.of(crc).map(CRC::getLength).orElse(null), "Wrong length in the CRC, created by getCRC(crc, len)");
-                }
-        );
-    }
-
-    @Test
-    void testGetCRCBuff() {
-        getModels().filter(m -> m.getCheck()!= null).forEach(
-                m -> {
-                    CRC crc = m.getCRC(CHECK_BUFF.getBytes(US_ASCII));
-                    assertSame(m, Optional.of(crc).map(CRC::getModel).orElse(null), "Wrong model in the CRC, created by getCRC('123456789')");
-                    assertEquals(m.getCheck(), Optional.of(crc).map(CRC::getCrc).orElse(null), "Wrong crc in the CRC, created by getCRC('123456789')");
-                }
-        );
-    }
-
-    @Test
-    void testGetCRCBuffLen() {
-        getModels().forEach(
-                m -> {
-                    CRC crc = m.getCRC(CHECK_BUFF.getBytes(US_ASCII), CHECK_BUFF.length());
-                    assertSame(m, Optional.of(crc).map(CRC::getModel).orElse(null), "Wrong model in the CRC, created by getCRC('123456789', 9)");
-                    assertEquals(m.getCheck(), Optional.of(crc).map(CRC::getCrc).orElse(null), "Wrong crc in the CRC, created by getCRC('123456789', 9)");
-                }
-        );
-    }
-
-    @Test
-    void testGetCRCBuffOffsetLen() {
-        getModels().filter(m -> m.getCheck() != null).forEach(
-                m -> {
-                    CRC crc = m.getCRC(CHECK_BUFF.getBytes(US_ASCII), 0, CHECK_BUFF.length());
-                    assertSame(m, Optional.of(crc).map(CRC::getModel).orElse(null), "Wrong model in the CRC, created by getCRC('123456789', 0, 9)");
-                    assertEquals(m.getCheck(), Optional.of(crc).map(CRC::getCrc).orElse(null), "Wrong crc in the CRC, created by getCRC('123456789', 0, 9)");
-                }
-        );
-    }
-
-    @Test
-    void testFind() {
-        assertNull(lookUp("$$$"), "Result for unknown model has to be null");
-        assertSame(CRC64_GO_ISO, lookUp(CRC64_GO_ISO.getName()), "Result for lookUp(known model) has to return known model");
-    }
-
-    @Test
-    void testConstruct() {
-        assertSame(CRC64_GO_ISO, construct(null, CRC64_GO_ISO, CRC64_GO_ISO.getCheck()), "Result for construct(null name, known model, check value) has to return known model");
-        assertSame(CRC64_GO_ISO, construct(null, CRC64_GO_ISO, null), "Result for construct(null name, known model, null check value) has to return known model");
-        assertSame(CRC64_GO_ISO, construct("CRC-64/GO-ISO", CRC64_GO_ISO, null), "Result for construct(name, known model, null check value) has to return known model");
-        assertSame(CRC32_AIXM, construct("CRC-32/AIXM", CRC32_Q, null), "Result for construct(name, model with the same parameters, null check value) has to return model by name");
-        assertSame(CRC64_GO_ISO, construct(CRC64_GO_ISO, CRC64_GO_ISO.getCheck()), "Result for construct(known model, check value) has to return known model");
-        assertSame(CRC64_GO_ISO, construct(CRC64_GO_ISO), "Result for construct(known model) has to return known model");
-        assertThrows(NullPointerException.class, () -> construct(null), "Result for construct(null) has to throws NPE");
-        CrcDescription description = new CrcDescription(27, 0x800069, 0x0, true, true, 0x0);
-        assertEquals(description, construct("###", description, null).getCrcDescription(), "Result for construct(name, new description, null check value) has to return a model with the description");
-        assertSame(CRC4_G_704, CrcModel.construct(CRC4_G_704.getName(), CRC4_ITU.getCrcDescription(), CRC4_ITU.getCheck()), "Result of construct(known name, known description, check) has to be same with model(known name). Model: '"+CRC4_G_704.getName()+"'.");
-        assertSame(CRC4_ITU, CrcModel.construct(CRC4_ITU.getName(), CRC4_G_704.getCrcDescription(), CRC4_G_704.getCheck()), "Result of construct(known name, known description, check) has to be same with model(known name). Model: '"+CRC4_ITU.getName()+"'.");
-        assertTrue(
-                Arrays.asList(CKSUM, CRC32_POSIX, CRC32_CKSUM).contains(
-                        construct(null, CRC32_CKSUM.getCrcDescription(), null)
-                )
-        );
-    }
-
-    @Test
-    void testConstructNameDescription() {
-        CrcModel.getModels().forEach(m -> {
-            CrcModel crcModel = CrcModel.construct(null, m.getCrcDescription());
-            assertEquals(m.getCheck(), crcModel.getCheck(), "CheckValue for the same CrcDescription has to be equal" );
-        });
-    }
-
-    @Test
-    void testCombine() {
-        getModels().filter(m -> m.getCheck() != null).forEach( m -> {
-            for (int i=0; i<CHECK_BUFF.getBytes(US_ASCII).length; i++) {
-                long crc = crc_general_combine(
-                               m.getCRC(CHECK_BUFF.getBytes(US_ASCII), 0, i).crc,
-                               m.getCRC(CHECK_BUFF.getBytes(US_ASCII), i, CHECK_BUFF.length() -i).crc,
-                        CHECK_BUFF.length() -i,
-                               m.getWidth(), m.getInit(), m.getPoly(), m.getXorot(), m.isRefot());
-                assertEquals(m.getCheck().longValue(), crc, "Combine crc of byte sequence '123456789' splitted in position "+i+" has to be equals check value");
-            }
-            assertEquals(
-                    m.getCheck().longValue(),
-                    crc_general_combine(
-                            m.getCRC(CHECK_BUFF.getBytes(US_ASCII)).crc, -1, -1,
-                            m.getWidth(), m.getInit(), m.getPoly(), m.getXorot(), m.isRefot()),
-                         "Combine crc to crc with negative length has to return nonchanged crc value");
-        });
-    }
-
-    @Test
-    void testConstructWithNewEqualDescription() {
-        // make sure that the lookup table of the predefined model is built
-        CRC16_XMODEM.getCRC();
-        long modelCount = getModels().count();
-        CrcModel model = construct(new CrcDescription(16, 0x1021, 0x0, false, false, 0x0));
-        assertSame(CRC16_XMODEM.getCrcDescription(), model.getCrcDescription(), "construct() has to return CRC-16/XMODEM or one of its aliases");
-        for (int i = 0; i < 10; i++) {
-            assertSame(model, construct(new CrcDescription(16, 0x1021, 0x0, false, false, 0x0)), "construct() has to return the same model for equal descriptions");
+    void testBuilderCheck() {
+        for (StandardCrc standard : StandardCrc.values()) {
+            CrcParameters parameters = standard.parameters();
+            assertSame(standard.model(), CrcModel.builder(parameters.width()).poly(parameters.poly()).init(parameters.init()).refin(parameters.refin())
+                    .refout(parameters.refout()).xorout(parameters.xorout()).check(standard.check()).build(), standard + ": the check value has to be accepted");
         }
-        assertEquals(modelCount, getModels().count(), "construct() must not register models for the parameters of a registered model");
+        CrcModel.Builder crc32 = CrcModel.builder(32).poly(0x04C11DB7L).init(0xFFFFFFFFL).reflected(true).xorout(0xFFFFFFFFL).check(0xCBF43927L);
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, crc32::build, "A wrong check value has to be rejected");
+        assertEquals("CrcModel.Builder::build - wrong check value 0xcbf43927 for width=32  poly=0x04c11db7  init=0xffffffff  refin=true  refout=true"
+                + "  xorout=0xffffffff: the CRC of \"123456789\" is 0xcbf43926", exception.getMessage(), "Wrong message");
+        // parameters outside the catalogue: the check value is calculated
+        CrcParameters parameters = CrcParameters.of(21, 0x102899L, 0x1FFFFFL, true, false, 0x1L);
+        long check = CrcReference.crc(parameters, CHECK);
+        CrcModel.Builder builder = CrcModel.builder(21).poly(0x102899L).init(0x1FFFFFL).refin(true).refout(false).xorout(0x1L);
+        assertEquals(parameters, builder.check(check).build().parameters(), "The check value of other parameters has to be accepted");
+        CrcModel.Builder wrongCheck = builder.check(check ^ 0x1L);
+        assertThrows(IllegalArgumentException.class, wrongCheck::build, "A wrong check value of other parameters has to be rejected");
     }
 
     @Test
-    void testHashCodeDoesNotChangeOnFirstUse() {
-        CrcModel model = construct("CRC-16/TEST-HASHCODE", new CrcDescription(16, 0x8BB7, 0x1234, true, false, 0x0));
-        Set<CrcModel> models = new HashSet<>(Collections.singleton(model));
-        int hashCode = model.hashCode();
-        // the first use of the model builds its lookup table
-        model.getCRC().update(CHECK_BUFF.getBytes(US_ASCII));
-        assertEquals(hashCode, model.hashCode(), "CrcModel.hashCode() must not change after first use");
-        assertTrue(models.contains(model), "CrcModel has to be found in a HashSet after first use");
+    void testCrc() {
+        CrcModel model = CrcModel.of("CRC-16/ARC");
+        CrcParameters parameters = model.parameters();
+        assertSame(model.crc(), model.crc(), "The CRC of the empty data has to be kept by the model");
+        assertSame(model, model.crc().model(), "Wrong model of the CRC");
+        assertEquals(0, model.crc().length(), "Wrong length of the empty data");
+        assertEquals(CrcReference.crc(parameters, new byte[0]), model.crc().value(), "Wrong CRC of the empty data");
+        assertEquals(model.check(), model.crc(CHECK).value(), "Wrong CRC of the data");
+        assertEquals(CHECK.length, model.crc(CHECK).length(), "Wrong length of the data");
+        assertEquals(CrcReference.crc(parameters, CHECK, 2, 5), model.crc(CHECK, 2, 5).value(), "Wrong CRC of a part of the data");
+        assertEquals(5, model.crc(CHECK, 2, 5).length(), "Wrong length of a part of the data");
     }
 
     @Test
-    void testCatalogueNames() {
-        assertEquals("CRC-5/G-704", CrcModel.CRC5_G_704.getName(), "Wrong name of CRC5_G_704");
-        assertEquals("CRC-32C", CrcModel.CRC32_C.getName(), "Wrong name of CRC32_C");
-        assertSame(CrcModel.CRC5_G_704, lookUp("CRC-5/G-704"), "lookUp(\"CRC-5/G-704\") has to return CRC5_G_704");
-        assertSame(CrcModel.CRC32_C, lookUp("CRC-32C"), "lookUp(\"CRC-32C\") has to return CRC32_C");
-    }
-
-    @Test
-    void testLookUpMisspelledNames() {
-        // names of 1.0.0 and 1.0.1: still accepted by lookUp() and construct(), but no model is listed under them
-        assertSame(CrcModel.CRC5_G_704, lookUp("CCRC-5/G-704"), "lookUp(\"CCRC-5/G-704\") has to return CRC5_G_704");
-        assertSame(CrcModel.CRC32_C, lookUp("CRC32_C "), "lookUp(\"CRC32_C \") has to return CRC32_C");
-        assertSame(CrcModel.CRC5_G_704, construct("CCRC-5/G-704", new CrcDescription(5, 0x15, 0x0, true, true, 0x0)),
-                "construct() with the old name and the parameters of CRC5_G_704 has to return CRC5_G_704");
-        assertSame(CrcModel.CRC32_C, construct("CRC32_C ", CrcModel.CRC32_ISCSI),
-                "construct() with the old name and the parameters of CRC32_C has to return CRC32_C");
-        assertEquals(0, getModels(m -> "CCRC-5/G-704".equals(m.getName()) || "CRC32_C ".equals(m.getName())).count(),
-                "getModels() must not contain models with the misspelled names");
-    }
-
-    @Test
-    @SuppressWarnings("deprecation")
-    void testDeprecatedConstants() throws IllegalAccessException {
-        CrcModel[][] replacements = {
-                {CrcModel.CRC_B, CrcModel.CRCB},
-                {CrcModel.CRC8_CDMA2000, CrcModel.CRC8_CDMA_2000},
-                {CrcModel.CRC8_I_CODE, CrcModel.CRC8_ICODE},
-                {CrcModel.CRC16_EN_13757, CrcModel.CRC16_EN13757},
-                {CrcModel.CRC32_V_42, CrcModel.CRC32_V42}
-        };
-        for (CrcModel[] replacement : replacements) {
-            assertSame(replacement[0], replacement[1], "The deprecated constant has to refer to the model " + replacement[0]);
-            assertEquals(1, getModels(m -> m == replacement[0]).count(), "The model " + replacement[0] + " has to be listed by getModels() once");
-        }
-        // getModels() skips deprecated fields: each of them has to refer to a listed model
-        for (Field field : CrcModel.class.getDeclaredFields()) {
-            if (field.getType() == CrcModel.class && field.isAnnotationPresent(Deprecated.class)) {
-                CrcModel model = (CrcModel) field.get(null);
-                assertEquals(1, getModels(m -> m == model).count(), "The deprecated constant " + field.getName() + " has to refer to a model listed by getModels()");
-            }
-        }
-    }
-
-    @Test
-    void testConstantNamesMatchModelNames() throws IllegalAccessException {
-        for (Field field : CrcModel.class.getDeclaredFields()) {
-            if (field.getType() != CrcModel.class || field.isAnnotationPresent(Deprecated.class)) {
-                continue;
-            }
-            String name = ((CrcModel) field.get(null)).getName();
-            String expected = name.replaceFirst("^CRC-(\\d+)([A-Z])$", "CRC$1_$2")  // CRC-32C -> CRC32_C
-                                  .replaceFirst("^CRC-(\\d+)", "CRC$1")               // CRC-16/ -> CRC16/
-                                  .replaceAll("[-/]", "_");
-            assertEquals(expected, field.getName(), "The constant name has to be derived from the model name [" + name + "]");
-        }
-    }
-
-    @Test
-    void testJavadocOfConstants() throws IOException, ReflectiveOperationException {
-        // the Javadoc line above every constant shows the model in the notation of the RevEng catalogue, an alias
-        // links to its model: the line has to match the model, also after a change of the parameters
-        List<String> lines = Files.readAllLines(Paths.get("src/main/java/com/github/sftwnd/crayfish/common/crc/CrcModel.java"), UTF_8);
-        Pattern declaration = Pattern.compile("^ {4}public static final CrcModel (\\w+) *= (new CrcModel|alias)\\(");
-        Map<CrcDescription, String> models = new IdentityHashMap<>();
-        int documented = 0;
-        for (int i = 1; i < lines.size(); i++) {
-            Matcher matcher = declaration.matcher(lines.get(i));
-            if (matcher.find()) {
-                String field = matcher.group(1);
-                CrcModel model = (CrcModel) CrcModel.class.getField(field).get(null);
-                String javadoc;
-                if (matcher.group(2).equals("alias")) {
-                    javadoc = model.getName() + ", alias of {@link #" + models.get(model.getCrcDescription()) + "}";
-                } else {
-                    models.put(model.getCrcDescription(), field);
-                    javadoc = model.getName();
-                }
-                int digits = (model.getWidth() + 3) / 4;
-                javadoc += ": width=" + model.getWidth() + " poly=" + hex(model.getPoly(), digits) + " init=" + hex(model.getInit(), digits)
-                         + " refin=" + model.isRefin() + " refout=" + model.isRefot() + " xorout=" + hex(model.getXorot(), digits)
-                         + " check=" + hex(model.getCheck(), digits);
-                assertEquals("    /** " + javadoc + " */", lines.get(i - 1), "Wrong Javadoc of the constant " + field);
-                documented++;
-            }
-        }
-        long constants = Arrays.stream(CrcModel.class.getDeclaredFields())
-                .filter(field -> field.getType() == CrcModel.class && !field.isAnnotationPresent(Deprecated.class))
-                .count();
-        assertEquals(constants, documented, "Every constant that is not deprecated has to be documented");
-    }
-
-    private static String hex(final long value, final int digits) {
-        String hex = Long.toHexString(value);
-        return "0x" + String.join("", Collections.nCopies(digits - hex.length(), "0")) + hex;
-    }
-
-    @Test
-    void testPredefinedModelsInDeclarationOrder() throws IllegalAccessException {
-        List<CrcModel> declared = new ArrayList<>();
-        for (Field field : CrcModel.class.getDeclaredFields()) {
-            if (field.getType() == CrcModel.class && !field.isAnnotationPresent(Deprecated.class)) {
-                declared.add((CrcModel) field.get(null));
-            }
-        }
-        // every non-deprecated constant is listed once, and every listed model is a constant
-        assertEquals(declared.size(), getModels().count(), "getModels() has to list every predefined model once");
-        assertEquals(new HashSet<>(declared), getModels().collect(Collectors.toSet()), "getModels() has to list the predefined models");
-        // a primary model is listed before its aliases
-        CrcModel[] order = {CrcModel.CRC16_ARC, CrcModel.ARC, CrcModel.CRC32_ISO_HDLC, CrcModel.CRC32, CrcModel.PKZIP, CrcModel.CRC64_XZ, CrcModel.CRC64_GO_ECMA};
-        List<CrcModel> models = getModels().collect(Collectors.toList());
-        for (int i = 1; i < order.length; i++) {
-            assertTrue(models.indexOf(order[i - 1]) < models.indexOf(order[i]), order[i - 1] + " has to be listed before " + order[i]);
-        }
-    }
-
-    @Test
-    void testConstructReturnsTheModelPassedIn() {
-        getModels().forEach(m -> {
-            assertSame(m, construct(m), "construct(model) has to return the model " + m);
-            assertSame(m, construct(null, m, null), "construct(null, model, null) has to return the model " + m);
-            assertSame(m, construct(m.getName(), m), "construct(name of the model, model) has to return the model " + m);
-        });
-        CrcModel registered = construct("CRC-16/TEST-CONSTRUCT-MODEL", CRC16_XMODEM);
-        assertSame(registered, construct(registered), "construct(model) has to return a model registered at run time");
-    }
-
-    @Test
-    void testConstructReturnsThePrimaryModel() {
-        // an alias and its primary model, which is declared before the alias
-        CrcModel[][] aliases = {
-                {CrcModel.ARC, CrcModel.CRC16_ARC},
-                {CrcModel.CRC8, CrcModel.CRC8_SMBUS},
-                {CrcModel.CRC32, CrcModel.CRC32_ISO_HDLC},
-                {CrcModel.PKZIP, CrcModel.CRC32_ISO_HDLC},
-                {CRC32_POSIX, CRC32_CKSUM},
-                {CrcModel.CRC16_X_25, CrcModel.CRC16_IBM_SDLC}
-        };
-        for (CrcModel[] alias : aliases) {
-            assertSame(alias[1], construct(alias[0].getCrcDescription()), "construct(parameters of " + alias[0] + ") has to return " + alias[1]);
-            assertSame(alias[1], construct(new CrcDescription(alias[0])), "construct(new CrcDescription(" + alias[0] + ")) has to return " + alias[1]);
-            assertSame(alias[1], alias[0].getCrcDescription().getCRC().getModel(), "CrcDescription.getCRC() for the parameters of " + alias[0] + " has to use " + alias[1]);
-        }
-        byte[] data = "hello".getBytes(US_ASCII);
-        assertEquals(CrcModel.CRC32_ISO_HDLC.getCRC(data), CrcModel.CRC32_ISO_HDLC.getCrcDescription().getCRC().update(data),
-                "CRCs over the same data have to be equal, whether they are created by the model or by its parameters");
-    }
-
-    @Test
-    void testConstructIsNotChangedByLaterRegistrations() {
-        // a model registered later with a name that sorts first, for example by another library in the same JVM
-        assertEquals("!my-crc", construct("!my-crc", CrcModel.CRC32).getName(), "The later model has to be registered");
-        assertSame(CrcModel.CRC32_ISO_HDLC, construct(CrcModel.CRC32_ISO_HDLC), "construct(model) must not be changed by a later registration");
-        assertSame(CrcModel.CRC32_ISO_HDLC, construct(new CrcDescription(CrcModel.CRC32)), "construct(parameters) must not be changed by a later registration");
-        assertSame(CrcModel.CRC32_ISO_HDLC, CrcModel.CRC32.getCrcDescription().getCRC().getModel(), "CrcDescription.getCRC() must not be changed by a later registration");
-        // parameters that are registered at run time: the model registered first
-        CrcModel first = construct("CRC-24/TEST-FIRST", new CrcDescription(24, 0x123457, 0x0, false, false, 0x0));
-        construct("!CRC-24/TEST-SECOND", first);
-        assertSame(first, construct(new CrcDescription(first)), "construct(parameters) has to return the model registered first");
-    }
-
-    @Test
-    void testGeneratedNames() {
-        assertEquals("CRC-27/P800069_I1_RI_RO_X5", construct(new CrcDescription(27, 0x800069, 0x1, true, true, 0x5)).getName(),
-                "The generated name has to show the original parameters");
-        CrcModel model = construct(new CrcDescription(32, 0xEDB88320L, 0x0, true, false, 0xFFFFFFFFL));
-        assertEquals("CRC-32/PEDB88320_I0_RI_XFFFFFFFF", model.getName(), "The generated name has to show the original parameters");
-        assertEquals(model.getCrcDescription().toString(), model.getName(), "The generated name has to be the parameter string of the model");
-        assertNotEquals(CrcModel.CRC32_ISO_HDLC.getCrcDescription().toString(), model.getName(), "The generated name must not be the parameter string of CRC-32");
-    }
-
-    @Test
-    void testIndexRejectsRegisteredName() {
-        CrcDescription crc32 = CrcModel.CRC32.getCrcDescription();
-        long modelCount = getModels().count();
-        long parameterCount = getModels(m -> m.getCrcDescription().equals(crc32)).count();
-        IllegalStateException exception = assertThrows(IllegalStateException.class, () -> CrcModel.index(CrcModel.CRC32),
-                "A name that is registered already has to be rejected");
-        assertTrue(exception.getMessage().contains("CRC-32"), "Wrong message: " + exception.getMessage());
-        // the exception comes before the index by the parameters is changed
-        assertEquals(modelCount, getModels().count(), "The registry must not change");
-        assertEquals(parameterCount, getModels(m -> m.getCrcDescription().equals(crc32)).count(), "The index by the parameters must not change");
-        assertSame(CrcModel.CRC32, lookUp("CRC-32"), "lookUp(\"CRC-32\") has to return the same model");
-        assertSame(CrcModel.CRC32_ISO_HDLC, construct(crc32), "The primary model of the parameters has to stay the same");
-    }
-
-    @Test
-    void testNameOfOtherParameters() {
-        long modelCount = getModels().count();
-        // CRC-16/XMODEM parameters under the name of the predefined 32-bit CRC-32
-        CrcDescription xmodem = new CrcDescription(16, 0x1021, 0x0, false, false, 0x0);
-        assertThrows(IllegalArgumentException.class, () -> construct("CRC-32", xmodem), "The name of a predefined model has to be rejected for other parameters");
-        assertThrows(IllegalArgumentException.class, () -> construct("CRC-32", CRC16_XMODEM), "The name of a predefined model has to be rejected for another model");
-        // a name registered at run time
-        CrcModel model = construct("CRC-24/TEST-NAME", new CrcDescription(24, 0x123457, 0x0, false, false, 0x0));
-        CrcDescription otherParameters = new CrcDescription(24, 0x123459, 0x0, false, false, 0x0);
-        assertThrows(IllegalArgumentException.class, () -> construct("CRC-24/TEST-NAME", otherParameters),
-                "The name of a registered model has to be rejected for other parameters");
-        assertSame(model, construct("CRC-24/TEST-NAME", new CrcDescription(model)), "The name with its own parameters has to return the registered model");
-        // the misspelled names of 1.0.x belong to their predefined models
-        CrcDescription g704Other = new CrcDescription(5, 0x15, 0x1, true, true, 0x0);
-        assertThrows(IllegalArgumentException.class, () -> construct("CCRC-5/G-704", g704Other),
-                "A misspelled name of 1.0.x has to be rejected for other parameters");
-        assertSame(CrcModel.CRC5_G_704, construct("CCRC-5/G-704", CrcModel.CRC5_ITU), "A misspelled name of 1.0.x with its parameters has to return the predefined model");
-        // every name is found by lookUp() and stays with its model
-        assertEquals(modelCount + 1, getModels().count(), "Only CRC-24/TEST-NAME has to be registered");
-        assertSame(CrcModel.CRC32, lookUp("CRC-32"), "lookUp(\"CRC-32\") has to return the predefined model");
-        getModels().forEach(m -> assertSame(m, lookUp(m.getName()), "lookUp(\"" + m + "\") has to return the model"));
-    }
-
-    @Test
-    void testCheckValueIsVerified() {
-        long modelCount = getModels().count();
-        // new parameters with a wrong check value: the crc of "123456789" is 0x14AF
-        CrcDescription crc13 = new CrcDescription(13, 0x1CF5, 0x1, false, false, 0x0);
-        IllegalArgumentException wrong = assertThrows(IllegalArgumentException.class, () -> construct("X", crc13, 0x1234L),
-                "A wrong check value has to be rejected for new parameters");
-        assertTrue(wrong.getMessage().contains("0x1234") && wrong.getMessage().contains("0x14AF"), "Wrong message: " + wrong.getMessage());
-        // the parameters of CRC-16/ARC with a check value that is not the one of CRC-16/ARC
-        CrcDescription arc = new CrcDescription(16, 0x8005, 0x0, true, true, 0x0);
-        assertThrows(IllegalArgumentException.class, () -> construct("Y", arc, 0x1234L),
-                "A wrong check value has to be rejected for the parameters of a predefined model");
-        assertThrows(IllegalArgumentException.class, () -> construct(CRC64_GO_ISO, 0L), "A wrong check value has to be rejected for a predefined model");
-        assertEquals(modelCount, getModels().count(), "Rejected calls must not register models");
-        // correct check values, also with the bits above the width set by the sign extension of an int
-        CrcModel x = construct("X", crc13, 0x14AFL);
-        assertEquals(0x14AFL, x.getCheck(), "Wrong check value of X");
-        assertNull(x.getCrcDescription().table_byte, "The verification of the check value must not build the lookup table of the new model");
-        assertEquals(x.getCheck(), x.getCRC(CHECK_BUFF.getBytes(US_ASCII)).getCrc(), "The check value of X has to be the crc of 123456789");
-        CrcModel y = construct("Y", new CrcDescription(16, 0x8005, 0x0, true, true, 0x0), 0xBB3DL);
-        assertSame(CrcModel.CRC16_ARC.getCrcDescription(), y.getCrcDescription(), "Y has to share the parameters of CRC-16/ARC");
-        assertEquals(CrcModel.CRC16_ARC.getCheck(), y.getCheck(), "Wrong check value of Y");
-        CrcModel z = construct("Z", new CrcDescription(32, 0x04C11DB7L, 0x0, false, false, 0x0), (long) (int) 0x89A1897FL);
-        assertEquals(0x89A1897FL, z.getCheck(), "A sign-extended check value has to be reduced to the CRC width");
-        assertSame(x, construct("X", crc13, 0x14AFL), "A registered model has to be returned for its check value");
-        assertThrows(IllegalArgumentException.class, () -> construct("X", crc13, 0x14AEL), "A wrong check value has to be rejected for a registered model");
-    }
-
-    @Test
-    // assertNotEquals(a, b) calls a.equals(b): the object under test has to be the first argument, and with null first
-    // equals is not called at all, so the arguments are not swapped for java:S3415 (expected value, actual value)
-    @SuppressWarnings("java:S3415")
-    void testEqualsAndHashCode() {
-        CrcModel model = construct("CRC-16/TEST-EQUALS", new CrcDescription(16, 0x8BB7, 0x1, false, false, 0x0));
-        CrcModel same = CrcModel.unregistered("CRC-16/TEST-EQUALS", model.getCrcDescription());
-        assertEquals(model, model, "A model has to be equal to itself");
-        assertEquals(model, same, "Models with the same parameters, name and check value have to be equal");
-        assertEquals(model.hashCode(), same.hashCode(), "Equal models have to have the same hash code");
-        assertNotEquals(model, null, "A model must not be equal to null");
-        assertNotEquals(model, "CRC-16/TEST-EQUALS", "A model must not be equal to another type");
-        assertNotEquals(model.getCrcDescription(), model, "A description must not be equal to a model");
-        assertNotEquals(model, model.getCrcDescription(), "A model must not be equal to a description");
-        assertNotEquals(model, CrcModel.unregistered("CRC-16/TEST-EQUALS-OTHER", model.getCrcDescription()), "Models with different names must not be equal");
-        assertNotEquals(model, CrcModel.unregistered("CRC-16/TEST-EQUALS", new CrcDescription(16, 0x8BB7, 0x2, false, false, 0x0)),
-                "Models with different parameters must not be equal");
-        // an alias has the parameters and the check value of its model, but another name
-        assertNotEquals(CrcModel.CRC32_ISO_HDLC, CrcModel.CRC32, "An alias must not be equal to its model");
-        assertEquals(CrcModel.CRC32_ISO_HDLC.getCrcDescription(), CrcModel.CRC32.getCrcDescription(), "An alias has to have the parameters of its model");
-        // a subclass of CrcDescription is never equal to a model, a subclass of CrcModel can't be created
-        CrcDescription subclass = new CrcDescription(model) { };
-        assertNotEquals(model, subclass, "A model must not be equal to a subclass of CrcDescription");
-        assertNotEquals(subclass, model, "A subclass of CrcDescription must not be equal to a model");
-        getModels().forEach(m -> {
-            CrcModel copy = CrcModel.unregistered(m.getName(), m.getCrcDescription());
-            assertEquals(m, copy, "Model " + m + " has to be equal to its unregistered copy");
-            assertEquals(m.hashCode(), copy.hashCode(), "Model " + m + " and its unregistered copy have to have the same hash code");
-        });
-    }
-
-    @Test
-    void testCheckValueOverAscii() {
-        // the check value of a model without a given one: the CRC of the ASCII bytes of "123456789", whatever the default charset
-        CrcDescription crc16 = new CrcDescription(16, 0x7001, 0x0, false, false, 0x0);
-        CrcDescription crc8 = new CrcDescription(8, 0x2B, 0x0, false, false, 0x0);
-        assertEquals(0xD50L, construct(crc16).getCheck(), "Wrong check value of " + crc16);
-        assertEquals(0x40L, construct(crc8).getCheck(), "Wrong check value of " + crc8);
-        for (CrcDescription description : new CrcDescription[]{crc16, crc8}) {
-            assertEquals(CrcReference.crc(description, CHECK_BUFF.getBytes(US_ASCII)), construct(description).getCheck(),
-                    "The check value of " + description + " has to be the CRC of the ASCII bytes of 123456789");
-        }
+    void testCrcOfDataProcessedBefore() {
+        CrcModel model = CrcModel.of("CRC-16/ARC");
+        CRC part = model.crc(CHECK, 0, 4);
+        CRC resumed = model.crc(part.value(), part.length());
+        assertEquals(part, resumed, "A saved CRC has to be restored");
+        assertEquals(model.check(), resumed.update(CHECK, 4, 5).value(), "A restored CRC has to continue the calculation");
+        assertEquals(part, model.crc(part.value() | 0xFFFF_0000L, part.length()), "The bits above the width have to be ignored");
+        assertSame(model.crc(), model.crc(0x1234L, 0), "The value of the empty data has to be ignored");
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> model.crc(0x0L, -1L), "A negative length has to be rejected");
+        assertEquals("CrcModel::crc - length is negative: -1", exception.getMessage(), "Wrong message");
     }
 
 }

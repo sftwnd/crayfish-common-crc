@@ -15,17 +15,27 @@
 CRC-16/XMODEM, CRC-8, CRC-64/ECMA-182, CRC-64/NVME and many more. Parameters and check values are those of the
 [RevEng CRC catalogue](https://reveng.sourceforge.io/crc-catalogue/all.htm).
 
+This is the README of 2.0, which is in development (`2.0.0-SNAPSHOT`). Its API is not compatible with 1.x, see
+[Migrating from 1.x](#migrating-from-1x). The latest release is 1.1.0, its README is that of the tag
+[crayfish-common-crc-1.1.0](https://github.com/sftwnd/crayfish-common-crc/blob/crayfish-common-crc-1.1.0/README.md).
+
 ## Features
 
 - **Fast** — table-driven, slicing-by-8 for every model, not only for CRC-32: 8 bytes per step, 2–4 times faster than
-  one byte per step on buffers from 256 bytes (*1.1.0*)
+  one byte per step on buffers from 256 bytes
+- **Immutable** — a CRC is a value: an update or a combination gives a new CRC, so a CRC can be shared between threads
+  and kept as the state of a calculation (*2.0*)
 - **Combine and resume** — join the CRCs of parts calculated independently (in parallel threads or on other nodes),
-  like zlib `crc32_combine`; continue a calculation from a saved CRC value and length, also of 2 GiB and more (*1.1.0*)
+  like zlib `crc32_combine`; continue a calculation from a saved CRC value and length, also of 2 GiB and more
+- **Names and aliases** — a model is chosen by the name or by any alias of the catalogue, and its CRCs tell the name
+  it was chosen by; other parameters get a unique name of their own (*2.0*)
+- **Memory on demand** — one description per parameter set; its lookup tables are built on the first calculation and
+  collected with it when no model of the parameters is used any more (*2.0*)
 - **Java 8+ and modular** — runs on Java 8; on Java 9+ it is the named JPMS module `com.github.sftwnd.crayfish_common_crc`
-  of a multi-release jar (*1.1.0*, an automatic module of the same name up to 1.0.2); OSGi bundle headers included
+  of a multi-release jar; OSGi bundle headers included
 - **Zero runtime dependencies** — a single small jar
 - **Verified** — every predefined model is tested against its RevEng check value and a bit-by-bit reference implementation
-- **Any CRC up to 64 bits** — width 1…64, any poly, init, refin, refout, xorout; look up a model by name or by any alias
+- **Any CRC up to 64 bits** — width 1…64, any poly, init, refin, refout, xorout
 - **BSD 3-Clause** license
 
 ## Installation
@@ -36,28 +46,148 @@ Maven:
 <dependency>
     <groupId>com.github.sftwnd.crayfish.common</groupId>
     <artifactId>crayfish-common-crc</artifactId>
-    <version>1.0.2</version>
+    <version>2.0.0</version>
 </dependency>
 ```
 
 Gradle:
 
 ```groovy
-implementation 'com.github.sftwnd.crayfish.common:crayfish-common-crc:1.0.2'
+implementation 'com.github.sftwnd.crayfish.common:crayfish-common-crc:2.0.0'
 ```
 
 ## Quick start
 
 ```java
     byte[] data = "123456789".getBytes(StandardCharsets.US_ASCII);
-    long modbus = CrcModel.CRC16_MODBUS.getCRC(data).getCrc();       // 0x4B37
-    long crc32c = CrcModel.lookUp("CRC-32C").getCRC(data).getCrc();  // 0xE3069283
+    long modbus = CrcModel.of("CRC-16/MODBUS").crc(data).value();   // 0x4B37
+    long crc32c = CrcModel.of("CRC-32C").crc(data).value();         // 0xE3069283
 ```
+
+## Concepts
+
+| Type | What it is |
+|---|---|
+| `CrcParameters` | the parameters of a CRC algorithm: width, poly, init, refin, refout, xorout |
+| `StandardCrc` | the 112 algorithms of the catalogue: name, aliases, parameters, check value |
+| `CrcDescription` | the one description of a parameter set: names, check value, lookup tables |
+| `CrcModel` | a description with the name it was chosen by |
+| `CRC` | the immutable CRC of data: model, value, length |
+
+## Models
+
+### By name
+
+```java
+    CrcModel crc32 = CrcModel.of("CRC-32/ISO-HDLC");
+    CrcModel pkzip = CrcModel.of("PKZIP");                     // an alias of CRC-32/ISO-HDLC
+    Optional<CrcModel> model = CrcModel.find(configuredName);  // empty for an unknown name
+    CrcModel modbus = StandardCrc.CRC_16_MODBUS.model();
+```
+
+`CrcModel.of()` throws `IllegalArgumentException` for an unknown name. The case of a name matters. The constants of
+`StandardCrc` are the names of the algorithms with `_` for every character other than `A-Z` and `0-9`.
+
+### By parameters
+
+```java
+    CrcModel arc = CrcModel.of(16, 0x8005, 0x0, true, true, 0x0);      // CRC-16/ARC
+    CrcModel other = CrcModel.of(16, 0x1234, 0x0, true, true, 0x0);    // CRC-16/P1234_I0_RI_RO
+    CrcModel same = CrcModel.of(CrcParameters.of(16, 0x1234, 0x0, true, true, 0x0));
+```
+
+The parameters of an algorithm of the catalogue give the model with its name.
+
+### With a builder
+
+```java
+    CrcModel crc32 = CrcModel.builder(32)   // the width
+            .poly(0x04C11DB7L)              // required
+            .reflected(true)                // required: refin and refout, or refin(...) and refout(...)
+            .init(0xFFFFFFFFL)              // 0 if not set
+            .xorout(0xFFFFFFFFL)            // 0 if not set
+            .check(0xCBF43926L)             // optional: build() verifies it
+            .build();                       // CRC-32/ISO-HDLC
+```
+
+Every setter checks that the value fits into the width. `build()` throws `IllegalStateException` if poly, refin or refout
+is not set: they have no neutral value, a forgotten one would give another CRC. A wrong check value makes `build()`
+throw `IllegalArgumentException`.
+
+## CRC
+
+### Calculate
+
+```java
+    CrcModel model = CrcModel.of("CRC-16/ARC");
+    long value = model.crc(data).value();
+    CRC crc = model.crc().update(part1).update(part2, 0, length2);   // part1 followed by a part of part2
+    long processed = crc.length();
+```
+
+`model.crc()` is the CRC of the empty data. A CRC is immutable, so the result of `update()` has to be used:
+
+```java
+    CRC crc = model.crc();
+    crc.update(data);          // wrong: the new CRC is lost, crc is still the CRC of the empty data
+    crc = crc.update(data);    // right
+```
+
+### Combine
+
+```java
+    CRC first = model.crc(part1);        // calculated independently,
+    CRC second = model.crc(part2);       // for example in parallel threads
+    CRC both = first.combine(second);    // the CRC of part1 followed by part2
+    // only the value and the length of the second part are known:
+    CRC same = first.combine(second.value(), second.length());
+```
+
+Both CRCs have to have the same parameters: a model and its alias are fine, others give `IllegalArgumentException`.
+
+### Resume
+
+```java
+    long savedValue = crc.value();
+    long savedLength = crc.length();
+    // later, also in another process
+    CRC resumed = model.crc(savedValue, savedLength).update(moreData);
+```
+
+The bits above the width are ignored, so a CRC-32 kept in an `int` can be passed as is.
+
+## Names
+
+```java
+    CrcDescription description = CrcModel.of("PKZIP").description();
+    String name = description.name();             // CRC-32/ISO-HDLC
+    List<String> aliases = description.aliases(); // [CRC-32, CRC-32/ADCCP, CRC-32/V-42, CRC-32/XZ, PKZIP]
+    List<String> names = description.names();     // the name followed by the aliases
+    String chosen = CrcModel.of("PKZIP").crc(data).name();   // PKZIP: the name the model was chosen by
+```
+
+Parameters outside the catalogue have a unique name made of the parameters and no aliases:
+`CRC-{width}/P{poly}_I{init}[_RI][_RO][_X{xorout}]`, the values hexadecimal without leading zeros, `_RI` and `_RO` for
+refin and refout, `_X` for a non-zero xorout (the format of the names of unregistered models of 1.x). `CrcModel.of()`
+accepts such a name, so `CrcModel.of(model.name())` gives the model of any model. A name made of the parameters of an
+algorithm of the catalogue gives the model with the name of the algorithm.
+
+## Memory
+
+- There is one `CrcDescription` per parameter set, shared by all models and CRCs of the parameters, by any name.
+- The lookup tables (8 × 256 values, 16 KiB) are built on the first calculation with data, not when a model is chosen.
+- The descriptions are kept in a pool that refers to them weakly: when no model and no CRC of the parameters is used,
+  the garbage collector collects the description with its tables. Keep the model in a field to keep the tables.
+- `-Dcom.github.sftwnd.crayfish.common.crc.retention=soft` makes the pool refer to them softly: an unused description
+  is kept until the memory runs short. It helps if a model is chosen by its name for every calculation and not kept.
+  The property is read once, when the pool is used first.
+- On Java 9+ the daemon thread `crayfish-crc-eviction` of a `java.lang.ref.Cleaner` removes the entries of the collected
+  descriptions from the pool; before Java 9, and with a jar without the `Multi-Release` attribute, the pool removes them
+  when it is used.
 
 ## Supported CRC algorithms
 
-112 algorithms of 21 widths; aliases in italics, every name and alias is accepted by `CrcModel.lookUp()`.
-The names marked ¹ come with 1.1.0: 1.0.2 has 101 algorithms with 173 names.
+112 algorithms of 21 widths; aliases in italics, every name and alias is accepted by `CrcModel.of()`.
 
 | Width | # | Algorithms *(aliases)* |
 |---:|---:|---|
@@ -66,143 +196,50 @@ The names marked ¹ come with 1.1.0: 1.0.2 has 101 algorithms with 173 names.
 | 5 | 3 | CRC-5/EPC-C1G2 *(CRC-5/EPC)*, CRC-5/G-704 *(CRC-5/ITU)*, CRC-5/USB |
 | 6 | 5 | CRC-6/CDMA2000-A, CRC-6/CDMA2000-B, CRC-6/DARC, CRC-6/G-704 *(CRC-6/ITU)*, CRC-6/GSM |
 | 7 | 3 | CRC-7/MMC *(CRC-7)*, CRC-7/ROHC, CRC-7/UMTS |
-| 8 | 20 | CRC-8/AUTOSAR, CRC-8/BLUETOOTH, CRC-8/CDMA2000, CRC-8/DARC, CRC-8/DVB-S2, CRC-8/GSM-A, CRC-8/GSM-B, CRC-8/HITAG¹, CRC-8/I-432-1 *(CRC-8/ITU)*, CRC-8/I-CODE, CRC-8/LTE, CRC-8/MAXIM-DOW *(CRC-8/MAXIM, DOW-CRC)*, CRC-8/MIFARE-MAD¹, CRC-8/NRSC-5¹, CRC-8/OPENSAFETY, CRC-8/ROHC, CRC-8/SAE-J1850, CRC-8/SMBUS *(CRC-8)*, CRC-8/TECH-3250 *(CRC-8/AES, CRC-8/EBU)*, CRC-8/WCDMA |
+| 8 | 20 | CRC-8/AUTOSAR, CRC-8/BLUETOOTH, CRC-8/CDMA2000, CRC-8/DARC, CRC-8/DVB-S2, CRC-8/GSM-A, CRC-8/GSM-B, CRC-8/HITAG, CRC-8/I-432-1 *(CRC-8/ITU)*, CRC-8/I-CODE, CRC-8/LTE, CRC-8/MAXIM-DOW *(CRC-8/MAXIM, DOW-CRC)*, CRC-8/MIFARE-MAD, CRC-8/NRSC-5, CRC-8/OPENSAFETY, CRC-8/ROHC, CRC-8/SAE-J1850, CRC-8/SMBUS *(CRC-8)*, CRC-8/TECH-3250 *(CRC-8/AES, CRC-8/EBU)*, CRC-8/WCDMA |
 | 10 | 3 | CRC-10/ATM *(CRC-10, CRC-10/I-610)*, CRC-10/CDMA2000, CRC-10/GSM |
 | 11 | 2 | CRC-11/FLEXRAY *(CRC-11)*, CRC-11/UMTS |
 | 12 | 4 | CRC-12/CDMA2000, CRC-12/DECT *(X-CRC-12)*, CRC-12/GSM, CRC-12/UMTS *(CRC-12/3GPP)* |
 | 13 | 1 | CRC-13/BBC |
 | 14 | 2 | CRC-14/DARC, CRC-14/GSM |
 | 15 | 2 | CRC-15/CAN *(CRC-15)*, CRC-15/MPT1327 |
-| 16 | 31 | CRC-16/ARC *(ARC, CRC-16, CRC-16/LHA, CRC-IBM)*, CRC-16/CDMA2000, CRC-16/CMS, CRC-16/DDS-110, CRC-16/DECT-R *(R-CRC-16)*, CRC-16/DECT-X *(X-CRC-16)*, CRC-16/DNP, CRC-16/EN-13757, CRC-16/GENIBUS *(CRC-16/DARC, CRC-16/EPC, CRC-16/EPC-C1G2, CRC-16/I-CODE)*, CRC-16/GSM, CRC-16/IBM-3740 *(CRC-16/AUTOSAR, CRC-16/CCITT-FALSE)*, CRC-16/IBM-SDLC *(CRC-16/ISO-HDLC, CRC-16/ISO-IEC-14443-3-B, CRC-16/X-25, CRC-B, X-25)*, CRC-16/ISO-IEC-14443-3-A *(CRC-A)*, CRC-16/KERMIT *(CRC-16/BLUETOOTH¹, CRC-16/CCITT, CRC-16/CCITT-TRUE, CRC-16/V-41-LSB, CRC-CCITT, KERMIT)*, CRC-16/LJ1200, CRC-16/M17¹, CRC-16/MAXIM-DOW *(CRC-16/MAXIM)*, CRC-16/MCRF4XX, CRC-16/MODBUS *(MODBUS)*, CRC-16/NRSC-5¹, CRC-16/OPENSAFETY-A, CRC-16/OPENSAFETY-B, CRC-16/PROFIBUS *(CRC-16/IEC-61158-2)*, CRC-16/RIELLO, CRC-16/SPI-FUJITSU *(CRC-16/AUG-CCITT)*, CRC-16/T10-DIF, CRC-16/TELEDISK, CRC-16/TMS37157, CRC-16/UMTS *(CRC-16/BUYPASS, CRC-16/VERIFONE)*, CRC-16/USB, CRC-16/XMODEM *(CRC-16/ACORN, CRC-16/LTE, CRC-16/V-41-MSB, XMODEM, ZMODEM)* |
+| 16 | 31 | CRC-16/ARC *(ARC, CRC-16, CRC-16/LHA, CRC-IBM)*, CRC-16/CDMA2000, CRC-16/CMS, CRC-16/DDS-110, CRC-16/DECT-R *(R-CRC-16)*, CRC-16/DECT-X *(X-CRC-16)*, CRC-16/DNP, CRC-16/EN-13757, CRC-16/GENIBUS *(CRC-16/DARC, CRC-16/EPC, CRC-16/EPC-C1G2, CRC-16/I-CODE)*, CRC-16/GSM, CRC-16/IBM-3740 *(CRC-16/AUTOSAR, CRC-16/CCITT-FALSE)*, CRC-16/IBM-SDLC *(CRC-16/ISO-HDLC, CRC-16/ISO-IEC-14443-3-B, CRC-16/X-25, CRC-B, X-25)*, CRC-16/ISO-IEC-14443-3-A *(CRC-A)*, CRC-16/KERMIT *(CRC-16/BLUETOOTH, CRC-16/CCITT, CRC-16/CCITT-TRUE, CRC-16/V-41-LSB, CRC-CCITT, KERMIT)*, CRC-16/LJ1200, CRC-16/M17, CRC-16/MAXIM-DOW *(CRC-16/MAXIM)*, CRC-16/MCRF4XX, CRC-16/MODBUS *(MODBUS)*, CRC-16/NRSC-5, CRC-16/OPENSAFETY-A, CRC-16/OPENSAFETY-B, CRC-16/PROFIBUS *(CRC-16/IEC-61158-2)*, CRC-16/RIELLO, CRC-16/SPI-FUJITSU *(CRC-16/AUG-CCITT)*, CRC-16/T10-DIF, CRC-16/TELEDISK, CRC-16/TMS37157, CRC-16/UMTS *(CRC-16/BUYPASS, CRC-16/VERIFONE)*, CRC-16/USB, CRC-16/XMODEM *(CRC-16/ACORN, CRC-16/LTE, CRC-16/V-41-MSB, XMODEM, ZMODEM)* |
 | 17 | 1 | CRC-17/CAN-FD |
 | 21 | 1 | CRC-21/CAN-FD |
-| 24 | 8 | CRC-24/BLE, CRC-24/FLEXRAY-A, CRC-24/FLEXRAY-B, CRC-24/INTERLAKEN, CRC-24/LTE-A, CRC-24/LTE-B, CRC-24/OPENPGP *(CRC-24)*, CRC-24/OS-9¹ |
+| 24 | 8 | CRC-24/BLE, CRC-24/FLEXRAY-A, CRC-24/FLEXRAY-B, CRC-24/INTERLAKEN, CRC-24/LTE-A, CRC-24/LTE-B, CRC-24/OPENPGP *(CRC-24)*, CRC-24/OS-9 |
 | 30 | 1 | CRC-30/CDMA |
 | 31 | 1 | CRC-31/PHILIPS |
-| 32 | 12 | CRC-32/AIXM *(CRC-32Q)*, CRC-32/AUTOSAR, CRC-32/BASE91-D *(CRC-32D)*, CRC-32/BZIP2 *(B-CRC-32, CRC-32/AAL5, CRC-32/DECT-B)*, CRC-32/CD-ROM-EDC¹, CRC-32/CKSUM *(CKSUM, CRC-32/POSIX)*, CRC-32/ISCSI *(CRC-32/BASE91-C, CRC-32/CASTAGNOLI, CRC-32/INTERLAKEN, CRC-32/NVME¹, CRC-32C)*, CRC-32/ISO-HDLC *(CRC-32, CRC-32/ADCCP, CRC-32/V-42, CRC-32/XZ, PKZIP)*, CRC-32/JAMCRC *(JAMCRC)*, CRC-32/MEF¹, CRC-32/MPEG-2, CRC-32/XFER *(XFER)* |
+| 32 | 12 | CRC-32/AIXM *(CRC-32Q)*, CRC-32/AUTOSAR, CRC-32/BASE91-D *(CRC-32D)*, CRC-32/BZIP2 *(CRC-32/AAL5, CRC-32/DECT-B, B-CRC-32)*, CRC-32/CD-ROM-EDC, CRC-32/CKSUM *(CKSUM, CRC-32/POSIX)*, CRC-32/ISCSI *(CRC-32/BASE91-C, CRC-32/CASTAGNOLI, CRC-32/INTERLAKEN, CRC-32C, CRC-32/NVME)*, CRC-32/ISO-HDLC *(CRC-32, CRC-32/ADCCP, CRC-32/V-42, CRC-32/XZ, PKZIP)*, CRC-32/JAMCRC *(JAMCRC)*, CRC-32/MEF, CRC-32/MPEG-2, CRC-32/XFER *(XFER)* |
 | 40 | 1 | CRC-40/GSM |
-| 64 | 7 | CRC-64/ECMA-182 *(CRC-64)*, CRC-64/GO-ISO, CRC-64/MS¹, CRC-64/NVME¹, CRC-64/REDIS¹, CRC-64/WE, CRC-64/XZ *(CRC-64/GO-ECMA)* |
+| 64 | 7 | CRC-64/ECMA-182 *(CRC-64)*, CRC-64/GO-ISO, CRC-64/MS, CRC-64/NVME, CRC-64/REDIS, CRC-64/WE, CRC-64/XZ *(CRC-64/GO-ECMA)* |
 
 CRC-82/DARC of the catalogue is not predefined: the CRC value is a `long`, the width is limited to 64 bits.
 
-## Create CRC
+## Migrating from 1.x
 
-### Full case with description
-
-```java
-    CrcDescription crcDescription = new CrcDescription(3, 0x3, 0x0, false, false, 0x7);
-    CRC crc = crcDescription.getCRC();
-    crc.update("StringA".getBytes());
-    long crcValue = crc.getCrc();
-```
-
-### Simple case
-
-```java
-    CrcDescription crcDescription = new CrcDescription(3, 0x3, 0x0, false, false, 0x7);
-    long crc = crcDescription.getCRC().update("StringA".getBytes()).getCrc();
-```
-
-`CrcDescription.getCRC()` uses the model registered for the parameters, here the predefined CRC-3/GSM. Parameters
-without a registered model are not registered (*1.1.0*): the CRC uses a model that `CrcModel.getModels()` and
-`CrcModel.lookUp()` do not know, so calculations with many different parameter sets do not fill the registry.
-
-### Incremental update
-
-```java
-    CrcModel crcModel = CrcModel.lookUp("CRC-16/ARC");
-    String str1 = "StringABC";
-    String str2 = "StringBCD";
-    CRC crc = crcModel.getCRC(str1.getBytes());
-    crc.update(str2.getBytes());
-    long crcValue = crc.getCrc();
-```
-
-### Combine crc
-
-```java
-    CrcModel crcModel = CrcModel.lookUp("CRC-16/ARC");
-    byte[] part1 = "StringABC".getBytes(StandardCharsets.UTF_8);
-    byte[] part2 = "StringBCD".getBytes(StandardCharsets.UTF_8);
-    CRC crc = crcModel.getCRC(part1);         // CRC of part1
-    CRC crc2 = crcModel.getCRC(part2);        // CRC of part2, calculated independently
-    crc.combine(crc2);                        // crc now covers part1 followed by part2
-    long crcValue = crc.getCrc();
-    // only the CRC value and the length of the second part are known
-    // (combine(long, long) returns the result and does not modify the CRC object):
-    long crcValue2 = crcModel.getCRC(part1).combine(crc2.getCrc(), part2.length);
-    // a calculation is continued from a saved state of any length, also of 2 GiB and more (1.1.0)
-    long savedCrc = crc.getCrc();
-    long savedLength = crc.getLength();
-    CRC resumed = crcModel.getCRC(savedCrc, savedLength);
-```
-
-### Construct & combine value check examples
-
-```java
-    CrcModel crcModel = CrcModel.lookUp("CRC-16/ARC");
-    String str1 = "StringABC";
-    String str2 = "StringBCD";
-
-    long crc1a = crcModel.getCRC().update(str1.getBytes()).update(str2.getBytes()).getCrc();
-    long crc1b = crcModel.getCRC(str1.getBytes()).update(str2.getBytes()).getCrc();
-    long crc2 = crcModel.getCRC(crcModel.getCRC(str1.getBytes()).getCrc(), str1.getBytes().length).update(str2.getBytes()).getCrc();
-    long crc3 = crcModel.getCRC((str1+str2).getBytes()).getCrc();
-    long crc4 = crcModel.getCRC(str1.getBytes()).combine(crcModel.getCRC(str2.getBytes())).getCrc();
-```
-
-In all cases the values are the same.
-
-## CrcModel
-
-A CRC model is a `CrcDescription` with a name and a check value: the CRC of the ASCII bytes of `"123456789"`.
-
-### Register CrcModel
-
-```java
-    CrcDescription crcDescription = new CrcDescription(3, 0x3, 0x0, false, false, 0x7);
-    // returns a model registered for these parameters (here: the predefined CRC-3/GSM)
-    // or registers a new one
-    CrcModel crcModel1 = CrcModel.construct(crcDescription);
-    // or: register the parameters under a name
-    CrcModel crcModel2 = CrcModel.construct("MyModel", crcDescription);
-    // or: the same with a known check value
-    long checkCode = 0x4L;
-    CrcModel crcModel3 = CrcModel.construct("MyModel", crcDescription, checkCode);
-```
-
-_P.S.> The check value is calculated if it is not given. A given check value is verified: `construct()` throws
-`IllegalArgumentException` if it is not the CRC of the ASCII bytes of `"123456789"`. A name belongs to one parameter set:
-`construct()` throws `IllegalArgumentException` for a name that is used by a model with other parameters._
-
-### Unregistered CrcModel
-
-```java
-    // a model that is not registered: getModels(), lookUp() and construct() do not know it (1.1.0)
-    CrcModel crcModel = CrcModel.unregistered("MyModel", new CrcDescription(16, 0x1234, 0x0, false, false, 0x0));
-    long crc = crcModel.getCRC().update("String".getBytes()).getCrc();
-```
-
-### Use predefined CrcModel
-
-```java
-    CrcModel crcModel = CrcModel.CRC64_GO_ISO;
-    long crc = crcModel.getCRC().update("String".getBytes()).getCrc();
-```
-
-### Use well-known CrcModel by the name
-
-```java
-    CrcModel crcModel = CrcModel.lookUp("CRC-16/ARC");
-    if (crcModel != null) {
-        long crc = crcModel.getCRC().update("String".getBytes()).getCrc();
-    }
-```
+| 1.x | 2.0 |
+|---|---|
+| `CrcModel.CRC32_ISO_HDLC` | `StandardCrc.CRC_32_ISO_HDLC.model()` or `CrcModel.of("CRC-32/ISO-HDLC")` |
+| `CrcModel.lookUp(name)`, null for an unknown name | `CrcModel.find(name)`, empty for an unknown name, or `CrcModel.of(name)` |
+| `new CrcDescription(width, poly, init, refin, refot, xorot)` | `CrcParameters.of(width, poly, init, refin, refout, xorout)` |
+| `crcDescription.getCRC()` | `CrcModel.of(parameters).crc()` |
+| `CrcModel.construct(name, crcDescription, check)` | `CrcModel.builder(width)` … `.check(check).build()`; no names of the user |
+| `CrcModel.unregistered(crcDescription)` | `CrcModel.of(parameters)`: the same name made of the parameters |
+| `CrcModel.getModels()` | `StandardCrc.values()` |
+| `CrcModel.CHECK_BUFF` | `CrcParameters.CHECK_INPUT` |
+| `model.getCRC(data).getCrc()` | `model.crc(data).value()` |
+| `model.getCRC(crc, length)` | `model.crc(value, length)` |
+| `crc.update(data)` changes the CRC | `crc = crc.update(data)`: a new CRC |
+| `crc.combine(crc2)` changes the CRC | `crc = crc.combine(crc2)`: a new CRC |
+| `crc.combine(crc2, length2)` returns a `long` | returns a new CRC |
+| `crc.getCrc()`, `crc.getLength()`, `crc.getModel()` | `crc.value()`, `crc.length()`, `crc.model()` |
+| `crc.copy()` | not needed: a CRC is immutable |
+| `update(null)` and a negative length are ignored | `NullPointerException`, `ArrayIndexOutOfBoundsException` |
 
 ## Java modules
 
-The library runs on Java 8+. On Java 9+ it is the named module `com.github.sftwnd.crayfish_common_crc` (*1.1.0*;
-up to 1.0.2 an automatic module of the same name), which exports the package `com.github.sftwnd.crayfish.common.crc`:
+The library runs on Java 8+. On Java 9+ it is the named module `com.github.sftwnd.crayfish_common_crc`, which exports
+the package `com.github.sftwnd.crayfish.common.crc`:
 
 ```java
 module my.application {
@@ -210,7 +247,8 @@ module my.application {
 }
 ```
 
-The module descriptor is in `META-INF/versions/9` of the multi-release jar, so Java 8 ignores it.
+The module descriptor and the Java 9 version of the eviction of the pool are in `META-INF/versions/9` of the
+multi-release jar, so Java 8 ignores them.
 
 ## Building
 
@@ -220,5 +258,6 @@ The project builds with the Maven Wrapper (Maven 3.9.16) on JDK 8 to 25:
 ./mvnw verify
 ```
 
-The classes are compiled for Java 8 on every JDK; the module descriptor is built on JDK 9+ only, so a release has to be
-built on JDK 9+.
+The classes are compiled for Java 8 on every JDK; the module descriptor and the Java 9 classes are built on JDK 9+ only,
+so a release has to be built on JDK 9+. The integration tests (`*IT`) run with the jar, so on JDK 9+ they test the
+classes of `META-INF/versions/9`.
