@@ -140,6 +140,9 @@ public final class CrcDescription {
      * Get the model with the name of the description
      * @return model with the name of the description
      */
+    // there is a model per name and at least one name, of the catalogue or made of the parameters, so models[0]
+    // always exists: javabugs:S6466 is a false positive
+    @SuppressWarnings("javabugs:S6466")
     public @NonNull CrcModel model() {
         return this.models[0];
     }

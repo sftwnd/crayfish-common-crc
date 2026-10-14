@@ -34,7 +34,9 @@ final class CrcEngine {
     private final long combineInit;
 
     // built on first use without a lock: threads that build them at the same time build identical tables,
-    // and the volatile field publishes them
+    // and the volatile field publishes them; CrcTables is immutable (its only field is final and filled before it
+    // is published), so java:S3077 (volatile is not enough for a mutable object) does not apply
+    @SuppressWarnings("java:S3077")
     private volatile CrcTables tables;
 
     CrcEngine(@NonNull final CrcParameters parameters) {
