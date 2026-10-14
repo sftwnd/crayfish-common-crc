@@ -11,6 +11,7 @@ import java.net.URL;
 
 import static java.nio.charset.StandardCharsets.US_ASCII;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -50,6 +51,7 @@ class EvictionIT {
         Gc.awaitCleared(probe, "The unused value has to be collected");
         // nothing uses the pool: only the cleaner removes the entry
         Gc.await(() -> !interner.containsKey("a"), "The cleaner has to remove the entry of the collected value");
+        assertFalse(interner.containsKey("a"), "The entry of the collected value has to stay removed");
     }
 
     // a model of the parameters used for a calculation: the probe of its description
