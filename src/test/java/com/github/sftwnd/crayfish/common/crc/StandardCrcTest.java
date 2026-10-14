@@ -36,7 +36,7 @@ class StandardCrcTest {
 
     private static final byte[] CHECK = CrcParameters.CHECK_INPUT.getBytes(US_ASCII);
 
-    private static final Pattern FIELD = Pattern.compile("(\\w+)=(\"[^\"]*\"|\\S+)");
+    private static final Pattern FIELD = Pattern.compile("(\\w++)=(\"[^\"]*+\"|\\S++)");
 
     // the lines of the snapshot of the catalogue: the values of the fields, several of them for "alias"
     private static List<Map<String, List<String>>> catalogue() throws IOException {
