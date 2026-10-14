@@ -11,6 +11,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
@@ -38,6 +39,19 @@ class CRCTest {
     // the models of the catalogue with every name and alias
     private static List<CrcModel> modelsOfAllNames() {
         return Arrays.stream(StandardCrc.values()).flatMap(crc -> crc.names().stream()).map(CrcModel::of).collect(Collectors.toList());
+    }
+
+    // the models of the catalogue and a model of every width 1..64 with every refin and refout
+    private static List<CrcModel> modelsOfAllWidths() {
+        List<CrcModel> result = new ArrayList<>(models());
+        for (int width = 1; width <= 64; width++) {
+            long mask = CrcParameters.mask(width);
+            for (int kind = 0; kind < 4; kind++) {
+                result.add(CrcModel.of(width, 0x42F0E1EBA9EA3693L & mask, 0x0123456789ABCDEFL & mask, (kind & 1) != 0, (kind & 2) != 0,
+                        0xFEDCBA9876543210L & mask));
+            }
+        }
+        return result;
     }
 
     private static long reference(CrcModel model, byte[] data, int offset, int length) {
@@ -199,6 +213,35 @@ class CRCTest {
                 assertEquals(model.check(), first.combine(next).value(), model + ": wrong combined CRC at " + split);
                 assertEquals(CHECK.length, first.combine(next).length(), model + ": wrong combined length at " + split);
                 assertEquals(model.check(), first.combine(next.value(), next.length()).value(), model + ": wrong combined value at " + split);
+            }
+        }
+    }
+
+    @Test
+    void testCombineWithZeros() {
+        // the CRC continued over zero bytes is the CRC combined with the CRC of the zeros: the lengths set the bits 0..16
+        byte[] data = new byte[11];
+        new Random(11).nextBytes(data);
+        int[] lengths = {1, 2, 3, 7, 8, 9, 24, 255, 256, 257, 4096, 65537};
+        for (CrcModel model : modelsOfAllWidths()) {
+            CRC first = model.crc(data);
+            for (int length : lengths) {
+                byte[] zeros = new byte[length];
+                assertEquals(first.update(zeros).value(), first.combine(model.crc(zeros)).value(), model + ": wrong combined CRC of " + length + " zero bytes");
+            }
+        }
+    }
+
+    @Test
+    void testCombineWithLongLengths() {
+        // lengths with the high bits set, compared with the matrices of crcany
+        long[] lengths = {1, 8, 1L << 31, (1L << 32) + 5, 0x123456789ABL, 1L << 62, Long.MAX_VALUE - 4};
+        for (CrcModel model : modelsOfAllWidths()) {
+            CRC first = model.crc(CHECK, 0, 4);
+            long next = model.crc(CHECK, 4, 5).value();
+            for (long length : lengths) {
+                assertEquals(CrcReference.combine(model.parameters(), first.value(), next, length), first.combine(next, length).value(),
+                        model + ": wrong combined CRC of a second part of " + length + " bytes");
             }
         }
     }
