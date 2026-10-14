@@ -36,7 +36,8 @@ class StandardCrcTest {
 
     private static final byte[] CHECK = CrcParameters.CHECK_INPUT.getBytes(US_ASCII);
 
-    private static final Pattern FIELD = Pattern.compile("(\\w++)=(\"[^\"]*+\"|\\S++)");
+    // a field starts at a word boundary: find() does not try every position inside a word (java:S8786)
+    private static final Pattern FIELD = Pattern.compile("\\b(\\w++)=(\"[^\"]*+\"|\\S++)");
 
     // the lines of the snapshot of the catalogue: the values of the fields, several of them for "alias"
     private static List<Map<String, List<String>>> catalogue() throws IOException {
