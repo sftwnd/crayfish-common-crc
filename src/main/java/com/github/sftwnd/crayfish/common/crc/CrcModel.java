@@ -214,8 +214,8 @@ public final class CrcModel {
             throw new ArrayIndexOutOfBoundsException("CrcModel::value - offset " + offset + " and length " + length
                     + " out of the buffer length " + data.length);
         }
-        long empty = this.engine.empty();
-        return length == 0 ? empty : this.engine.update(empty, data, offset, length);
+        long emptyValue = this.engine.empty();
+        return length == 0 ? emptyValue : this.engine.update(emptyValue, data, offset, length);
     }
 
     @NonNull CrcEngine engine() {
