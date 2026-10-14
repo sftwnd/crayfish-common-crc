@@ -13,7 +13,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 final class CrcTables {
 
     // 8 bytes per step
-    static final int SLICES = 8;
+    static final int SLICE_COUNT = 8;
 
     final long[][] slices;
 
@@ -23,12 +23,12 @@ final class CrcTables {
 
     // the tables of a reflected register in the low bits (refin), or of a register aligned to bit 63
     static @NonNull CrcTables build(final boolean reflected, final long poly) {
-        long[][] slices = new long[SLICES][256];
+        long[][] slices = new long[SLICE_COUNT][256];
         long[] table = slices[0];
         for (int k = 0; k < 256; k++) {
             table[k] = divide(reflected, poly, reflected ? k : (long) k << 56);
         }
-        for (int t = 1; t < SLICES; t++) {
+        for (int t = 1; t < SLICE_COUNT; t++) {
             for (int k = 0; k < 256; k++) {
                 long previous = slices[t - 1][k];
                 slices[t][k] = reflected ? (previous >>> 8) ^ table[(int) (previous & 0xff)]

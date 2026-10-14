@@ -18,12 +18,16 @@ final class Eviction {
     private Eviction() {
     }
 
-    // whether a cleaner removes the entries, so that the pool does not have to poll the queue of its references
+    // whether a cleaner removes the entries, so that the pool does not have to poll the queue of its references;
+    // the methods are the ones of the Java 9 version, which returns true and uses the parameters of register, so
+    // java:S3400 (a method returning a constant) and java:S1172 (unused parameters) do not apply
+    @SuppressWarnings("java:S3400")
     static boolean isAsynchronous() {
         return false;
     }
 
     // registers the cleaning action of a value; not used before Java 9
+    @SuppressWarnings("java:S1172")
     static void register(@NonNull final Object referent, @NonNull final Runnable action) {
         throw new UnsupportedOperationException("Eviction::register - the entries are removed on access before Java 9");
     }
