@@ -6,6 +6,7 @@ package com.github.sftwnd.crayfish.common.crc;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 
+import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.zip.Checksum;
 
@@ -80,6 +81,25 @@ public final class CrcChecksum implements Checksum {
         if (length > 0) {
             long updated = Math.addExact(this.length, length);
             this.value = this.engine.update(this.value, data, offset, length);
+            this.length = updated;
+        }
+    }
+
+    /**
+     * Update the checksum with the remaining bytes of the buffer, from its position to its limit: heap, direct and
+     * read-only buffers, also on Java 8. The position of the buffer is advanced to its limit
+     * @param data buffer
+     * @throws ArithmeticException if the length of the data exceeds Long.MAX_VALUE; the buffer is not read then
+     */
+    // a default method of Checksum on Java 9+ only: the library is compiled on Java 8 too, where @Override does not
+    // compile, so java:S1161 (a missing @Override) does not apply
+    @SuppressWarnings("java:S1161")
+    public void update(@NonNull final ByteBuffer data) {
+        Objects.requireNonNull(data, "CrcChecksum::update - data is null");
+        int remaining = data.remaining();
+        if (remaining > 0) {
+            long updated = Math.addExact(this.length, remaining);
+            this.value = this.engine.update(this.value, data);
             this.length = updated;
         }
     }

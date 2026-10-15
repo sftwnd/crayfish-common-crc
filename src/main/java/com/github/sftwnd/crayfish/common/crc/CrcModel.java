@@ -7,6 +7,7 @@ package com.github.sftwnd.crayfish.common.crc;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -256,6 +257,29 @@ public final class CrcModel {
         }
         long mask = this.engine.mask();
         return length2 == 0 ? value1 & mask : this.engine.combine(value1 & mask, value2 & mask, length2);
+    }
+
+    /**
+     * Calculate the CRC of the remaining bytes of the buffer, from its position to its limit: heap, direct and
+     * read-only buffers. The position of the buffer is advanced to its limit
+     * @param data buffer
+     * @return CRC of the remaining bytes of the buffer
+     */
+    public @NonNull CRC crc(@NonNull final ByteBuffer data) {
+        Objects.requireNonNull(data, "CrcModel::crc - data is null");
+        return this.empty.update(data);
+    }
+
+    /**
+     * Calculate the CRC value of the remaining bytes of the buffer, without a {@link CRC} object:
+     * {@code crc(data).value()}. The position of the buffer is advanced to its limit
+     * @param data buffer
+     * @return CRC value of the remaining bytes of the buffer
+     */
+    public long value(@NonNull final ByteBuffer data) {
+        Objects.requireNonNull(data, "CrcModel::value - data is null");
+        long emptyValue = this.engine.empty();
+        return data.hasRemaining() ? this.engine.update(emptyValue, data) : emptyValue;
     }
 
     @NonNull CrcEngine engine() {

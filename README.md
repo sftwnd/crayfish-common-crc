@@ -150,6 +150,22 @@ to combine CRCs or to keep the length. `model.crc()` is the CRC of the empty dat
     crc = crc.update(data);    // right
 ```
 
+The data of a `ByteBuffer` are its remaining bytes, from the position to the limit: heap, direct and read-only buffers.
+As with `java.util.zip.Checksum.update(ByteBuffer)`, the position of the buffer is advanced to its limit:
+
+```java
+    long value = model.value(buffer);       // the remaining bytes of the buffer
+    CRC crc = model.crc(header);
+    while (channel.read(buffer) >= 0) {     // for example the parts read from a channel
+        buffer.flip();
+        crc = crc.update(buffer);           // the header followed by all parts read
+        buffer.clear();
+    }
+```
+
+A buffer with an accessible array is calculated in the array; a direct or read-only buffer is copied in parts of 4096
+bytes.
+
 ### Combine
 
 ```java
@@ -234,7 +250,7 @@ A `CrcChecksum` can be used directly as well; unlike a `CRC` it is mutable and n
     checksum.reset();                      // the checksum of the empty data again
 ```
 
-On Java 9+ `checksum.update(ByteBuffer)` of the interface works too, with heap and direct buffers.
+`checksum.update(ByteBuffer)` works with heap, direct and read-only buffers, on Java 8 as well.
 
 For CRC-32/ISO-HDLC itself, and for CRC-32C on Java 9+, the JDK classes `java.util.zip.CRC32` and `CRC32C` are faster:
 the JVM calculates them with the CRC instructions of the CPU (about 4 times faster on 256 bytes). `CrcChecksum` is for

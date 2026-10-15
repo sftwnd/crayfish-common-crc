@@ -256,7 +256,7 @@ class CrcModelTest {
         ArrayIndexOutOfBoundsException exception = assertThrows(ArrayIndexOutOfBoundsException.class,
                 () -> model.value(data, Integer.MAX_VALUE, 2), "An overflowing end has to be rejected");
         assertEquals("CrcModel::value - offset 2147483647 and length 2 out of the buffer length 16", exception.getMessage(), "Wrong message");
-        NullPointerException nullData = assertThrows(NullPointerException.class, () -> model.value(null), "value(null) has to throw NullPointerException");
+        NullPointerException nullData = assertThrows(NullPointerException.class, () -> model.value((byte[]) null), "value(null) has to throw NullPointerException");
         assertEquals("CrcModel::value - data is null", nullData.getMessage(), "Wrong message");
         assertThrows(NullPointerException.class, () -> model.value(null, 0), "value(null, 0) has to throw NullPointerException");
         assertThrows(NullPointerException.class, () -> model.value(null, 0, 0), "value(null, 0, 0) has to throw NullPointerException");

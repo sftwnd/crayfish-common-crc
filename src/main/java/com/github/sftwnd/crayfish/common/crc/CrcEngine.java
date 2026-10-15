@@ -6,6 +6,8 @@ package com.github.sftwnd.crayfish.common.crc;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 
+import java.nio.ByteBuffer;
+
 /**
  * The calculation of a {@link CrcDescription}: the CRC values are those of the Rocksoft model, the register is kept
  * in the form that suits the table-driven calculation. The register of a reflected CRC (refin) is reflected,
@@ -16,6 +18,8 @@ final class CrcEngine {
 
     // less than 24 bytes a byte at a time: the 8-byte loop does not pay off its setup (JMH on JDK 21, 1.1.0)
     private static final int MIN_SLICED_LENGTH = 24;
+    // the part of a buffer without an accessible array copied at a time
+    private static final int BUFFER_PART = 4096;
 
     private final int width;
     private final long mask;
@@ -138,6 +142,28 @@ final class CrcEngine {
                               : alignedBytes(slices[0], register, data, blocksEnd, end);
         }
         return value(register);
+    }
+
+    /* the CRC value after the remaining bytes of the buffer, length > 0 checked by the caller; the position of
+       the buffer is advanced to its limit. A buffer with an accessible array is calculated in the array; a direct
+       or read-only buffer is copied in parts: 4096 bytes keep the copy small and are long enough for the 8-byte loop
+       to pay off, as java.util.zip.Checksum.update(ByteBuffer) of Java 9+ does */
+    long update(final long value, @NonNull final ByteBuffer data) {
+        int position = data.position();
+        int length = data.limit() - position;
+        if (data.hasArray()) {
+            long updated = update(value, data.array(), data.arrayOffset() + position, length);
+            data.position(position + length);
+            return updated;
+        }
+        byte[] part = new byte[Math.min(length, BUFFER_PART)];
+        long updated = value;
+        for (int rest = length; rest > 0; rest -= part.length) {
+            int size = Math.min(rest, part.length);
+            data.get(part, 0, size);
+            updated = update(updated, part, 0, size);
+        }
+        return updated;
     }
 
     // the CRC value after one byte, without an array: a checksum updated a byte at a time
