@@ -54,7 +54,9 @@ public final class CrcChecksum implements Checksum {
      * @param data buffer
      * @throws ArithmeticException if the length of the data exceeds Long.MAX_VALUE
      */
-    // a default method of Checksum on Java 9+ only: no @Override, the library is compiled for Java 8
+    // a default method of Checksum on Java 9+ only: the library is compiled on Java 8 too, where @Override does not
+    // compile, so java:S1161 (a missing @Override) does not apply
+    @SuppressWarnings("java:S1161")
     public void update(@NonNull final byte[] data) {
         Objects.requireNonNull(data, "CrcChecksum::update - data is null");
         update(data, 0, data.length);
