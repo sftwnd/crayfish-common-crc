@@ -133,6 +133,11 @@ class InternerTest {
             assertSame(Retention.SOFT, Retention.configured(), "The system property has to choose soft references");
             System.clearProperty(CrcDescription.RETENTION_PROPERTY);
             assertSame(Retention.WEAK, Retention.configured(), "Weak references have to be the default");
+            assertSame(Retention.SOFT, Retention.configured(name -> CrcDescription.RETENTION_PROPERTY.equals(name) ? "soft" : null),
+                    "The property of the name has to be read");
+            assertSame(Retention.WEAK, Retention.configured(name -> {
+                throw new SecurityException("no access to the property " + name);
+            }), "A property that cannot be read has to give the default");
         } finally {
             if (saved == null) {
                 System.clearProperty(CrcDescription.RETENTION_PROPERTY);

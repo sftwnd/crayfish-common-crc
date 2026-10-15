@@ -44,6 +44,9 @@
         <javaModuleName>com.github.sftwnd.crayfish_common_crc</javaModuleName>
         <spotbugs-annotations.version>4.10.5</spotbugs-annotations.version>
         <junit.version>5.9.2</junit.version>
+        <!-- the JVM options of the tests, set by jacoco:prepare-agent; empty if JaCoCo is skipped, so that @{argLine}
+             of the soft retention tests resolves -->
+        <argLine></argLine>
         <!-- 3.11.0+: compileSourceRoots can be configured, for the module descriptor in src/main/java9 -->
         <maven-compiler-plugin.version>3.15.0</maven-compiler-plugin.version>
         <maven-deploy-plugin.version>3.1.4</maven-deploy-plugin.version>
@@ -153,6 +156,9 @@
                     <includes>
                         <include>**/*IT.java</include>
                     </includes>
+                    <excludes>
+                        <exclude>**/SoftRetentionIT.java</exclude>
+                    </excludes>
                 </configuration>
                 <executions>
                     <execution>
@@ -160,6 +166,26 @@
                             <goal>integration-test</goal>
                             <goal>verify</goal>
                         </goals>
+                    </execution>
+                    <execution>
+                        <!-- the pool of the descriptions with soft references, in a JVM of its own: the retention is
+                             read once, when the pool is created; the small heap lets the test run the memory short -->
+                        <id>soft-retention</id>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                        <configuration>
+                            <includes>
+                                <include>**/SoftRetentionIT.java</include>
+                            </includes>
+                            <excludes combine.self="override"/>
+                            <systemPropertyVariables>
+                                <com.github.sftwnd.crayfish.common.crc.retention>soft</com.github.sftwnd.crayfish.common.crc.retention>
+                            </systemPropertyVariables>
+                            <argLine>@{argLine} -Xmx64m</argLine>
+                            <summaryFile>${project.build.directory}/failsafe-reports/failsafe-summary-soft-retention.xml</summaryFile>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>
