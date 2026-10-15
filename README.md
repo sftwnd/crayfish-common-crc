@@ -27,6 +27,8 @@ This is the README of 2.0, which is in development (`2.0.0-SNAPSHOT`). Its API i
   and kept as the state of a calculation (*2.0*)
 - **Combine and resume** — join the CRCs of parts calculated independently (in parallel threads or on other nodes),
   like zlib `crc32_combine`; continue a calculation from a saved CRC value and length, also of 2 GiB and more
+- **Streams** — a `java.util.zip.Checksum` of any model for `CheckedOutputStream`, `CheckedInputStream` and other code
+  written for `CRC32` (*2.0*)
 - **Names and aliases** — a model is chosen by the name or by any alias of the catalogue, and its CRCs tell the name
   it was chosen by; other parameters get a unique name of their own (*2.0*)
 - **Memory on demand** — one description per parameter set; its lookup tables are built on the first calculation and
@@ -73,6 +75,7 @@ implementation 'com.github.sftwnd.crayfish.common:crayfish-common-crc:2.0.0'
 | `CrcDescription` | the one description of a parameter set: names, check value, lookup tables |
 | `CrcModel` | a description with the name it was chosen by |
 | `CRC` | the immutable CRC of data: model, value, length |
+| `CrcChecksum` | the mutable `java.util.zip.Checksum` of a model, for streams |
 
 ## Models
 
@@ -176,6 +179,66 @@ second part, with 63 values per parameter set built on the first `combine`.
 ```
 
 The bits above the width are ignored, so a CRC-32 kept in an `int` can be passed as is.
+
+### Streams
+
+`model.checksum()` is a `java.util.zip.Checksum` of the model, so any CRC works with the JDK classes made for `CRC32`.
+The CRC of the parts written to a stream one after another, also by code that knows nothing about the CRC:
+
+```java
+    CrcModel model = CrcModel.of("CRC-32C");
+    try (CheckedOutputStream out = new CheckedOutputStream(Files.newOutputStream(path), model.checksum())) {
+        out.write(header);                 // the parts in the order they are written:
+        out.write(body, 0, bodyLength);    // arrays, parts of arrays
+        out.write(0x0A);                   // and single bytes
+        long value = out.getChecksum().getValue();   // the CRC value of all bytes written
+    }
+```
+
+Reading is the same, the CRC of the bytes read:
+
+```java
+    try (CheckedInputStream in = new CheckedInputStream(Files.newInputStream(path), model.checksum())) {
+        byte[] buffer = new byte[8192];
+        while (in.read(buffer) >= 0) {
+            // process the buffer
+        }
+        long value = in.getChecksum().getValue();
+    }
+```
+
+A `java.util.zip.Checksum` has the value only. Keep the `CrcChecksum` itself (`getChecksum()` of the stream returns a
+`Checksum`) to get the length of the bytes written as well, and the `CRC` of them, to combine it with the CRCs of other
+parts or to resume the calculation later:
+
+```java
+    CrcChecksum checksum = model.checksum();
+    try (CheckedOutputStream out = new CheckedOutputStream(Files.newOutputStream(path), checksum)) {
+        out.write(header);
+        out.write(body, 0, bodyLength);
+    }
+    CRC part = checksum.crc();             // the value and the length of the bytes written
+    CRC whole = previous.combine(part);    // the CRC of the previous parts followed by this one
+```
+
+A `CrcChecksum` can be used directly as well; unlike a `CRC` it is mutable and not thread-safe, like `CRC32`:
+
+```java
+    CrcChecksum checksum = model.checksum();
+    checksum.update(part1);
+    checksum.update(part2, 0, length2);
+    checksum.update(b);                    // the low 8 bits of an int
+    long value = checksum.getValue();
+    long length = checksum.length();       // the number of the bytes processed
+    CRC crc = checksum.crc();              // the immutable CRC, to combine it or to resume later
+    checksum.reset();                      // the checksum of the empty data again
+```
+
+On Java 9+ `checksum.update(ByteBuffer)` of the interface works too, with heap and direct buffers.
+
+For CRC-32/ISO-HDLC itself, and for CRC-32C on Java 9+, the JDK classes `java.util.zip.CRC32` and `CRC32C` are faster:
+the JVM calculates them with the CRC instructions of the CPU (about 4 times faster on 256 bytes). `CrcChecksum` is for
+the other CRCs, and for the code that has to work with any model.
 
 ## Names
 
