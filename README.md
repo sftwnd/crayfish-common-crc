@@ -16,8 +16,9 @@ CRC-16/XMODEM, CRC-8, CRC-64/ECMA-182, CRC-64/NVME and many more. Parameters and
 [RevEng CRC catalogue](https://reveng.sourceforge.io/crc-catalogue/all.htm).
 
 This is the README of 2.0, which is in development (`2.0.0-SNAPSHOT`). Its API is not compatible with 1.x, see
-[Migrating from 1.x](#migrating-from-1x). The latest release is 1.1.0, its README is that of the tag
-[crayfish-common-crc-1.1.0](https://github.com/sftwnd/crayfish-common-crc/blob/crayfish-common-crc-1.1.0/README.md).
+[Migrating from 1.x](#migrating-from-1x). The latest release is 1.2.0, its README is that of the tag
+[crayfish-common-crc-1.2.0](https://github.com/sftwnd/crayfish-common-crc/blob/crayfish-common-crc-1.2.0/README.md).
+See [Versions and support](#versions-and-support) for the support of 1.x.
 
 ## Features
 
@@ -299,27 +300,75 @@ algorithm of the catalogue gives the model with the name of the algorithm.
 
 CRC-82/DARC of the catalogue is not predefined: the CRC value is a `long`, the width is limited to 64 bits.
 
+## Versions and support
+
+- **2.x** is the current line: new features and fixes go there.
+- **1.2.x** gets fixes of confirmed bugs only, on request (an issue with the bug), without new features.
+- The versions before 1.2 are not supported: update to 2.x, or to the latest 1.2.x.
+
 ## Migrating from 1.x
+
+2.0 is not compatible with 1.x: the API is new, and it reuses the names of the 1.x classes `CrcModel`,
+`CrcDescription` and `CRC` for other types. Code has to be changed and compiled again; a library compiled against 1.x
+fails on 2.0 with `NoSuchMethodError` or `NoSuchFieldError`, and 1.x and 2.0 cannot be on one class path (the same
+package and module). The differences in short:
+
+- In 1.x a `CrcModel` is a `CrcDescription` (the parameters) with a name and a check value, registered by the user.
+  In 2.0 the parameters are `CrcParameters`, the description of a parameter set (names, check value, lookup tables)
+  is `CrcDescription`, created by the library, and a `CrcModel` is a description with one of its names. There are no
+  names of the user and no registry: a model is chosen by the name of the catalogue, by the parameters or with a builder.
+- A 1.x `CRC` is mutable and not thread-safe; a 2.0 `CRC` is immutable: `update()` and `combine()` return a new CRC.
+- `null` data and parts outside the buffer are rejected instead of being ignored.
+
+### Models
 
 | 1.x | 2.0 |
 |---|---|
-| `CrcModel.CRC32_ISO_HDLC` | `StandardCrc.CRC_32_ISO_HDLC.model()` or `CrcModel.of("CRC-32/ISO-HDLC")` |
+| `CrcModel.CRC32_ISO_HDLC` and the other constants | `StandardCrc.CRC_32_ISO_HDLC.model()` or `CrcModel.of("CRC-32/ISO-HDLC")` |
 | `CrcModel.lookUp(name)`, null for an unknown name | `CrcModel.find(name)`, empty for an unknown name, or `CrcModel.of(name)` |
-| `new CrcDescription(width, poly, init, refin, refot, xorot)` | `CrcParameters.of(width, poly, init, refin, refout, xorout)` |
-| `crcDescription.getCRC()` | `CrcModel.of(parameters).crc()` |
-| `CrcModel.construct(name, crcDescription, check)` | `CrcModel.builder(width)` … `.check(check).build()`; no names of the user |
-| `CrcModel.unregistered(crcDescription)` | `CrcModel.of(parameters)`: the same name made of the parameters |
-| `CrcModel.getModels()` | `StandardCrc.values()` |
+| `CrcModel.getModels()` | `StandardCrc.values()`, the models by `standard.model()` |
+| `CrcModel.getModels(filter)` | `Arrays.stream(StandardCrc.values()).map(StandardCrc::model).filter(filter)` |
+| `CrcModel.construct(name, crcDescription, check)`, `construct(name, crcDescription)` | `CrcModel.builder(width)` … `.check(check).build()` or `CrcModel.of(parameters)`; no names of the user |
+| `CrcModel.construct(crcDescription, check)`, `construct(crcDescription)` | `CrcModel.builder(width)` … `.check(check).build()` or `CrcModel.of(parameters)` |
+| `CrcModel.unregistered(crcDescription)`, `unregistered(name, crcDescription)` | `CrcModel.of(parameters)`: the name of the catalogue or a name made of the parameters, as `unregistered(crcDescription)` |
+| `model.getName()`, `model.name` | `model.name()` |
+| `model.getCheck()`, `model.check` (`Long`) | `model.check()` (`long`), always the CRC of `CHECK_INPUT` |
+| `model.getCrcDescription()` | `model.parameters()`; `model.description()` for the names, the aliases and the check value |
+| `model.getWidth()`, `getPoly()`, `getInit()`, `isRefin()`, `isRefot()`, `getXorot()` | `model.parameters().width()`, `poly()`, `init()`, `refin()`, `refout()`, `xorout()` |
+| `model.equals(other)`: the parameters, the name and the check value | `model == other`: one model per description and name; `model.parameters().equals(...)` for the parameters |
 | `CrcModel.CHECK_BUFF` | `CrcParameters.CHECK_INPUT` |
-| `model.getCRC(data).getCrc()` | `model.value(data)` |
-| `model.getCRC(data, length).getCrc()` | `model.value(data, length)` |
-| `model.getCRC(crc, length)` | `model.crc(value, length)` |
-| `crc.update(data)` changes the CRC | `crc = crc.update(data)`: a new CRC |
+
+### Parameters and descriptions
+
+| 1.x | 2.0 |
+|---|---|
+| `new CrcDescription(width, poly, init, refin, refot, xorot)` | `CrcParameters.of(width, poly, init, refin, refout, xorout)` |
+| `new CrcDescription(crcDescription)` | not needed: `CrcParameters` is immutable |
+| `crcDescription.getWidth()`, `getPoly()`, `getInit()`, `isRefin()`, `isRefot()`, `getXorot()` | `parameters.width()`, `poly()`, `init()`, `refin()`, `refout()`, `xorout()` |
+| `crcDescription.getCRC()` | `CrcModel.of(parameters).crc()` |
+| `crcDescription.getCRC(crc, length)` | `CrcModel.of(parameters).crc(value, length)` |
+
+### Calculation
+
+| 1.x | 2.0 |
+|---|---|
+| `model.getCRC()` | `model.crc()` |
+| `model.getCRC(data)`, `getCRC(data, length)`, `getCRC(data, offset, length)` | `model.crc(data)`, `crc(data, length)`, `crc(data, offset, length)` |
+| `model.getCRC(data).getCrc()` and the other lengths | `model.value(data)`, `value(data, length)`, `value(data, offset, length)` |
+| `model.getCRC(crc, length)`, `long` or `int` length | `model.crc(value, length)` |
+| `crc.update(data)`, `update(data, length)`, `update(data, offset, length)` change the CRC | `crc = crc.update(data)`, `update(data, length)`, `update(data, offset, length)`: a new CRC |
 | `crc.combine(crc2)` changes the CRC | `crc = crc.combine(crc2)`: a new CRC |
-| `crc.combine(crc2, length2)` returns a `long` | returns a new CRC; the value only: `model.combine(crc.value(), crc2, length2)` |
+| `crc.combine(crc2, length2)`, `long` or `int` length, returns a `long` | returns a new CRC; the value only: `model.combine(crc.value(), crc2, length2)` |
 | `crc.getCrc()`, `crc.getLength()`, `crc.getModel()` | `crc.value()`, `crc.length()`, `crc.model()` |
 | `crc.copy()` | not needed: a CRC is immutable |
-| `update(null)` and a negative length are ignored | `NullPointerException`, `ArrayIndexOutOfBoundsException` |
+
+### Behaviour
+
+| 1.x | 2.0 |
+|---|---|
+| `getCRC(null)`, `update(null)` and a negative length are ignored | `NullPointerException`, `ArrayIndexOutOfBoundsException` |
+| a `CRC` is changed by `update()` and `combine()`, not thread-safe | a `CRC` is immutable and can be shared between threads; `CrcChecksum` is the mutable one, for streams |
+| the lookup tables of the predefined and the registered models are kept for ever | the lookup tables are built on the first calculation with data and collected with the description when no model and no CRC of the parameters is used |
 
 ## Java modules
 
