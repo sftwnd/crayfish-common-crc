@@ -157,6 +157,36 @@ class CRCTest {
     }
 
     @Test
+    void testWordRegister() {
+        // up to 32 bits wide: the register of an int, 8 bytes at a time from 8 bytes on, blocks of 8 bytes and the rest
+        // at the offsets that are not multiples of 8, and the data a byte at a time
+        byte[] data = new byte[96];
+        new Random(32).nextBytes(data);
+        for (int width = 1; width <= 40; width++) {
+            long mask = CrcParameters.mask(width);
+            for (int kind = 0; kind < 4; kind++) {
+                CrcModel model = CrcModel.of(width, 0x42F0E1EBA9EA3693L & mask | 1L, 0x0123456789ABCDEFL & mask, (kind & 1) != 0, (kind & 2) != 0,
+                        0xFEDCBA9876543210L & mask);
+                for (int offset : new int[]{0, 1, 3, 7, 16}) {
+                    for (int length = 0; length <= 80; length++) {
+                        assertEquals(reference(model, data, offset, length), model.crc(data, offset, length).value(),
+                                model + ": wrong CRC of " + length + " bytes at the offset " + offset);
+                    }
+                }
+                CrcChecksum checksum = model.checksum();
+                for (int length = 0; length < data.length; length++) {
+                    checksum.update(data[length]);
+                    assertEquals(reference(model, data, 0, length + 1), checksum.getValue(), model + ": wrong CRC of " + (length + 1) + " bytes a byte at a time");
+                }
+                assertEquals(width <= 32 ? CrcTables.SLICE_COUNT * CrcTables.TABLE_SIZE : 0, model.description().engine().tables().words.length,
+                        model + ": the tables of a CRC up to 32 bits wide have to be the int ones, of a wider CRC the long ones");
+                assertEquals(width <= 32 ? 0 : CrcTables.SLICE_COUNT, model.description().engine().tables().slices.length,
+                        model + ": the tables of a wider CRC have to be the long ones");
+            }
+        }
+    }
+
+    @Test
     void testAllByteValues() {
         byte[] all = new byte[256];
         for (int value = 0; value < all.length; value++) {
