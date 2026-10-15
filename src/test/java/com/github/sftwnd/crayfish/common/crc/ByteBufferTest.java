@@ -161,7 +161,8 @@ class ByteBufferTest {
     void testNull() {
         CrcModel model = CrcModel.of("CRC-16/ARC");
         ByteBuffer none = null;
-        NullPointerException crcUpdate = assertThrows(NullPointerException.class, () -> model.crc().update(none),
+        CRC empty = model.crc();
+        NullPointerException crcUpdate = assertThrows(NullPointerException.class, () -> empty.update(none),
                 "CRC.update(null) has to throw NullPointerException");
         assertEquals("CRC::update - data is null", crcUpdate.getMessage(), "Wrong message");
         NullPointerException modelCrc = assertThrows(NullPointerException.class, () -> model.crc(none),
