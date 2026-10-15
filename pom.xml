@@ -4,7 +4,7 @@
 
     <groupId>com.github.sftwnd.crayfish.common</groupId>
     <artifactId>crayfish-common-crc</artifactId>
-    <version>1.2.0</version>
+    <version>2.0.0</version>
 
     <name>CrayFish :: COMMON :: Crc</name>
     <description>
@@ -33,7 +33,7 @@
         <url>https://github.com/sftwnd/crayfish-common-crc</url>
         <connection>scm:git:https://github.com/sftwnd/crayfish-common-crc.git</connection>
         <developerConnection>scm:git:git@github.com:sftwnd/crayfish-common-crc.git</developerConnection>
-        <tag>crayfish-common-crc-1.2.0</tag>
+        <tag>crayfish-common-crc-2.0.0</tag>
     </scm>
 
     <properties>
@@ -44,6 +44,9 @@
         <javaModuleName>com.github.sftwnd.crayfish_common_crc</javaModuleName>
         <spotbugs-annotations.version>4.10.5</spotbugs-annotations.version>
         <junit.version>5.9.2</junit.version>
+        <!-- the JVM options of the tests, set by jacoco:prepare-agent; empty if JaCoCo is skipped, so that @{argLine}
+             of the soft retention tests resolves -->
+        <argLine />
         <!-- 3.11.0+: compileSourceRoots can be configured, for the module descriptor in src/main/java9 -->
         <maven-compiler-plugin.version>3.15.0</maven-compiler-plugin.version>
         <maven-deploy-plugin.version>3.1.4</maven-deploy-plugin.version>
@@ -54,6 +57,7 @@
         <maven-release-plugin.version>2.5.3</maven-release-plugin.version>
         <maven-source-plugin.version>3.2.1</maven-source-plugin.version>
         <maven-surefire-plugin.version>2.22.2</maven-surefire-plugin.version>
+        <maven-failsafe-plugin.version>2.22.2</maven-failsafe-plugin.version>
         <jacoco-maven-plugin.version>0.8.8</jacoco-maven-plugin.version>
         <!-- bnd 7 requires Java 17, the build has to run on Java 8 -->
         <bnd-maven-plugin.version>6.4.0</bnd-maven-plugin.version>
@@ -144,8 +148,57 @@
                 </configuration>
             </plugin>
             <plugin>
+                <!-- the integration tests run with the jar instead of target/classes: on Java 9+ the classes of
+                     META-INF/versions/9 of the multi-release jar are used, as by the users of the library -->
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <configuration>
+                    <includes>
+                        <include>**/*IT.java</include>
+                    </includes>
+                    <excludes>
+                        <exclude>**/SoftRetentionIT.java</exclude>
+                    </excludes>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <!-- the pool of the descriptions with soft references, in a JVM of its own: the retention is
+                             read once, when the pool is created; the small heap lets the test run the memory short -->
+                        <id>soft-retention</id>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                        <configuration>
+                            <includes>
+                                <include>**/SoftRetentionIT.java</include>
+                            </includes>
+                            <excludes combine.self="override" />
+                            <systemPropertyVariables>
+                                <com.github.sftwnd.crayfish.common.crc.retention>soft</com.github.sftwnd.crayfish.common.crc.retention>
+                            </systemPropertyVariables>
+                            <argLine>@{argLine} -Xmx64m</argLine>
+                            <summaryFile>${project.build.directory}/failsafe-reports/failsafe-summary-soft-retention.xml</summaryFile>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
+                <configuration>
+                    <excludes>
+                        <!-- the Java 9 version of Eviction has the name of the class it replaces: the report covers
+                             the classes of target/classes -->
+                        <exclude>META-INF/versions/**</exclude>
+                    </excludes>
+                </configuration>
                 <executions>
                     <execution>
                         <goals>
@@ -175,8 +228,9 @@ Bundle-SymbolicName: com.github.sftwnd.crayfish.common.crc
 Bundle-License: BSD-3-Clause;link="https://opensource.org/licenses/BSD-3-Clause"
 Automatic-Module-Name: ${javaModuleName}
 Multi-Release: true
-# bnd 6 does not know multi-release jars and takes the module descriptor for a class in the wrong directory
--fixupmessages: "Classes found in the wrong directory: ?META-INF/versions/9/module-info.class=module-info?";restrict:=error;is:=ignore
+# bnd 6 does not know multi-release jars and takes the classes of META-INF/versions/9 (the module descriptor and the
+# Java 9 version of Eviction) for classes in the wrong directory
+-fixupmessages: "Classes found in the wrong directory: *META-INF/versions/9/*";restrict:=error;is:=ignore
 Export-Package: com.github.sftwnd.crayfish.common.crc;version="${version;===;${Bundle-Version}}"
 -noextraheaders: true
 # snapshot builds get the version qualifier SNAPSHOT instead of a timestamp, so that they are reproducible
@@ -243,6 +297,11 @@ Export-Package: com.github.sftwnd.crayfish.common.crc;version="${version;===;${B
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-surefire-plugin</artifactId>
                     <version>${maven-surefire-plugin.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-failsafe-plugin</artifactId>
+                    <version>${maven-failsafe-plugin.version}</version>
                 </plugin>
                 <plugin>
                     <groupId>org.jacoco</groupId>

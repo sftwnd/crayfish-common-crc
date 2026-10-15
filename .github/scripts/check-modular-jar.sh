@@ -42,8 +42,8 @@ public class Main {
     public static void main(String[] args) {
         Module module = CrcModel.class.getModule();
         System.out.println(module.getName() + (module.getDescriptor().isAutomatic() ? " automatic" : " named")
-                + " " + Long.toHexString(CrcModel.CRC32_ISO_HDLC.getCRC()
-                        .update("123456789".getBytes(StandardCharsets.US_ASCII)).getCrc()));
+                + " " + Long.toHexString(CrcModel.of("CRC-32/ISO-HDLC")
+                        .crc("123456789".getBytes(StandardCharsets.US_ASCII)).value()));
     }
 }
 JAVA
@@ -56,8 +56,8 @@ import java.nio.charset.StandardCharsets;
 
 public class Main {
     public static void main(String[] args) {
-        System.out.println(System.getProperty("java.version") + " " + Long.toHexString(CrcModel.CRC32_ISO_HDLC.getCRC()
-                .update("123456789".getBytes(StandardCharsets.US_ASCII)).getCrc()));
+        System.out.println(System.getProperty("java.version") + " " + Long.toHexString(CrcModel.of("CRC-32/ISO-HDLC")
+                .crc("123456789".getBytes(StandardCharsets.US_ASCII)).value()));
     }
 }
 JAVA
