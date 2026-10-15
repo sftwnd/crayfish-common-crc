@@ -83,6 +83,24 @@ class CrcChecksumTest {
     }
 
     @Test
+    void testStreamCombinedWithPreviousParts() throws IOException {
+        // the example of the README: the CRC of a stream combined with the CRC of the previous parts
+        byte[] data = data();
+        int split = 100;
+        for (CrcModel model : models()) {
+            CRC previous = model.crc(data, 0, split);
+            CrcChecksum checksum = model.checksum();
+            try (CheckedOutputStream out = new CheckedOutputStream(new ByteArrayOutputStream(), checksum)) {
+                out.write(data[split]);
+                out.write(data, split + 1, data.length - split - 1);
+            }
+            CRC part = checksum.crc();
+            assertEquals(data.length - split, part.length(), model + ": wrong length of the bytes written");
+            assertEquals(model.crc(data), previous.combine(part), model + ": wrong CRC of the previous parts combined with the stream");
+        }
+    }
+
+    @Test
     void testCheckedInputStream() throws IOException {
         byte[] data = data();
         for (CrcModel model : models()) {

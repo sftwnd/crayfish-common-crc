@@ -207,6 +207,20 @@ Reading is the same, the CRC of the bytes read:
     }
 ```
 
+A `java.util.zip.Checksum` has the value only. Keep the `CrcChecksum` itself (`getChecksum()` of the stream returns a
+`Checksum`) to get the length of the bytes written as well, and the `CRC` of them, to combine it with the CRCs of other
+parts or to resume the calculation later:
+
+```java
+    CrcChecksum checksum = model.checksum();
+    try (CheckedOutputStream out = new CheckedOutputStream(Files.newOutputStream(path), checksum)) {
+        out.write(header);
+        out.write(body, 0, bodyLength);
+    }
+    CRC part = checksum.crc();             // the value and the length of the bytes written
+    CRC whole = previous.combine(part);    // the CRC of the previous parts followed by this one
+```
+
 A `CrcChecksum` can be used directly as well; unlike a `CRC` it is mutable and not thread-safe, like `CRC32`:
 
 ```java
