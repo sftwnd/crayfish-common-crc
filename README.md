@@ -15,10 +15,9 @@
 CRC-16/XMODEM, CRC-8, CRC-64/ECMA-182, CRC-64/NVME and many more. Parameters and check values are those of the
 [RevEng CRC catalogue](https://reveng.sourceforge.io/crc-catalogue/all.htm).
 
-This is the README of 2.0, which is in development (`2.0.0-SNAPSHOT`). Its API is not compatible with 1.x, see
-[Migrating from 1.x](#migrating-from-1x). The latest release is 1.2.0, its README is that of the tag
-[crayfish-common-crc-1.2.0](https://github.com/sftwnd/crayfish-common-crc/blob/crayfish-common-crc-1.2.0/README.md).
-See [Versions and support](#versions-and-support) for the support of 1.x.
+The API of 2.0 is not compatible with 1.x, see [Migrating from 1.x](#migrating-from-1x). The README of 1.x is that of
+the tag [crayfish-common-crc-1.2.0](https://github.com/sftwnd/crayfish-common-crc/blob/crayfish-common-crc-1.2.0/README.md),
+the latest 1.x release; see [Versions and support](#versions-and-support) for the support of 1.x.
 
 ## Features
 
