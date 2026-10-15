@@ -12,17 +12,23 @@ import java.nio.ByteBuffer;
  * The calculation of a {@link CrcDescription}: the CRC values are those of the Rocksoft model, the register is kept
  * in the form that suits the table-driven calculation. The register of a reflected CRC (refin) is reflected,
  * in the low bits; the register of the other CRCs is aligned to bit 63, so that the calculation does not depend
- * on the width. The lookup tables are built on the first calculation with data
+ * on the width. A CRC up to 32 bits wide is calculated with the register of an int (the low 32 bits of a reflected
+ * register, the top 32 bits of the others), a wider one with the register of a long. The lookup tables are built on
+ * the first calculation with data
  */
 final class CrcEngine {
 
-    // less than 24 bytes a byte at a time: the 8-byte loop does not pay off its setup (JMH on JDK 21, 1.1.0)
+    // a CRC wider than 32 bits: less than 24 bytes a byte at a time, the 8-byte loop does not pay off its setup
+    // (JMH on JDK 21, 1.1.0; a long register, all 8 table lookups of a step depend on the previous step).
+    // A CRC up to 32 bits wide has no such limit: its loop pays off from 8 bytes
     private static final int MIN_SLICED_LENGTH = 24;
     // the part of a buffer without an accessible array copied at a time
     private static final int BUFFER_PART = 4096;
 
     private final int width;
     private final long mask;
+    // the register of an int is enough: the width is up to 32 bits
+    private final boolean word;
     private final boolean refin;
     private final boolean refout;
     // a register aligned to bit 63 of a width up to 8 bits: the whole register is in the top byte
@@ -54,6 +60,7 @@ final class CrcEngine {
     CrcEngine(@NonNull final CrcParameters parameters) {
         this.width = parameters.width();
         this.mask = CrcParameters.mask(width);
+        this.word = width <= Integer.SIZE;
         this.refin = parameters.refin();
         this.refout = parameters.refout();
         this.narrow = !refin && width <= Byte.SIZE;
@@ -82,7 +89,7 @@ final class CrcEngine {
     CrcTables tables() {
         CrcTables built = this.tables;
         if (built == null) {
-            built = CrcTables.build(refin, poly);
+            built = CrcTables.build(refin, poly, width);
             this.tables = built;
         }
         return built;
@@ -124,6 +131,36 @@ final class CrcEngine {
        The data is processed 8 bytes at a time, then the rest a byte at a time. The loops are separate methods,
        so that this method stays small enough for the JIT compiler to inline it */
     long update(final long value, @NonNull final byte[] data, final int offset, final int length) {
+        return word ? updateWord(value, data, offset, length) : updateLong(value, data, offset, length);
+    }
+
+    /* the CRC value of a CRC up to 32 bits wide: the register of an int, the low bits of the register of a reflected
+       CRC or the top bits of the other, 8 bytes at a time from 8 bytes. The first 4 bytes of a step are XOR-ed into
+       the register as a word, the other 4 are looked up as they are */
+    private long updateWord(final long value, @NonNull final byte[] data, final int offset, final int length) {
+        int[] words = tables().words;
+        int blocksEnd = offset + (length & ~7);
+        int end = offset + length;
+        long register = register(value);
+        if (refin) {
+            int crc = (int) register;
+            if (offset < blocksEnd) {
+                crc = reflectedWordBlocks(words, crc, data, offset, blocksEnd);
+            }
+            crc = reflectedWordBytes(words, crc, data, blocksEnd, end);
+            return value(crc & 0xffffffffL);
+        }
+        int crc = (int) (register >>> Integer.SIZE);
+        if (offset < blocksEnd) {
+            crc = alignedWordBlocks(words, crc, data, offset, blocksEnd);
+        }
+        crc = narrow ? narrowWordBytes(words, crc, data, blocksEnd, end)
+                     : alignedWordBytes(words, crc, data, blocksEnd, end);
+        return value((long) crc << Integer.SIZE);
+    }
+
+    // the CRC value of a CRC wider than 32 bits, see update
+    private long updateLong(final long value, @NonNull final byte[] data, final int offset, final int length) {
         long[][] slices = tables().slices;
         int blocksEnd = length < MIN_SLICED_LENGTH ? offset : offset + (length & ~7);
         int end = offset + length;
@@ -169,8 +206,20 @@ final class CrcEngine {
     // the CRC value after one byte, without an array: a checksum updated a byte at a time
     @SuppressWarnings("java:S3034")
     long update(final long value, final byte b) {
-        long[] t0 = tables().slices[0];
+        CrcTables built = tables();
         long register = register(value);
+        if (word) {
+            int[] words = built.words;
+            if (refin) {
+                int crc = (int) register;
+                register = ((crc >>> 8) ^ words[(crc ^ b) & 0xff]) & 0xffffffffL;
+            } else {
+                int crc = (int) (register >>> Integer.SIZE);
+                register = (long) ((crc << 8) ^ words[((crc >>> 24) ^ b) & 0xff]) << Integer.SIZE;
+            }
+            return value(register);
+        }
+        long[] t0 = built.slices[0];
         register = refin ? (register >>> 8) ^ t0[(int) ((register ^ b) & 0xff)]
                          : (register << 8) ^ t0[(int) (((register >>> 56) ^ b) & 0xff)];
         return value(register);
@@ -178,6 +227,73 @@ final class CrcEngine {
 
     // The loops below suppress java:S3034: the byte is sign-extended in "crc ^ data[offset]", and the "& 0xff" of
     // the result removes the extension; a "& 0xff" of the byte itself would cost an operation per byte.
+
+    // a byte at a time, reflected register of an int
+    @SuppressWarnings("java:S3034")
+    private static int reflectedWordBytes(final int[] words, final int register, final byte[] data, final int offset, final int end) {
+        int crc = register;
+        for (int i = offset; i < end; i++) {
+            crc = (crc >>> 8) ^ words[(crc ^ data[i]) & 0xff];
+        }
+        return crc;
+    }
+
+    // a byte at a time, register of an int aligned to bit 31
+    @SuppressWarnings("java:S3034")
+    private static int alignedWordBytes(final int[] words, final int register, final byte[] data, final int offset, final int end) {
+        int crc = register;
+        for (int i = offset; i < end; i++) {
+            crc = (crc << 8) ^ words[((crc >>> 24) ^ data[i]) & 0xff];
+        }
+        return crc;
+    }
+
+    // a byte at a time, register of an int aligned to bit 31 of a width up to 8 bits: "crc << 8" is 0, so the register
+    // is the table entry alone
+    @SuppressWarnings("java:S3034")
+    private static int narrowWordBytes(final int[] words, final int register, final byte[] data, final int offset, final int end) {
+        int crc = register;
+        for (int i = offset; i < end; i++) {
+            crc = words[((crc >>> 24) ^ data[i]) & 0xff];
+        }
+        return crc;
+    }
+
+    // 8 bytes at a time, reflected register of an int: the first 4 bytes are XOR-ed into the register as a word, the
+    // table k is at k * 256; a loop over the index of the data, so that the JIT compiler removes the bounds checks
+    private static int reflectedWordBlocks(final int[] words, final int register, final byte[] data, final int offset, final int blocksEnd) {
+        int crc = register;
+        for (int i = offset; i < blocksEnd; i += 8) {
+            int word = crc ^ ((data[i] & 0xff) | (data[i + 1] & 0xff) << 8 | (data[i + 2] & 0xff) << 16 | data[i + 3] << 24);
+            crc = words[1792 + (word & 0xff)]
+                ^ words[1536 + ((word >>> 8) & 0xff)]
+                ^ words[1280 + ((word >>> 16) & 0xff)]
+                ^ words[1024 + (word >>> 24)]
+                ^ words[768 + (data[i + 4] & 0xff)]
+                ^ words[512 + (data[i + 5] & 0xff)]
+                ^ words[256 + (data[i + 6] & 0xff)]
+                ^ words[data[i + 7] & 0xff];
+        }
+        return crc;
+    }
+
+    /* 8 bytes at a time, register of an int aligned to bit 31. The first 4 bytes are XOR-ed into the register a byte at
+       a time, not composed to a word as in the reflected loop: the composed word is slower here (JMH on JDK 25) */
+    @SuppressWarnings("java:S3034")
+    private static int alignedWordBlocks(final int[] words, final int register, final byte[] data, final int offset, final int blocksEnd) {
+        int crc = register;
+        for (int i = offset; i < blocksEnd; i += 8) {
+            crc = words[1792 + (((crc >>> 24) ^ data[i]) & 0xff)]
+                ^ words[1536 + (((crc >>> 16) ^ data[i + 1]) & 0xff)]
+                ^ words[1280 + (((crc >>> 8) ^ data[i + 2]) & 0xff)]
+                ^ words[1024 + ((crc ^ data[i + 3]) & 0xff)]
+                ^ words[768 + (data[i + 4] & 0xff)]
+                ^ words[512 + (data[i + 5] & 0xff)]
+                ^ words[256 + (data[i + 6] & 0xff)]
+                ^ words[data[i + 7] & 0xff];
+        }
+        return crc;
+    }
 
     // a byte at a time, reflected register in the low bits
     @SuppressWarnings("java:S3034")

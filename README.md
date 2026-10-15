@@ -276,7 +276,8 @@ algorithm of the catalogue gives the model with the name of the algorithm.
 ## Memory
 
 - There is one `CrcDescription` per parameter set, shared by all models and CRCs of the parameters, by any name.
-- The lookup tables (8 × 256 values, 16 KiB) are built on the first calculation with data, not when a model is chosen.
+- The lookup tables (8 × 256 values) are built on the first calculation with data, not when a model is chosen: 8 KiB
+  for a width up to 32 bits (ints), 16 KiB for a wider CRC (longs).
 - The descriptions are kept in a pool that refers to them weakly: when no model and no CRC of the parameters is used,
   the garbage collector collects the description with its tables. Keep the model in a field to keep the tables.
 - `-Dcom.github.sftwnd.crayfish.common.crc.retention=soft` makes the pool refer to them softly: an unused description
