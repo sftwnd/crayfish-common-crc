@@ -183,7 +183,7 @@ public final class CrcDescription {
      * @return description as string
      */
     @Override
-    public String toString() {
+    public @NonNull String toString() {
         return this.parameters + "  check=" + CrcParameters.hex(this.check, this.parameters.width()) + "  name=\"" + name() + '"';
     }
 

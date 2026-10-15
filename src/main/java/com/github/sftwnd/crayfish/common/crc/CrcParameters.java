@@ -4,6 +4,7 @@
  */
 package com.github.sftwnd.crayfish.common.crc;
 
+import edu.umd.cs.findbugs.annotations.CheckForNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 
@@ -121,8 +122,9 @@ public final class CrcParameters {
      * @param o object to compare with
      * @return true if o are parameters with the same values
      */
+    // @CheckForNull, as SpotBugs takes the parameter of Object.equals: @Nullable would tighten it
     @Override
-    public boolean equals(final Object o) {
+    public boolean equals(@CheckForNull final Object o) {
         if (o == this) {
             return true;
         }
@@ -149,7 +151,7 @@ public final class CrcParameters {
      * @return parameters as string
      */
     @Override
-    public String toString() {
+    public @NonNull String toString() {
         return "width=" + width
              + "  poly=" + hex(poly, width)
              + "  init=" + hex(init, width)
