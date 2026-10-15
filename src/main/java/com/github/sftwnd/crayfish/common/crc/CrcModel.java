@@ -163,6 +163,17 @@ public final class CrcModel {
     }
 
     /**
+     * Calculate the CRC of the first bytes of the data: {@code crc(data, 0, length)}
+     * @param data data
+     * @param length number of the first bytes of the data
+     * @return CRC of the first bytes of the data
+     * @throws ArrayIndexOutOfBoundsException if the length is negative or exceeds the length of the data
+     */
+    public @NonNull CRC crc(@NonNull final byte[] data, final int length) {
+        return this.empty.update(data, 0, length);
+    }
+
+    /**
      * Calculate the CRC of a part of the data
      * @param data data
      * @param offset offset of the part in the data
