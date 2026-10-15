@@ -155,7 +155,12 @@ to combine CRCs or to keep the length. `model.crc()` is the CRC of the empty dat
     CRC both = first.combine(second);    // the CRC of part1 followed by part2
     // only the value and the length of the second part are known:
     CRC same = first.combine(second.value(), second.length());
+    // only the values are kept, like zlib crc32_combine(crc1, crc2, len2):
+    long value = model.combine(first.value(), second.value(), second.length());
 ```
+
+`model.combine(value1, value2, length2)` needs no length of the first part: its value already holds its data, and the value
+of an empty first part, `model.crc().value()`, gives `value2`.
 
 Both CRCs have to have the same parameters: a model and its alias are fine, others give `IllegalArgumentException`. The
 cost does not depend on the size of the data: one multiplication modulo the polynomial per bit set in the length of the
@@ -248,7 +253,7 @@ CRC-82/DARC of the catalogue is not predefined: the CRC value is a `long`, the w
 | `model.getCRC(crc, length)` | `model.crc(value, length)` |
 | `crc.update(data)` changes the CRC | `crc = crc.update(data)`: a new CRC |
 | `crc.combine(crc2)` changes the CRC | `crc = crc.combine(crc2)`: a new CRC |
-| `crc.combine(crc2, length2)` returns a `long` | returns a new CRC |
+| `crc.combine(crc2, length2)` returns a `long` | returns a new CRC; the value only: `model.combine(crc.value(), crc2, length2)` |
 | `crc.getCrc()`, `crc.getLength()`, `crc.getModel()` | `crc.value()`, `crc.length()`, `crc.model()` |
 | `crc.copy()` | not needed: a CRC is immutable |
 | `update(null)` and a negative length are ignored | `NullPointerException`, `ArrayIndexOutOfBoundsException` |

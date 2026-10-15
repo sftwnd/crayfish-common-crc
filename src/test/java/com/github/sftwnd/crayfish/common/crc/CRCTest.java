@@ -213,6 +213,7 @@ class CRCTest {
                 assertEquals(model.check(), first.combine(next).value(), model + ": wrong combined CRC at " + split);
                 assertEquals(CHECK.length, first.combine(next).length(), model + ": wrong combined length at " + split);
                 assertEquals(model.check(), first.combine(next.value(), next.length()).value(), model + ": wrong combined value at " + split);
+                assertEquals(model.check(), model.combine(first.value(), next.value(), next.length()), model + ": wrong combine() of the model at " + split);
             }
         }
     }
@@ -228,6 +229,8 @@ class CRCTest {
             for (int length : lengths) {
                 byte[] zeros = new byte[length];
                 assertEquals(first.update(zeros).value(), first.combine(model.crc(zeros)).value(), model + ": wrong combined CRC of " + length + " zero bytes");
+                assertEquals(first.update(zeros).value(), model.combine(first.value(), model.value(zeros), length),
+                        model + ": wrong combine() of the model of " + length + " zero bytes");
             }
         }
     }
@@ -240,10 +243,28 @@ class CRCTest {
             CRC first = model.crc(CHECK, 0, 4);
             long next = model.crc(CHECK, 4, 5).value();
             for (long length : lengths) {
-                assertEquals(CrcReference.combine(model.parameters(), first.value(), next, length), first.combine(next, length).value(),
-                        model + ": wrong combined CRC of a second part of " + length + " bytes");
+                long reference = CrcReference.combine(model.parameters(), first.value(), next, length);
+                assertEquals(reference, first.combine(next, length).value(), model + ": wrong combined CRC of a second part of " + length + " bytes");
+                assertEquals(reference, model.combine(first.value(), next, length), model + ": wrong combine() of the model of a second part of " + length + " bytes");
             }
         }
+    }
+
+    @Test
+    void testCombineOfTheModel() {
+        for (CrcModel model : modelsOfAllWidths()) {
+            long first = model.value(CHECK, 4);
+            long next = model.value(CHECK, 4, 5);
+            // the value of the empty data as the first value gives the second value, whatever the length of the second data
+            assertEquals(next, model.combine(model.crc().value(), next, 5), model + ": combine() of the empty first data has to give the second value");
+            assertEquals(next, model.combine(model.crc().value(), next, Long.MAX_VALUE), model + ": combine() of the empty first data has to give the second value");
+            assertEquals(first, model.combine(first, next, 0), model + ": combine() of the empty second data has to give the first value");
+            assertEquals(first, model.combine(first, model.crc().value(), 0), model + ": combine() of the empty second data has to give the first value");
+        }
+        CrcModel model = CrcModel.of("CRC-32");
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> model.combine(0x0L, 0x0L, -1),
+                "A negative length of the second data has to be rejected");
+        assertEquals("CrcModel::combine - length2 is negative: -1", exception.getMessage(), "Wrong message");
     }
 
     @Test
@@ -355,6 +376,8 @@ class CRCTest {
             assertEquals(model.check(), crc.combine(model.crc(CHECK, 4, 5)).value(), model + ": wrong combine() after crc(value, length) with bits above the width");
             assertEquals(model.check(), model.crc(CHECK, 0, 4).combine(crc56789 | highBits, 5).value(), model + ": combine(value, length) has to ignore the bits above the width");
             assertEquals(crc56789, model.crc().combine(crc56789 | highBits, 5).value(), model + ": combine(value, length) of the empty data has to ignore the bits above the width");
+            assertEquals(model.check(), model.combine(crc1234 | highBits, crc56789 | highBits, 5), model + ": combine() of the model has to ignore the bits above the width");
+            assertEquals(crc1234, model.combine(crc1234 | highBits, crc56789 | highBits, 0), model + ": combine() of the model has to ignore the bits above the width of the first value");
         }
     }
 
@@ -372,6 +395,7 @@ class CRCTest {
         assertEquals(expected, crc32.crc(stored, CHECK.length).combine(crc32.crc(tail)).value(), "CRC-32 kept in an int: wrong combine(CRC)");
         int storedTail = (int) crc32.crc(tail).value();
         assertEquals(expected, crc32.crc(CHECK).combine(storedTail, tail.length).value(), "CRC-32 kept in an int: wrong combine(value, length)");
+        assertEquals(expected, crc32.combine(stored, storedTail, tail.length), "CRC-32 kept in an int: wrong combine() of the model");
         // a CRC-8 kept in a byte
         CrcModel crc8 = CrcModel.of("CRC-8");
         byte stored8 = (byte) crc8.crc(CHECK).value();
