@@ -418,9 +418,9 @@ class CRCTest {
                 "The bytes beyond the buffer have to be rejected");
         assertEquals("CRC::update - offset 10 and length 7 out of the buffer length 16", exception.getMessage(), "Wrong message");
         assertSame(crc, crc.update(data, 16, 0), "0 bytes at the end of the buffer are no data");
-        assertThrows(NullPointerException.class, () -> crc.update(null), "update(null) has to throw NullPointerException");
+        assertThrows(NullPointerException.class, () -> crc.update((byte[]) null), "update(null) has to throw NullPointerException");
         assertThrows(NullPointerException.class, () -> crc.update(null, 0, 0), "update(null, 0, 0) has to throw NullPointerException");
-        assertThrows(NullPointerException.class, () -> model.crc(null), "crc(null) has to throw NullPointerException");
+        assertThrows(NullPointerException.class, () -> model.crc((byte[]) null), "crc(null) has to throw NullPointerException");
         assertEquals(model.check(), crc.value(), "A rejected update has not got to change the CRC");
         assertEquals(CHECK.length, crc.length(), "A rejected update has not got to change the CRC");
     }

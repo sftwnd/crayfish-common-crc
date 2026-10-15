@@ -7,6 +7,7 @@ package com.github.sftwnd.crayfish.common.crc;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -25,6 +26,8 @@ import java.util.Optional;
  * @author Andrey D. Shindarev
  */
 public final class CrcModel {
+
+    private static final String VALUE_NULL_DATA = "CrcModel::value - data is null";
 
     private final CrcDescription description;
     // the index of the name in the names of the description
@@ -207,7 +210,7 @@ public final class CrcModel {
      * @return CRC value of the data
      */
     public long value(@NonNull final byte[] data) {
-        Objects.requireNonNull(data, "CrcModel::value - data is null");
+        Objects.requireNonNull(data, VALUE_NULL_DATA);
         return value(data, 0, data.length);
     }
 
@@ -231,7 +234,7 @@ public final class CrcModel {
      * @throws ArrayIndexOutOfBoundsException if the part is not inside the data
      */
     public long value(@NonNull final byte[] data, final int offset, final int length) {
-        Objects.requireNonNull(data, "CrcModel::value - data is null");
+        Objects.requireNonNull(data, VALUE_NULL_DATA);
         if (offset < 0 || length < 0 || length > data.length - offset) {
             throw new ArrayIndexOutOfBoundsException("CrcModel::value - offset " + offset + " and length " + length
                     + " out of the buffer length " + data.length);
@@ -267,6 +270,29 @@ public final class CrcModel {
         }
         long mask = this.engine.mask();
         return length2 == 0 ? value1 & mask : this.engine.combine(value1 & mask, value2 & mask, length2);
+    }
+
+    /**
+     * Calculate the CRC of the remaining bytes of the buffer, from its position to its limit: heap, direct and
+     * read-only buffers. The position of the buffer is advanced to its limit
+     * @param data buffer
+     * @return CRC of the remaining bytes of the buffer
+     */
+    public @NonNull CRC crc(@NonNull final ByteBuffer data) {
+        Objects.requireNonNull(data, "CrcModel::crc - data is null");
+        return this.empty.update(data);
+    }
+
+    /**
+     * Calculate the CRC value of the remaining bytes of the buffer, without a {@link CRC} object:
+     * {@code crc(data).value()}. The position of the buffer is advanced to its limit
+     * @param data buffer
+     * @return CRC value of the remaining bytes of the buffer
+     */
+    public long value(@NonNull final ByteBuffer data) {
+        Objects.requireNonNull(data, VALUE_NULL_DATA);
+        long emptyValue = this.engine.empty();
+        return data.hasRemaining() ? this.engine.update(emptyValue, data) : emptyValue;
     }
 
     @NonNull CrcEngine engine() {

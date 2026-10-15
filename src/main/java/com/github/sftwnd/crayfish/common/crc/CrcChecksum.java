@@ -6,6 +6,7 @@ package com.github.sftwnd.crayfish.common.crc;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 
+import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.zip.Checksum;
 
@@ -25,6 +26,8 @@ import java.util.zip.Checksum;
  * @author Andrey D. Shindarev
  */
 public final class CrcChecksum implements Checksum {
+
+    private static final String UPDATE_NULL_DATA = "CrcChecksum::update - data is null";
 
     private final CrcModel model;
     private final CrcEngine engine;
@@ -58,7 +61,7 @@ public final class CrcChecksum implements Checksum {
     // compile, so java:S1161 (a missing @Override) does not apply
     @SuppressWarnings("java:S1161")
     public void update(@NonNull final byte[] data) {
-        Objects.requireNonNull(data, "CrcChecksum::update - data is null");
+        Objects.requireNonNull(data, UPDATE_NULL_DATA);
         update(data, 0, data.length);
     }
 
@@ -72,7 +75,7 @@ public final class CrcChecksum implements Checksum {
      */
     @Override
     public void update(@NonNull final byte[] data, final int offset, final int length) {
-        Objects.requireNonNull(data, "CrcChecksum::update - data is null");
+        Objects.requireNonNull(data, UPDATE_NULL_DATA);
         if (offset < 0 || length < 0 || length > data.length - offset) {
             throw new ArrayIndexOutOfBoundsException("CrcChecksum::update - offset " + offset + " and length " + length
                     + " out of the buffer length " + data.length);
@@ -80,6 +83,25 @@ public final class CrcChecksum implements Checksum {
         if (length > 0) {
             long updated = Math.addExact(this.length, length);
             this.value = this.engine.update(this.value, data, offset, length);
+            this.length = updated;
+        }
+    }
+
+    /**
+     * Update the checksum with the remaining bytes of the buffer, from its position to its limit: heap, direct and
+     * read-only buffers, also on Java 8. The position of the buffer is advanced to its limit
+     * @param data buffer
+     * @throws ArithmeticException if the length of the data exceeds Long.MAX_VALUE; the buffer is not read then
+     */
+    // a default method of Checksum on Java 9+ only: the library is compiled on Java 8 too, where @Override does not
+    // compile, so java:S1161 (a missing @Override) does not apply
+    @SuppressWarnings("java:S1161")
+    public void update(@NonNull final ByteBuffer data) {
+        Objects.requireNonNull(data, UPDATE_NULL_DATA);
+        int remaining = data.remaining();
+        if (remaining > 0) {
+            long updated = Math.addExact(this.length, remaining);
+            this.value = this.engine.update(this.value, data);
             this.length = updated;
         }
     }

@@ -224,7 +224,7 @@ class CrcChecksumTest {
         ArrayIndexOutOfBoundsException exception = assertThrows(ArrayIndexOutOfBoundsException.class,
                 () -> checksum.update(data, Integer.MAX_VALUE, 2), "An overflowing end has to be rejected");
         assertEquals("CrcChecksum::update - offset 2147483647 and length 2 out of the buffer length 16", exception.getMessage(), "Wrong message");
-        NullPointerException nullData = assertThrows(NullPointerException.class, () -> checksum.update(null), "update(null) has to throw NullPointerException");
+        NullPointerException nullData = assertThrows(NullPointerException.class, () -> checksum.update((byte[]) null), "update(null) has to throw NullPointerException");
         assertEquals("CrcChecksum::update - data is null", nullData.getMessage(), "Wrong message");
         assertThrows(NullPointerException.class, () -> checksum.update(null, 0, 0), "update(null, 0, 0) has to throw NullPointerException");
         assertEquals(model.crc(), checksum.crc(), "The rejected updates have not got to change the checksum");
