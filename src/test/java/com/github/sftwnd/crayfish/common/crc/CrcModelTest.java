@@ -243,6 +243,46 @@ class CrcModelTest {
     }
 
     @Test
+    void testFirstBytes() {
+        // crc(data, length) and update(data, length): the lengths around the start of the 8-byte loop and the empty part
+        int[] lengths = {0, 1, 7, 8, 23, 24, 25, 100, 257};
+        byte[] data = new byte[300];
+        new Random(95).nextBytes(data);
+        List<CrcModel> models = new ArrayList<>();
+        for (StandardCrc standard : StandardCrc.values()) {
+            models.add(standard.model());
+        }
+        // parameter sets outside the catalogue
+        models.add(CrcModel.of(5, 0x15L, 0x1FL, false, true, 0x3L));
+        models.add(CrcModel.of(40, 0x4820009L, 0x12345L, true, true, 0x0L));
+        for (CrcModel model : models) {
+            CRC first = model.crc(CHECK, 4);
+            for (int length : lengths) {
+                assertEquals(model.crc(data, 0, length), model.crc(data, length), model + ": wrong CRC of the first " + length + " bytes");
+                assertEquals(model.value(data, length), model.crc(data, length).value(), model + ": crc(data, length) has to have the value of value(data, length)");
+                assertEquals(first.update(data, 0, length), first.update(data, length), model + ": wrong update() with the first " + length + " bytes");
+            }
+            assertSame(model.crc(), model.crc(data, 0), model + ": the CRC of no bytes has to be the CRC of the empty data");
+            assertSame(first, first.update(data, 0), model + ": an update with no bytes has to return the CRC itself");
+        }
+        CrcModel model = CrcModel.of("CRC-16/ARC");
+        CRC crc = model.crc(CHECK);
+        byte[] buffer = new byte[16];
+        assertEquals(model.crc(), model.crc(buffer, 0), "The empty first part of the data has to be accepted");
+        assertEquals(crc.update(buffer), crc.update(buffer, 16), "All bytes of the buffer have to be accepted");
+        ArrayIndexOutOfBoundsException beyond = assertThrows(ArrayIndexOutOfBoundsException.class, () -> model.crc(buffer, 17),
+                "More bytes than the data has to be rejected");
+        assertEquals("CRC::update - offset 0 and length 17 out of the buffer length 16", beyond.getMessage(), "Wrong message");
+        assertThrows(ArrayIndexOutOfBoundsException.class, () -> model.crc(buffer, -1), "A negative length has to be rejected");
+        assertThrows(ArrayIndexOutOfBoundsException.class, () -> crc.update(buffer, 17), "More bytes than the buffer has to be rejected");
+        assertThrows(ArrayIndexOutOfBoundsException.class, () -> crc.update(buffer, -1), "A negative length has to be rejected");
+        NullPointerException nullData = assertThrows(NullPointerException.class, () -> model.crc(null, 0), "crc(null, 0) has to throw NullPointerException");
+        assertEquals("CRC::update - data is null", nullData.getMessage(), "Wrong message");
+        assertThrows(NullPointerException.class, () -> crc.update(null, 0), "update(null, 0) has to throw NullPointerException");
+        assertEquals(model.check(), crc.value(), "A rejected update has not got to change the CRC");
+    }
+
+    @Test
     void testValueBounds() {
         CrcModel model = CrcModel.of("CRC-16/ARC");
         byte[] data = new byte[16];
