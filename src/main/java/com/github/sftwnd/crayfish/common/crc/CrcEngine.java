@@ -206,10 +206,10 @@ final class CrcEngine {
     // the CRC value after one byte, without an array: a checksum updated a byte at a time
     @SuppressWarnings("java:S3034")
     long update(final long value, final byte b) {
-        CrcTables tables = tables();
+        CrcTables built = tables();
         long register = register(value);
         if (word) {
-            int[] words = tables.words;
+            int[] words = built.words;
             if (refin) {
                 int crc = (int) register;
                 register = ((crc >>> 8) ^ words[(crc ^ b) & 0xff]) & 0xffffffffL;
@@ -219,7 +219,7 @@ final class CrcEngine {
             }
             return value(register);
         }
-        long[] t0 = tables.slices[0];
+        long[] t0 = built.slices[0];
         register = refin ? (register >>> 8) ^ t0[(int) ((register ^ b) & 0xff)]
                          : (register << 8) ^ t0[(int) (((register >>> 56) ^ b) & 0xff)];
         return value(register);

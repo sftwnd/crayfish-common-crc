@@ -36,8 +36,10 @@ final class CrcTables {
        a CRC up to 32 bits wide are those of the register of an int: the low 32 bits, or the top 32 bits shifted down
        to bit 31 */
     static @NonNull CrcTables build(final boolean reflected, final long poly, final int width) {
-        return width <= Integer.SIZE ? buildWords(reflected, reflected ? (int) poly : (int) (poly >>> Integer.SIZE))
-                                     : buildSlices(reflected, poly);
+        if (width > Integer.SIZE) {
+            return buildSlices(reflected, poly);
+        }
+        return buildWords(reflected, reflected ? (int) poly : (int) (poly >>> Integer.SIZE));
     }
 
     private static @NonNull CrcTables buildWords(final boolean reflected, final int poly) {
