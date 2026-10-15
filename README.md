@@ -137,7 +137,8 @@ throw `IllegalArgumentException`.
     long value = model.value(data);                                  // the CRC value only, no CRC object
     long first = model.value(data, length);                          // the first length bytes
     long part = model.value(data, offset, length);                   // a part of the data
-    CRC crc = model.crc().update(part1).update(part2, 0, length2);   // part1 followed by a part of part2
+    CRC firstCrc = model.crc(data, length);                          // the CRC of the first length bytes
+    CRC crc = model.crc().update(part1).update(part2, length2);      // part1 followed by the first length2 bytes of part2
     long processed = crc.length();
 ```
 

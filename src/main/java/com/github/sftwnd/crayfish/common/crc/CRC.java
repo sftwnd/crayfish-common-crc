@@ -78,6 +78,19 @@ public final class CRC {
     }
 
     /**
+     * Calculate the CRC of the data of this CRC followed by the first bytes of the buffer: {@code update(data, 0, length)}
+     * @param data buffer
+     * @param length number of the first bytes of the buffer
+     * @return new CRC, or this CRC if the length is 0
+     * @throws ArrayIndexOutOfBoundsException if the length is negative or exceeds the length of the buffer
+     * @throws ArithmeticException if the length of the data exceeds Long.MAX_VALUE
+     */
+    @CheckReturnValue
+    public @NonNull CRC update(@NonNull final byte[] data, final int length) {
+        return update(data, 0, length);
+    }
+
+    /**
      * Calculate the CRC of the data of this CRC followed by a part of the buffer
      * @param data buffer
      * @param offset offset of the part in the buffer
