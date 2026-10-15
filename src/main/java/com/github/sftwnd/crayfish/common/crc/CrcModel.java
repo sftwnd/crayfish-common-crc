@@ -229,6 +229,26 @@ public final class CrcModel {
         return length == 0 ? emptyValue : this.engine.update(emptyValue, data, offset, length);
     }
 
+    /**
+     * Calculate the CRC value of the data of the first value followed by the data of the second value, calculated
+     * independently, without a {@link CRC} object, like zlib {@code crc32_combine}. The length of the first data
+     * is not needed: the value of an empty first data is the value of the empty data, {@code crc().value()},
+     * and gives the second value
+     * @param value1 CRC value of the first data
+     * @param value2 CRC value of the second data
+     * @param length2 length of the second data
+     * @return CRC value of both data, or the first value if the length of the second data is 0. Bits of the values
+     *         above the CRC width are ignored, so that a CRC-32 kept in an int can be passed as is
+     * @throws IllegalArgumentException if the length of the second data is negative
+     */
+    public long combine(final long value1, final long value2, final long length2) {
+        if (length2 < 0) {
+            throw new IllegalArgumentException("CrcModel::combine - length2 is negative: " + length2);
+        }
+        long mask = this.engine.mask();
+        return length2 == 0 ? value1 & mask : this.engine.combine(value1 & mask, value2 & mask, length2);
+    }
+
     @NonNull CrcEngine engine() {
         return this.engine;
     }
