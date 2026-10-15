@@ -128,6 +128,7 @@ class CrcDescriptionTest {
         CrcModel model = CrcModel.of(parameters);
         CrcEngine engine = model.description().engine();
         assertFalse(engine.hasTables(), "The lookup tables have not got to be built for a model");
+        assertFalse(engine.hasZeros(), "The operators of the zero bytes have not got to be built for a model");
         long check = model.check();
         assertSame(model, CrcModel.builder(24).poly(parameters.poly()).init(parameters.init()).refin(true).refout(false).xorout(0x1L).check(check).build(),
                 "The builder has to give the model");
@@ -135,6 +136,7 @@ class CrcDescriptionTest {
         assertEquals(10 + CHECK.length, saved.combine(model.crc(check, CHECK.length)).length(), "Wrong length of a combined CRC");
         assertSame(model.crc(), model.crc(new byte[0]), "The CRC of an empty buffer has to be the CRC of the empty data");
         assertFalse(engine.hasTables(), "The check value, the empty data, a saved CRC and combine have not got to build the lookup tables");
+        assertTrue(engine.hasZeros(), "The operators of the zero bytes have to be built on the first combine");
         assertEquals(check, model.crc(CHECK).value(), "Wrong CRC");
         assertTrue(engine.hasTables(), "The lookup tables have to be built on the first calculation with data");
         CrcTables tables = engine.tables();

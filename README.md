@@ -88,6 +88,17 @@ implementation 'com.github.sftwnd.crayfish.common:crayfish-common-crc:2.0.0'
 `CrcModel.of()` throws `IllegalArgumentException` for an unknown name. The case of a name matters. The constants of
 `StandardCrc` are the names of the algorithms with `_` for every character other than `A-Z` and `0-9`.
 
+A model chosen by its name costs a lookup in the catalogue and in the pool of the descriptions (see [Memory](#memory)),
+about 15 ns. For calculations in a loop, keep the model in a field rather than choosing it for every calculation:
+
+```java
+    private static final CrcModel CRC32C = CrcModel.of("CRC-32C");   // chosen once
+
+    long checksum(byte[] data) {
+        return CRC32C.value(data);
+    }
+```
+
 ### By parameters
 
 ```java
@@ -146,7 +157,9 @@ to combine CRCs or to keep the length. `model.crc()` is the CRC of the empty dat
     CRC same = first.combine(second.value(), second.length());
 ```
 
-Both CRCs have to have the same parameters: a model and its alias are fine, others give `IllegalArgumentException`.
+Both CRCs have to have the same parameters: a model and its alias are fine, others give `IllegalArgumentException`. The
+cost does not depend on the size of the data: one multiplication modulo the polynomial per bit set in the length of the
+second part, with 63 values per parameter set built on the first `combine`.
 
 ### Resume
 

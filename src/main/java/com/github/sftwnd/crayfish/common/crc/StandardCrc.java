@@ -5,6 +5,7 @@
 package com.github.sftwnd.crayfish.common.crc;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -357,16 +358,16 @@ public enum StandardCrc {
         this.names = Collections.unmodifiableList(all);
     }
 
-    // the algorithm of every name and alias, and of every parameter set: the names and the parameter sets
-    // of the catalogue are unique
-    private static final Map<String, StandardCrc> BY_NAME = new HashMap<>();
+    // the algorithm and the index of every name and alias, and the algorithm of every parameter set: the names
+    // and the parameter sets of the catalogue are unique
+    private static final Map<String, Name> BY_NAME = new HashMap<>();
     private static final Map<CrcParameters, StandardCrc> BY_PARAMETERS = new HashMap<>();
 
     static {
         for (StandardCrc standard : values()) {
             BY_PARAMETERS.put(standard.parameters, standard);
-            for (String name : standard.names) {
-                BY_NAME.put(name, standard);
+            for (int index = 0; index < standard.names.size(); index++) {
+                BY_NAME.put(standard.names.get(index), new Name(standard, index));
             }
         }
     }
@@ -425,7 +426,14 @@ public enum StandardCrc {
      * @return the algorithm, empty if the catalogue has no algorithm with this name
      */
     public static @NonNull Optional<StandardCrc> find(@NonNull final String name) {
-        return Optional.ofNullable(BY_NAME.get(Objects.requireNonNull(name, "StandardCrc::find - name is null")));
+        Name found = name(Objects.requireNonNull(name, "StandardCrc::find - name is null"));
+        return found == null ? Optional.empty() : Optional.of(found.standard);
+    }
+
+    // the algorithm of a name with the index of the name in its names, null if the catalogue has no such name:
+    // the model of the name is found without a search in the names
+    static @Nullable Name name(@NonNull final String name) {
+        return BY_NAME.get(name);
     }
 
     /**
@@ -435,6 +443,19 @@ public enum StandardCrc {
      */
     public static @NonNull Optional<StandardCrc> find(@NonNull final CrcParameters parameters) {
         return Optional.ofNullable(BY_PARAMETERS.get(Objects.requireNonNull(parameters, "StandardCrc::find - parameters is null")));
+    }
+
+    // a name of the catalogue: the algorithm and the index of the name in its names
+    static final class Name {
+
+        final StandardCrc standard;
+        final int index;
+
+        private Name(@NonNull final StandardCrc standard, final int index) {
+            this.standard = standard;
+            this.index = index;
+        }
+
     }
 
 }

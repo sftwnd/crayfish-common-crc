@@ -55,4 +55,77 @@ final class CrcReference {
         return crc(parameters, buff, 0, buff.length);
     }
 
+    /**
+     * Calculate the CRC of two parts from their CRC values with the operators of zero bits as matrices over GF(2):
+     * crc_general_combine of crcany (Mark Adler), O(width^2 * log(length2)) and independent of the combine
+     * of the library
+     * @param parameters CRC parameters
+     * @param value1 CRC value of the first part
+     * @param value2 CRC value of the second part
+     * @param length2 length of the second part, more than 0
+     * @return CRC value of both parts
+     */
+    static long combine(CrcParameters parameters, long value1, long value2, long length2) {
+        int width = parameters.width();
+        boolean refout = parameters.refout();
+        long poly = refout ? reflect(parameters.poly(), width) : parameters.poly();
+        long init = (refout ? reflect(parameters.init(), width) : parameters.init()) ^ parameters.xorout();
+        long[] even = new long[width];
+        long[] odd = new long[width];
+        // the operator of one zero bit
+        if (refout) {
+            odd[0] = poly;
+            for (int n = 1; n < width; n++) {
+                odd[n] = 1L << (n - 1);
+            }
+        } else {
+            for (int n = 0; n < width - 1; n++) {
+                odd[n] = 1L << (n + 1);
+            }
+            odd[width - 1] = poly;
+        }
+        // the operators of two and four zero bits
+        square(even, odd);
+        square(odd, even);
+        // the first square gives the operator of one zero byte, every next square of the next power of two
+        long crc = value1 ^ init;
+        long remaining = length2;
+        do {
+            square(even, odd);
+            if ((remaining & 1) != 0) {
+                crc = times(even, crc);
+            }
+            remaining >>>= 1;
+            if (remaining == 0) {
+                break;
+            }
+            square(odd, even);
+            if ((remaining & 1) != 0) {
+                crc = times(odd, crc);
+            }
+            remaining >>>= 1;
+        } while (remaining != 0);
+        return crc ^ value2;
+    }
+
+    private static long times(long[] matrix, long vector) {
+        long sum = 0;
+        for (int i = 0; vector != 0; vector >>>= 1, i++) {
+            if ((vector & 1) != 0) {
+                sum ^= matrix[i];
+            }
+        }
+        return sum;
+    }
+
+    private static void square(long[] square, long[] matrix) {
+        for (int n = 0; n < matrix.length; n++) {
+            square[n] = times(matrix, matrix[n]);
+        }
+    }
+
+    private static long reflect(long value, int width) {
+        return Long.reverse(value) >>> (Long.SIZE - width);
+    }
+
 }

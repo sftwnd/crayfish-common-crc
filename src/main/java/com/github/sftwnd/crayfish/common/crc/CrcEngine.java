@@ -21,6 +21,8 @@ final class CrcEngine {
     private final long mask;
     private final boolean refin;
     private final boolean refout;
+    // a register aligned to bit 63 of a width up to 8 bits: the whole register is in the top byte
+    private final boolean narrow;
     private final long xorout;
     // the shift of a register aligned to bit 63
     private final int shift;
@@ -29,7 +31,8 @@ final class CrcEngine {
     private final long initRegister;
     // the CRC value of the empty data
     private final long empty;
-    // the polynomial and the init of combine: combine works with CRC values, reflected if refout
+    // combine works with CRC values: the init XOR-ed into the first value (reflected if refout), and the polynomial
+    // in the normal bit order, bit i the coefficient of x^i
     private final long combinePoly;
     private final long combineInit;
 
@@ -39,17 +42,23 @@ final class CrcEngine {
     @SuppressWarnings("java:S3077")
     private volatile CrcTables tables;
 
+    // the operators of the zero bytes of combine, built on the first combine like the lookup tables; Zeros is
+    // immutable, so java:S3077 does not apply
+    @SuppressWarnings("java:S3077")
+    private volatile Zeros zeros;
+
     CrcEngine(@NonNull final CrcParameters parameters) {
         this.width = parameters.width();
         this.mask = CrcParameters.mask(width);
         this.refin = parameters.refin();
         this.refout = parameters.refout();
+        this.narrow = !refin && width <= Byte.SIZE;
         this.xorout = parameters.xorout();
         this.shift = Long.SIZE - width;
         this.poly = refin ? reflect(parameters.poly()) : parameters.poly() << shift;
         this.initRegister = refin ? reflect(parameters.init()) : parameters.init() << shift;
         this.empty = value(initRegister);
-        this.combinePoly = refout ? reflect(parameters.poly()) : parameters.poly();
+        this.combinePoly = parameters.poly();
         this.combineInit = (refout ? reflect(parameters.init()) : parameters.init()) ^ xorout;
     }
 
@@ -125,14 +134,14 @@ final class CrcEngine {
             if (offset < blocksEnd) {
                 register = alignedBlocks(slices, register, data, offset, blocksEnd);
             }
-            register = alignedBytes(slices[0], register, data, blocksEnd, end);
+            register = narrow ? narrowBytes(slices[0], register, data, blocksEnd, end)
+                              : alignedBytes(slices[0], register, data, blocksEnd, end);
         }
         return value(register);
     }
 
     // The loops below suppress java:S3034: the byte is sign-extended in "crc ^ data[offset]", and the "& 0xff" of
     // the result removes the extension; a "& 0xff" of the byte itself would cost an operation per byte.
-    // A register aligned to bit 63 of a width up to 8 bits is shifted out completely by "<< 8".
 
     // a byte at a time, reflected register in the low bits
     @SuppressWarnings("java:S3034")
@@ -150,6 +159,17 @@ final class CrcEngine {
         long crc = register;
         for (int i = offset; i < end; i++) {
             crc = (crc << 8) ^ t0[(int) (((crc >>> 56) ^ data[i]) & 0xff)];
+        }
+        return crc;
+    }
+
+    // a byte at a time, register aligned to bit 63 of a width up to 8 bits: "crc << 8" is 0, so the register is
+    // the table entry alone, without the shift and the XOR on every byte
+    @SuppressWarnings("java:S3034")
+    private static long narrowBytes(final long[] t0, final long register, final byte[] data, final int offset, final int end) {
+        long crc = register;
+        for (int i = offset; i < end; i++) {
+            crc = t0[(int) (((crc >>> 56) ^ data[i]) & 0xff)];
         }
         return crc;
     }
@@ -205,63 +225,80 @@ final class CrcEngine {
         return crc;
     }
 
-    /* the CRC value of the data of value1 followed by length2 > 0 bytes with the CRC value value2: crc_general_combine
-       of crcany (Mark Adler), in the domain of the CRC values. Appending zero bytes does not depend on refin,
-       so the operators of the zero bits are reflected if refout */
+    // whether the operators of the zero bytes of combine are built, for the tests
+    boolean hasZeros() {
+        return this.zeros != null;
+    }
+
+    /* the CRC value of the data of value1 followed by length2 > 0 bytes with the CRC value value2, in the domain of
+       the CRC values: (value1 ^ combineInit) * x^(8 * length2) mod P ^ value2, as crc_combine of zlib 1.2.12+ and of
+       crcany (Mark Adler). x^(8 * length2) is the product of the operators of 2^k zero bytes of the bits of length2,
+       so the cost is a multiplication of width steps per bit set in length2. Appending zero bytes does not depend on
+       refin; a CRC value of refout is reflected, so it is reflected to the normal bit order and back */
     long combine(final long value1, final long value2, final long length2) {
-        long[] even = new long[width];
-        long[] odd = new long[width];
-        // the operator of one zero bit
-        if (refout) {
-            odd[0] = combinePoly;
-            long row = 1;
-            for (int n = 1; n < width; n++) {
-                odd[n] = row;
-                row <<= 1;
-            }
-        } else {
-            long row = 2;
-            for (int n = 0; n < width - 1; n++) {
-                odd[n] = row;
-                row <<= 1;
-            }
-            odd[width - 1] = combinePoly;
-        }
-        // the operators of two and four zero bits
-        gf2MatrixSquare(even, odd);
-        gf2MatrixSquare(odd, even);
-        // the zeros of length2 applied to value1 XOR-ed with the CRC value of the empty data; the first square
-        // gives the operator of one zero byte, every next square the operator of the next power of two of the bytes
+        long[] operators = zeros().operators;
         long crc = value1 ^ combineInit;
-        long[] operator = even;
-        long[] previous = odd;
-        for (long remaining = length2; remaining != 0; remaining >>>= 1) {
-            gf2MatrixSquare(operator, previous);
-            if ((remaining & 1) != 0) {
-                crc = gf2MatrixTimes(operator, crc);
+        if (refout) {
+            crc = reflect(crc);
+        }
+        int k = 0;
+        for (long rest = length2; rest != 0; rest >>>= 1) {
+            if ((rest & 1) != 0) {
+                crc = multiply(operators[k], crc);
             }
-            long[] swap = previous;
-            previous = operator;
-            operator = swap;
+            k++;
+        }
+        if (refout) {
+            crc = reflect(crc);
         }
         return crc ^ value2;
     }
 
-    private static long gf2MatrixTimes(final long[] matrix, final long vector) {
-        long sum = 0;
-        long bits = vector;
-        for (int i = 0; bits != 0; bits >>>= 1, i++) {
-            if ((bits & 1) != 0) {
-                sum ^= matrix[i];
+    private Zeros zeros() {
+        Zeros built = this.zeros;
+        if (built == null) {
+            // a length is a positive long: bits 0..62
+            long[] operators = new long[Long.SIZE - 1];
+            long operator = 1;
+            for (int bit = 0; bit < Byte.SIZE; bit++) {
+                operator = timesX(operator);
             }
+            operators[0] = operator;
+            for (int k = 1; k < operators.length; k++) {
+                operators[k] = multiply(operators[k - 1], operators[k - 1]);
+            }
+            built = new Zeros(operators);
+            this.zeros = built;
         }
-        return sum;
+        return built;
     }
 
-    private void gf2MatrixSquare(final long[] square, final long[] matrix) {
-        for (int n = 0; n < width; n++) {
-            square[n] = gf2MatrixTimes(matrix, matrix[n]);
+    // a(x) * b(x) mod P in the normal bit order: the multiples x^i * b(x) of the bits i of a(x) XOR-ed
+    private long multiply(final long a, final long b) {
+        long product = 0;
+        long multiple = b;
+        for (long rest = a; rest != 0; rest >>>= 1) {
+            product ^= multiple & -(rest & 1);
+            multiple = timesX(multiple);
         }
+        return product;
+    }
+
+    // b(x) * x mod P in the normal bit order: the term x^width is replaced by the polynomial
+    private long timesX(final long b) {
+        return ((b << 1) & mask) ^ (combinePoly & -((b >>> (width - 1)) & 1));
+    }
+
+    // the operators of 2^k zero bytes, x^(8 * 2^k) mod P for k = 0..62: never changed after the constructor,
+    // the final field publishes them completely
+    private static final class Zeros {
+
+        private final long[] operators;
+
+        private Zeros(@NonNull final long[] operators) {
+            this.operators = operators;
+        }
+
     }
 
 }
