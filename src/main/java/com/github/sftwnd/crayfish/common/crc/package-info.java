@@ -17,7 +17,10 @@
  * <li>{@link com.github.sftwnd.crayfish.common.crc.CrcModel} - a description with the name it was chosen by,
  * by a name, by the parameters or with a builder;</li>
  * <li>{@link com.github.sftwnd.crayfish.common.crc.CRC} - the immutable CRC of data: an update or a combination
- * gives a new CRC.</li>
+ * gives a new CRC;</li>
+ * <li>{@link com.github.sftwnd.crayfish.common.crc.CrcChecksum} - the mutable {@link java.util.zip.Checksum} of a model,
+ * for {@link java.util.zip.CheckedOutputStream}, {@link java.util.zip.CheckedInputStream} and other code that works
+ * with a {@code Checksum}.</li>
  * </ul>
  * <pre>{@code
  * CrcModel model = CrcModel.of("CRC-32C");

@@ -140,6 +140,16 @@ final class CrcEngine {
         return value(register);
     }
 
+    // the CRC value after one byte, without an array: a checksum updated a byte at a time
+    @SuppressWarnings("java:S3034")
+    long update(final long value, final byte b) {
+        long[] t0 = tables().slices[0];
+        long register = register(value);
+        register = refin ? (register >>> 8) ^ t0[(int) ((register ^ b) & 0xff)]
+                         : (register << 8) ^ t0[(int) (((register >>> 56) ^ b) & 0xff)];
+        return value(register);
+    }
+
     // The loops below suppress java:S3034: the byte is sign-extended in "crc ^ data[offset]", and the "& 0xff" of
     // the result removes the extension; a "& 0xff" of the byte itself would cost an operation per byte.
 

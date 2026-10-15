@@ -230,6 +230,15 @@ public final class CrcModel {
     }
 
     /**
+     * Get a new {@link java.util.zip.Checksum} of the model, for {@link java.util.zip.CheckedOutputStream},
+     * {@link java.util.zip.CheckedInputStream} and other code that works with a {@code Checksum}
+     * @return new mutable checksum of the empty data
+     */
+    public @NonNull CrcChecksum checksum() {
+        return new CrcChecksum(this);
+    }
+
+    /**
      * Calculate the CRC value of the data of the first value followed by the data of the second value, calculated
      * independently, without a {@link CRC} object, like zlib {@code crc32_combine}. The length of the first data
      * is not needed: the value of an empty first data is the value of the empty data, {@code crc().value()},
