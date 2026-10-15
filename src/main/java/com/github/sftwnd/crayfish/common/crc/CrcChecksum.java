@@ -27,6 +27,8 @@ import java.util.zip.Checksum;
  */
 public final class CrcChecksum implements Checksum {
 
+    private static final String UPDATE_NULL_DATA = "CrcChecksum::update - data is null";
+
     private final CrcModel model;
     private final CrcEngine engine;
     private long value;
@@ -59,7 +61,7 @@ public final class CrcChecksum implements Checksum {
     // compile, so java:S1161 (a missing @Override) does not apply
     @SuppressWarnings("java:S1161")
     public void update(@NonNull final byte[] data) {
-        Objects.requireNonNull(data, "CrcChecksum::update - data is null");
+        Objects.requireNonNull(data, UPDATE_NULL_DATA);
         update(data, 0, data.length);
     }
 
@@ -73,7 +75,7 @@ public final class CrcChecksum implements Checksum {
      */
     @Override
     public void update(@NonNull final byte[] data, final int offset, final int length) {
-        Objects.requireNonNull(data, "CrcChecksum::update - data is null");
+        Objects.requireNonNull(data, UPDATE_NULL_DATA);
         if (offset < 0 || length < 0 || length > data.length - offset) {
             throw new ArrayIndexOutOfBoundsException("CrcChecksum::update - offset " + offset + " and length " + length
                     + " out of the buffer length " + data.length);
@@ -95,7 +97,7 @@ public final class CrcChecksum implements Checksum {
     // compile, so java:S1161 (a missing @Override) does not apply
     @SuppressWarnings("java:S1161")
     public void update(@NonNull final ByteBuffer data) {
-        Objects.requireNonNull(data, "CrcChecksum::update - data is null");
+        Objects.requireNonNull(data, UPDATE_NULL_DATA);
         int remaining = data.remaining();
         if (remaining > 0) {
             long updated = Math.addExact(this.length, remaining);

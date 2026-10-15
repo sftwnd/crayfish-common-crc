@@ -27,6 +27,8 @@ import java.util.Optional;
  */
 public final class CrcModel {
 
+    private static final String VALUE_NULL_DATA = "CrcModel::value - data is null";
+
     private final CrcDescription description;
     // the index of the name in the names of the description
     private final int index;
@@ -197,7 +199,7 @@ public final class CrcModel {
      * @return CRC value of the data
      */
     public long value(@NonNull final byte[] data) {
-        Objects.requireNonNull(data, "CrcModel::value - data is null");
+        Objects.requireNonNull(data, VALUE_NULL_DATA);
         return value(data, 0, data.length);
     }
 
@@ -221,7 +223,7 @@ public final class CrcModel {
      * @throws ArrayIndexOutOfBoundsException if the part is not inside the data
      */
     public long value(@NonNull final byte[] data, final int offset, final int length) {
-        Objects.requireNonNull(data, "CrcModel::value - data is null");
+        Objects.requireNonNull(data, VALUE_NULL_DATA);
         if (offset < 0 || length < 0 || length > data.length - offset) {
             throw new ArrayIndexOutOfBoundsException("CrcModel::value - offset " + offset + " and length " + length
                     + " out of the buffer length " + data.length);
@@ -277,7 +279,7 @@ public final class CrcModel {
      * @return CRC value of the remaining bytes of the buffer
      */
     public long value(@NonNull final ByteBuffer data) {
-        Objects.requireNonNull(data, "CrcModel::value - data is null");
+        Objects.requireNonNull(data, VALUE_NULL_DATA);
         long emptyValue = this.engine.empty();
         return data.hasRemaining() ? this.engine.update(emptyValue, data) : emptyValue;
     }

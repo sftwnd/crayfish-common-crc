@@ -24,6 +24,8 @@ import java.util.Objects;
  */
 public final class CRC {
 
+    private static final String UPDATE_NULL_DATA = "CRC::update - data is null";
+
     private final CrcModel model;
     private final long value;
     private final long length;
@@ -74,7 +76,7 @@ public final class CRC {
      */
     @CheckReturnValue
     public @NonNull CRC update(@NonNull final byte[] data) {
-        Objects.requireNonNull(data, "CRC::update - data is null");
+        Objects.requireNonNull(data, UPDATE_NULL_DATA);
         return update(data, 0, data.length);
     }
 
@@ -89,7 +91,7 @@ public final class CRC {
      */
     @CheckReturnValue
     public @NonNull CRC update(@NonNull final byte[] data, final int offset, final int length) {
-        Objects.requireNonNull(data, "CRC::update - data is null");
+        Objects.requireNonNull(data, UPDATE_NULL_DATA);
         if (offset < 0 || length < 0 || length > data.length - offset) {
             throw new ArrayIndexOutOfBoundsException("CRC::update - offset " + offset + " and length " + length
                     + " out of the buffer length " + data.length);
@@ -110,7 +112,7 @@ public final class CRC {
      */
     @CheckReturnValue
     public @NonNull CRC update(@NonNull final ByteBuffer data) {
-        Objects.requireNonNull(data, "CRC::update - data is null");
+        Objects.requireNonNull(data, UPDATE_NULL_DATA);
         int remaining = data.remaining();
         if (remaining == 0) {
             return this;
