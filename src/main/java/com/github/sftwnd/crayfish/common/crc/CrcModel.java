@@ -4,6 +4,7 @@
  */
 package com.github.sftwnd.crayfish.common.crc;
 
+import edu.umd.cs.findbugs.annotations.CheckReturnValue;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 
@@ -66,6 +67,7 @@ public final class CrcModel {
      * @param name name of the model
      * @return model with the name, empty if the name is unknown
      */
+    @CheckReturnValue
     public static @NonNull Optional<CrcModel> find(@NonNull final String name) {
         return Optional.ofNullable(lookUp(name));
     }
@@ -161,6 +163,7 @@ public final class CrcModel {
      * @param data data
      * @return CRC of the data
      */
+    @CheckReturnValue
     public @NonNull CRC crc(@NonNull final byte[] data) {
         return this.empty.update(data);
     }
@@ -172,6 +175,7 @@ public final class CrcModel {
      * @return CRC of the first bytes of the data
      * @throws ArrayIndexOutOfBoundsException if the length is negative or exceeds the length of the data
      */
+    @CheckReturnValue
     public @NonNull CRC crc(@NonNull final byte[] data, final int length) {
         return this.empty.update(data, 0, length);
     }
@@ -184,6 +188,7 @@ public final class CrcModel {
      * @return CRC of the part of the data
      * @throws ArrayIndexOutOfBoundsException if the part is not inside the data
      */
+    @CheckReturnValue
     public @NonNull CRC crc(@NonNull final byte[] data, final int offset, final int length) {
         return this.empty.update(data, offset, length);
     }
@@ -197,6 +202,7 @@ public final class CrcModel {
      * @return CRC with the value and the length
      * @throws IllegalArgumentException if the length is negative
      */
+    @CheckReturnValue
     public @NonNull CRC crc(final long value, final long length) {
         if (length < 0) {
             throw new IllegalArgumentException("CrcModel::crc - length is negative: " + length);
@@ -209,6 +215,7 @@ public final class CrcModel {
      * @param data data
      * @return CRC value of the data
      */
+    @CheckReturnValue
     public long value(@NonNull final byte[] data) {
         Objects.requireNonNull(data, VALUE_NULL_DATA);
         return value(data, 0, data.length);
@@ -221,6 +228,7 @@ public final class CrcModel {
      * @return CRC value of the first bytes of the data
      * @throws ArrayIndexOutOfBoundsException if the length is negative or exceeds the length of the data
      */
+    @CheckReturnValue
     public long value(@NonNull final byte[] data, final int length) {
         return value(data, 0, length);
     }
@@ -233,6 +241,7 @@ public final class CrcModel {
      * @return CRC value of the part of the data
      * @throws ArrayIndexOutOfBoundsException if the part is not inside the data
      */
+    @CheckReturnValue
     public long value(@NonNull final byte[] data, final int offset, final int length) {
         Objects.requireNonNull(data, VALUE_NULL_DATA);
         if (offset < 0 || length < 0 || length > data.length - offset) {
@@ -248,6 +257,7 @@ public final class CrcModel {
      * {@link java.util.zip.CheckedInputStream} and other code that works with a {@code Checksum}
      * @return new mutable checksum of the empty data
      */
+    @CheckReturnValue
     public @NonNull CrcChecksum checksum() {
         return new CrcChecksum(this);
     }
@@ -264,6 +274,7 @@ public final class CrcModel {
      *         above the CRC width are ignored, so that a CRC-32 kept in an int can be passed as is
      * @throws IllegalArgumentException if the length of the second data is negative
      */
+    @CheckReturnValue
     public long combine(final long value1, final long value2, final long length2) {
         if (length2 < 0) {
             throw new IllegalArgumentException("CrcModel::combine - length2 is negative: " + length2);
@@ -278,6 +289,7 @@ public final class CrcModel {
      * @param data buffer
      * @return CRC of the remaining bytes of the buffer
      */
+    @CheckReturnValue
     public @NonNull CRC crc(@NonNull final ByteBuffer data) {
         Objects.requireNonNull(data, "CrcModel::crc - data is null");
         return this.empty.update(data);
@@ -289,6 +301,7 @@ public final class CrcModel {
      * @param data buffer
      * @return CRC value of the remaining bytes of the buffer
      */
+    @CheckReturnValue
     public long value(@NonNull final ByteBuffer data) {
         Objects.requireNonNull(data, VALUE_NULL_DATA);
         long emptyValue = this.engine.empty();
@@ -304,7 +317,7 @@ public final class CrcModel {
      * @return name of the model
      */
     @Override
-    public String toString() {
+    public @NonNull String toString() {
         return name();
     }
 

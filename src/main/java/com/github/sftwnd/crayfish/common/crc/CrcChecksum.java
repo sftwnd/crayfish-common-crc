@@ -155,7 +155,7 @@ public final class CrcChecksum implements Checksum {
      * @return checksum as string
      */
     @Override
-    public String toString() {
+    public @NonNull String toString() {
         return crc().toString();
     }
 

@@ -4,6 +4,7 @@
  */
 package com.github.sftwnd.crayfish.common.crc;
 
+import edu.umd.cs.findbugs.annotations.CheckReturnValue;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 
@@ -425,6 +426,7 @@ public enum StandardCrc {
      * @param name name or alias of the algorithm
      * @return the algorithm, empty if the catalogue has no algorithm with this name
      */
+    @CheckReturnValue
     public static @NonNull Optional<StandardCrc> find(@NonNull final String name) {
         Name found = name(Objects.requireNonNull(name, "StandardCrc::find - name is null"));
         return found == null ? Optional.empty() : Optional.of(found.standard);
@@ -441,6 +443,7 @@ public enum StandardCrc {
      * @param parameters parameters of the algorithm
      * @return the algorithm, empty if the catalogue has no algorithm with these parameters
      */
+    @CheckReturnValue
     public static @NonNull Optional<StandardCrc> find(@NonNull final CrcParameters parameters) {
         return Optional.ofNullable(BY_PARAMETERS.get(Objects.requireNonNull(parameters, "StandardCrc::find - parameters is null")));
     }
