@@ -14,9 +14,13 @@ import java.nio.ByteBuffer;
  * in the low bits; the register of the other CRCs is aligned to bit 63, so that the calculation does not depend
  * on the width. A CRC up to 32 bits wide is calculated with the register of an int (the low 32 bits of a reflected
  * register, the top 32 bits of the others), a wider one with the register of a long. The lookup tables are built on
- * the first calculation with data
+ * the first calculation with data.
+ * <p>
+ * {@link JdkCrcEngine} extends the engine for the CRCs that a class of the JDK calculates, with the system property
+ * {@link CrcDescription#JDK_PROPERTY}. Without the property no such engine is loaded, and the JIT compiler inlines
+ * the calculation of this class as the only one
  */
-final class CrcEngine {
+class CrcEngine {
 
     // a CRC wider than 32 bits: less than 24 bytes a byte at a time, the 8-byte loop does not pay off its setup
     // (JMH on JDK 21, 1.1.0; a long register, all 8 table lookups of a step depend on the previous step).
@@ -81,6 +85,11 @@ final class CrcEngine {
         return this.empty;
     }
 
+    // whether a class of the JDK calculates the CRC, see JdkCrcEngine; for the tests
+    boolean isJdk() {
+        return false;
+    }
+
     // whether the lookup tables are built, for the tests
     boolean hasTables() {
         return this.tables != null;
@@ -96,7 +105,7 @@ final class CrcEngine {
     }
 
     // the register of a CRC value: the final XOR and the final reflection are undone
-    long register(final long value) {
+    final long register(final long value) {
         long register = (value ^ xorout) & mask;
         if (refin != refout) {
             register = reflect(register);
@@ -104,8 +113,8 @@ final class CrcEngine {
         return refin ? register : register << shift;
     }
 
-    // the CRC value of a register
-    long value(final long register) {
+    // the CRC value of a register; final, as the constructor calls it
+    final long value(final long register) {
         long value = refin ? register : register >>> shift;
         if (refin != refout) {
             value = reflect(value);
