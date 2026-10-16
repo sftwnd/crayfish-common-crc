@@ -31,7 +31,8 @@ final class CrcEngine {
     private final boolean word;
     private final boolean refin;
     private final boolean refout;
-    // a register aligned to bit 63 of a width up to 8 bits: the whole register is in the top byte
+    // a register aligned to bit 63 of a width up to 8 bits: the whole register is in the top byte. Such a CRC is
+    // always calculated with the register of an int, so only updateWord has a loop of its own for it
     private final boolean narrow;
     private final long xorout;
     // the shift of a register aligned to bit 63
@@ -175,8 +176,7 @@ final class CrcEngine {
             if (offset < blocksEnd) {
                 register = alignedBlocks(slices, register, data, offset, blocksEnd);
             }
-            register = narrow ? narrowBytes(slices[0], register, data, blocksEnd, end)
-                              : alignedBytes(slices[0], register, data, blocksEnd, end);
+            register = alignedBytes(slices[0], register, data, blocksEnd, end);
         }
         return value(register);
     }
@@ -311,17 +311,6 @@ final class CrcEngine {
         long crc = register;
         for (int i = offset; i < end; i++) {
             crc = (crc << 8) ^ t0[(int) (((crc >>> 56) ^ data[i]) & 0xff)];
-        }
-        return crc;
-    }
-
-    // a byte at a time, register aligned to bit 63 of a width up to 8 bits: "crc << 8" is 0, so the register is
-    // the table entry alone, without the shift and the XOR on every byte
-    @SuppressWarnings("java:S3034")
-    private static long narrowBytes(final long[] t0, final long register, final byte[] data, final int offset, final int end) {
-        long crc = register;
-        for (int i = offset; i < end; i++) {
-            crc = t0[(int) (((crc >>> 56) ^ data[i]) & 0xff)];
         }
         return crc;
     }
