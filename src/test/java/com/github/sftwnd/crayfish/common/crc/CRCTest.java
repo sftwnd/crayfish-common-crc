@@ -13,6 +13,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
@@ -464,13 +465,52 @@ class CRCTest {
         assertEquals(crc, crc, "A CRC has to be equal to itself");
         assertEquals(crc, model.crc(CHECK), "CRCs of the same model over the same data have to be equal");
         assertEquals(crc.hashCode(), model.crc(CHECK).hashCode(), "Equal CRCs have to have the same hash code");
-        assertEquals(crc, model.crc(crc.value(), crc.length()), "A restored CRC has to be equal");
+        CRC restored = model.crc(crc.value(), crc.length());
+        assertEquals(crc, restored, "A restored CRC has to be equal");
+        assertEquals(crc.hashCode(), restored.hashCode(), "A restored CRC has to have the same hash code");
         assertNotEquals(crc, null, "A CRC is not equal to null");
         assertNotEquals(crc, model, "A CRC is not equal to its model");
         assertNotEquals(crc, model.crc(crc.value() ^ 1, CHECK.length), "CRCs with different values are not equal");
         assertNotEquals(crc, model.crc(crc.value(), CHECK.length + 1), "CRCs with different lengths are not equal");
-        assertNotEquals(crc, CrcModel.of("PKZIP").crc(CHECK), "CRCs of an alias and of its model are not equal");
+        assertNotEquals(crc, CrcModel.of("CRC-32/BZIP2").crc(crc.value(), crc.length()),
+                "CRCs of other parameters with the same value and length are not equal");
+        CRC alias = CrcModel.of("PKZIP").crc(CHECK);
+        assertEquals(crc, alias, "CRCs of a model and of its alias over the same data have to be equal");
+        assertEquals(alias, crc, "CRCs of an alias and of its model over the same data have to be equal");
+        assertEquals(crc.hashCode(), alias.hashCode(), "CRCs of a model and of its alias over the same data have to have the same hash code");
+        assertEquals("PKZIP", alias.name(), "A CRC equal to the CRC of another name has to keep its own name");
         assertEquals(model.crc().hashCode(), CrcModel.of("CRC-32").crc().hashCode(), "Equal empty CRCs have to have the same hash code");
+    }
+
+    @Test
+    void testEqualsOfAllNames() {
+        // the CRCs of the data by the name and by every alias of every algorithm of the catalogue, calculated in other
+        // ways too (in parts, combined with the CRC of another name, restored, by a checksum), are equal and have the
+        // same hash code, so that a set keeps one of them
+        for (StandardCrc standard : StandardCrc.values()) {
+            CrcModel main = standard.model();
+            CRC expected = main.crc(CHECK);
+            Set<CRC> set = new HashSet<>();
+            for (String name : standard.names()) {
+                CrcModel model = CrcModel.of(name);
+                CrcChecksum checksum = model.checksum();
+                checksum.update(CHECK, 0, CHECK.length);
+                List<CRC> crcs = Arrays.asList(
+                        model.crc(CHECK),
+                        model.crc(CHECK, 4).update(CHECK, 4, CHECK.length - 4),
+                        model.crc(CHECK, 3).combine(main.crc(CHECK, 3, CHECK.length - 3)),
+                        main.crc(CHECK, 3).combine(model.crc(CHECK, 3, CHECK.length - 3)),
+                        model.crc(expected.value(), expected.length()),
+                        checksum.crc());
+                for (CRC crc : crcs) {
+                    assertEquals(expected, crc, name + ": the CRC has to be equal to the CRC of " + standard.crcName());
+                    assertEquals(crc, expected, name + ": the CRC of " + standard.crcName() + " has to be equal to the CRC");
+                    assertEquals(expected.hashCode(), crc.hashCode(), name + ": equal CRCs have to have the same hash code");
+                }
+                set.addAll(crcs);
+            }
+            assertEquals(1, set.size(), standard.crcName() + ": a set has to keep one CRC of the data for all the names");
+        }
     }
 
     @Test

@@ -271,6 +271,11 @@ included, see [CRC-32 and CRC-32C of the JDK](#crc-32-and-crc-32c-of-the-jdk).
     String chosen = CrcModel.of("PKZIP").crc(data).name();   // PKZIP: the name the model was chosen by
 ```
 
+A CRC keeps the name its model was chosen by, but CRCs are compared by the parameters: CRCs with the same description,
+CRC value and length are equal and have the same hash code, whatever the names or the aliases of their models, so
+`CrcModel.of("PKZIP").crc(data).equals(CrcModel.of("CRC-32").crc(data))` is `true` (*2.1.0*; in 2.0.0 the CRCs of the
+models of other names were not equal).
+
 Parameters outside the catalogue have a unique name made of the parameters and no aliases:
 `CRC-{width}/P{poly}_I{init}[_RI][_RO][_X{xorout}]`, the values hexadecimal without leading zeros, `_RI` and `_RO` for
 refin and refout, `_X` for a non-zero xorout (the format of the names of unregistered models of 1.x). `CrcModel.of()`
