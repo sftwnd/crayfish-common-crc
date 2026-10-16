@@ -22,6 +22,7 @@ import static java.nio.charset.StandardCharsets.US_ASCII;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -89,16 +90,38 @@ class JdkIT {
     @Test
     void testClassesOfTheJdk() {
         assertEquals("true", System.getProperty(CrcDescription.JDK_PROPERTY), "The test has to run with " + CrcDescription.JDK_PROPERTY + "=true");
+        assertTrue(CrcDescription.isJdk(), "The property has to make the classes of the JDK the default");
         for (String name : new String[]{"CRC-32/ISO-HDLC", "CRC-32", "PKZIP", "CRC-32/JAMCRC", "JAMCRC"}) {
-            assertTrue(CrcModel.of(name).description().engine().isJdk(), name + ": java.util.zip.CRC32 has to calculate the CRC on every Java version");
+            assertTrue(CrcModel.of(name).isJdk(), name + ": java.util.zip.CRC32 has to calculate the CRC on every Java version");
         }
         for (String name : new String[]{"CRC-32/ISCSI", "CRC-32C", "CRC-32/CASTAGNOLI"}) {
-            assertEquals(java9(), CrcModel.of(name).description().engine().isJdk(),
+            assertEquals(java9(), CrcModel.of(name).isJdk(),
                     name + ": java.util.zip.CRC32C has to calculate the CRC on Java 9+, the lookup tables of the library on Java 8");
         }
         for (String name : new String[]{"CRC-32/BZIP2", "CRC-32/MPEG-2", "CRC-32/CKSUM", "CRC-32/AUTOSAR", "CRC-16/ARC", "CRC-64/XZ"}) {
-            assertFalse(CrcModel.of(name).description().engine().isJdk(), name + ": no class of the JDK calculates the CRC");
+            assertFalse(CrcModel.of(name).isJdk(), name + ": no class of the JDK calculates the CRC");
         }
+    }
+
+    @Test
+    void testDefaultChangedByACall() {
+        CrcModel jdk = CrcModel.of("CRC-32C");
+        CrcDescription.setJdk(false);
+        try {
+            CrcModel tables = CrcModel.of("CRC-32C");
+            assertFalse(tables.isJdk(), "After setJdk(false) a model has to be calculated by the lookup tables");
+            assertEquals(java9(), jdk.isJdk(), "A model chosen before the change of the default has to keep its way");
+            assertSame(jdk, tables.withJdk(true), "withJdk(true) has to give the model chosen before");
+            assertEquals(java9(), CrcModel.of("CRC-32C", true).isJdk(), "java.util.zip.CRC32C has to calculate the model of the JDK on Java 9+");
+            CRC byJdk = jdk.crc(DATA);
+            CRC byTables = tables.crc(DATA);
+            assertEquals(CrcReference.crc(jdk.parameters(), DATA), byJdk.value(), "Wrong value of the model of the JDK");
+            assertEquals(byJdk, byTables, "The CRCs of both ways have to be equal");
+            assertEquals(byJdk.hashCode(), byTables.hashCode(), "The CRCs of both ways have to have the same hash code");
+        } finally {
+            CrcDescription.setJdk(true);
+        }
+        assertSame(jdk, CrcModel.of("CRC-32C"), "After setJdk(true) the model of the JDK has to be given again");
     }
 
     @Test

@@ -10,14 +10,15 @@ import java.nio.ByteBuffer;
 import java.util.zip.Checksum;
 
 /**
- * The engine of a CRC that a class of the JDK calculates ({@link JdkCrc}), with the system property
- * {@link CrcDescription#JDK_PROPERTY}: a reflected CRC 32 bits wide of the polynomial of the class, whatever init,
- * refout and xorout. The class of the JDK calculates the data from its minimal length on and a direct buffer at its
- * address; the lookup tables of the engine calculate shorter data and single bytes, and {@code combine} stays with
- * the engine. The register of a checksum of the JDK is the reflected register of the engine.
+ * The engine of the models of a CRC that a class of the JDK calculates ({@link JdkCrc}), see
+ * {@link CrcModel#withJdk(boolean)}: a reflected CRC 32 bits wide of the polynomial of the class, whatever init, refout
+ * and xorout. The class of the JDK calculates the data from its minimal length on and a direct buffer at its address;
+ * the engine of the lookup tables of the description calculates shorter data, single bytes and {@code combine}, so that
+ * the parameters calculated both ways have one set of lookup tables. The register of a checksum of the JDK is
+ * the reflected register of the engine.
  * <p>
- * An engine of its own, so that the calculation of the other CRCs, and of every CRC without the property, has no check
- * of the JDK: without the property this class is not loaded
+ * An engine of its own, so that the calculation of the models of the lookup tables has no check of the JDK: as long as
+ * no model of a class of the JDK is chosen, this class is not loaded
  */
 final class JdkCrcEngine extends CrcEngine {
 
@@ -25,18 +26,21 @@ final class JdkCrcEngine extends CrcEngine {
     private static final int JDK_REGISTER = -1;
 
     private final JdkCrc<?> jdk;
+    // the engine of the lookup tables of the description
+    private final CrcEngine lookup;
 
-    private JdkCrcEngine(@NonNull final CrcParameters parameters, @NonNull final JdkCrc<?> jdk) {
+    private JdkCrcEngine(@NonNull final CrcParameters parameters, @NonNull final JdkCrc<?> jdk, @NonNull final CrcEngine lookup) {
         super(parameters);
         this.jdk = jdk;
+        this.lookup = lookup;
     }
 
-    // the engine of the parameters: the one of the class of the JDK that calculates them, otherwise the lookup tables
-    // alone. A reflected CRC-32 has the register of the class of the JDK of its polynomial; init, refout and xorout are
-    // the conversion of the engine between the register and the CRC value
-    static @NonNull CrcEngine of(@NonNull final CrcParameters parameters) {
-        JdkCrc<?> jdk = parameters.width() == Integer.SIZE && parameters.refin() ? JdkCrcs.of(parameters.poly()) : null;
-        return jdk == null ? new CrcEngine(parameters) : new JdkCrcEngine(parameters, jdk);
+    // the engine of the parameters calculated by the class of the JDK, with the engine of the lookup tables of the
+    // description for the short data. A reflected CRC-32 has the register of the class of the JDK of its polynomial;
+    // init, refout and xorout are the conversion of the engine between the register and the CRC value. The type
+    // CrcEngine of the result keeps this class out of the verification of the caller, see CrcDescription
+    static @NonNull CrcEngine of(@NonNull final CrcParameters parameters, @NonNull final JdkCrc<?> jdk, @NonNull final CrcEngine lookup) {
+        return new JdkCrcEngine(parameters, jdk, lookup);
     }
 
     @Override
@@ -48,13 +52,26 @@ final class JdkCrcEngine extends CrcEngine {
     // length on, the lookup tables below
     @Override
     long update(final long value, @NonNull final byte[] data, final int offset, final int length) {
-        return length >= jdk.minLength ? jdkUpdate(value, data, offset, length) : super.update(value, data, offset, length);
+        return length >= jdk.minLength ? jdkUpdate(value, data, offset, length) : lookup.update(value, data, offset, length);
+    }
+
+    // a single byte: the lookup tables
+    @Override
+    long update(final long value, final byte b) {
+        return lookup.update(value, b);
+    }
+
+    // the class of the JDK has no combine: the operators of the zero bytes of the description
+    @Override
+    long combine(final long value1, final long value2, final long length2) {
+        return lookup.combine(value1, value2, length2);
     }
 
     // the CRC value after the remaining bytes of the buffer, see the engine: the class of the JDK calculates a direct
     // buffer at its address, without the copy of the engine; a heap buffer goes the way of its array. A read-only heap
     // buffer is copied by the engine in parts, which the class of the JDK calculates: CRC32 of Java 8 would copy all
-    // the bytes of such a buffer into one array
+    // the bytes of such a buffer into one array. The parts and the array go to update of this engine, so the lookup
+    // tables of this engine are not built
     @Override
     long update(final long value, @NonNull final ByteBuffer data) {
         return data.isDirect() && data.remaining() >= jdk.minLength ? jdkUpdate(jdk, value, data) : super.update(value, data);
