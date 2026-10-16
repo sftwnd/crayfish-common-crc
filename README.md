@@ -25,7 +25,7 @@ the latest 1.x release; see [Versions and support](#versions-and-support) for th
   one byte per step on buffers from 256 bytes
 - **CPU instructions on request** — a system property makes the JDK classes `java.util.zip.CRC32` and `CRC32C`
   calculate CRC-32, CRC-32/JAMCRC and CRC-32C with the CRC instructions of the CPU, with the whole API of the
-  library (*2.0.1*)
+  library (*2.1.0*)
 - **Immutable** — a CRC is a value: an update or a combination gives a new CRC, so a CRC can be shared between threads
   and kept as the state of a calculation (*2.0*)
 - **Combine and resume** — join the CRCs of parts calculated independently (in parallel threads or on other nodes),

@@ -51,7 +51,7 @@ public final class CrcDescription {
     /**
      * System property that makes the classes of the JDK calculate the CRCs they can: {@code true}; not set by default,
      * when the lookup tables of the library calculate every CRC
-     * @since 2.0.1
+     * @since 2.1.0
      */
     public static final String JDK_PROPERTY = "com.github.sftwnd.crayfish.common.crc.jdk";
 
