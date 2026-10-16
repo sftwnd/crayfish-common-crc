@@ -23,6 +23,9 @@ the latest 1.x release; see [Versions and support](#versions-and-support) for th
 
 - **Fast** — table-driven, slicing-by-8 for every model, not only for CRC-32: 8 bytes per step, 2–4 times faster than
   one byte per step on buffers from 256 bytes
+- **CPU instructions on request** — a system property makes the JDK classes `java.util.zip.CRC32` and `CRC32C`
+  calculate CRC-32, CRC-32/JAMCRC and CRC-32C with the CRC instructions of the CPU, with the whole API of the
+  library (*2.0.1*)
 - **Immutable** — a CRC is a value: an update or a combination gives a new CRC, so a CRC can be shared between threads
   and kept as the state of a calculation (*2.0*)
 - **Combine and resume** — join the CRCs of parts calculated independently (in parallel threads or on other nodes),
@@ -253,9 +256,10 @@ A `CrcChecksum` can be used directly as well; unlike a `CRC` it is mutable and n
 
 `checksum.update(ByteBuffer)` works with heap, direct and read-only buffers, on Java 8 as well.
 
-For CRC-32/ISO-HDLC itself, and for CRC-32C on Java 9+, the JDK classes `java.util.zip.CRC32` and `CRC32C` are faster:
-the JVM calculates them with the CRC instructions of the CPU (about 4 times faster on 256 bytes). `CrcChecksum` is for
-the other CRCs, and for the code that has to work with any model.
+For CRC-32/ISO-HDLC, CRC-32/JAMCRC and, on Java 9+, CRC-32C the JDK classes `java.util.zip.CRC32` and `CRC32C` are
+faster: the JVM calculates them with the CRC instructions of the CPU. The system property
+`com.github.sftwnd.crayfish.common.crc.jdk=true` makes the library calculate these models with them, `CrcChecksum`
+included, see [CRC-32 and CRC-32C of the JDK](#crc-32-and-crc-32c-of-the-jdk).
 
 ## Names
 
@@ -286,6 +290,54 @@ algorithm of the catalogue gives the model with the name of the algorithm.
 - On Java 9+ the daemon thread `crayfish-crc-eviction` of a `java.lang.ref.Cleaner` removes the entries of the collected
   descriptions from the pool; before Java 9, and with a jar without the `Multi-Release` attribute, the pool removes them
   when it is used.
+
+## CRC-32 and CRC-32C of the JDK
+
+The JDK has classes of its own for two CRCs, and the JVM calculates them with the CRC instructions of the CPU.
+The system property
+
+```shell
+-Dcom.github.sftwnd.crayfish.common.crc.jdk=true
+```
+
+makes the library calculate the models of these CRCs with them, with the whole API of the library: names and aliases,
+immutable CRCs, combine, resume, `CrcChecksum`, `ByteBuffer`:
+
+| Class of the JDK | Java | Models | From |
+|---|---|---|---|
+| `java.util.zip.CRC32` | 8+ | CRC-32/ISO-HDLC and its aliases (CRC-32, PKZIP, CRC-32/XZ, …), CRC-32/JAMCRC | 64 bytes, 128 on Java 8 |
+| `java.util.zip.CRC32C` | 9+ | CRC-32/ISCSI and its aliases (CRC-32C, CRC-32/CASTAGNOLI, …) | 8 bytes |
+
+- The property is not set by default: every CRC is calculated by the lookup tables of the library. It is read once,
+  when the first model is created.
+- The CRC values are the same, only the speed changes. The choice is made by the parameters, not by the name: every
+  model of the parameters, by a name, an alias, the parameters or the builder; in general a CRC 32 bits wide with
+  refin and the polynomial of the class, whatever init, refout and xorout.
+- Java 8 has no `CRC32C`: there CRC-32C is calculated by the lookup tables of the library, with the property too.
+  So it is with a jar without the `Multi-Release` attribute and with the class directory of a build as well: the class
+  that knows `CRC32C` is in `META-INF/versions/9`.
+- A class of the JDK calculates the data from the length of the table on (shorter data is as fast or faster with
+  the lookup tables, JMH on x86), a direct `ByteBuffer` at its address, without a copy. Shorter data, the single bytes
+  of `CrcChecksum.update(int)` and `combine` stay with the library.
+- A checksum of the JDK cannot be given a CRC value to start from. For the CRC of data processed before (an update of
+  a CRC with data, a resumed CRC, every update of a `CrcChecksum` after the first one) the library gives the class of
+  the JDK the first 4 bytes of the data XOR-ed with the difference of the register of the value and the initial
+  register `0xFFFFFFFF`, and the rest of the data as it is: after 4 bytes the register of a reflected CRC-32 depends
+  only on the register XOR-ed with them. The data itself is not changed.
+- Without the property nothing changes: the class of the calculation with the JDK is not even loaded.
+
+`model.value(data)` without and with the property (JMH, Intel Core i9-9980HK, the average time of a call):
+
+| Model, JDK | 16 B | 256 B | 4 KB | 1 MB |
+|---|---|---|---|---|
+| CRC-32, JDK 25 | 13.8 → 16.0 ns | 141 → 62 ns | 2.24 → 0.20 µs | 515 → 42 µs |
+| CRC-32C, JDK 25 | 13.8 → 5.5 ns | 145 → 13 ns | 2.14 → 0.13 µs | 513 → 41 µs |
+| CRC-32, JDK 8 | 18.8 → 19.6 ns | 141 → 59 ns | 2.41 → 0.20 µs | 615 → 39 µs |
+
+A CRC continued from a value is about as fast (CRC-32 of 4 KB on JDK 25 1.98 → 0.19 µs, CRC-32C 2.08 → 0.15 µs), and
+so is a direct `ByteBuffer` (CRC-32 of 4 KB 2.21 → 0.17 µs, CRC-32C 2.34 → 0.14 µs). Below the lengths of the table
+above the lookup tables calculate, so CRC-32 of 16 bytes costs about the same with the property: the class of the JDK
+only adds the check of the length.
 
 ## Supported CRC algorithms
 
@@ -398,8 +450,8 @@ module my.application {
 }
 ```
 
-The module descriptor and the Java 9 version of the eviction of the pool are in `META-INF/versions/9` of the
-multi-release jar, so Java 8 ignores them.
+The module descriptor, the Java 9 version of the eviction of the pool and the class that knows `java.util.zip.CRC32C`
+are in `META-INF/versions/9` of the multi-release jar, so Java 8 ignores them.
 
 ## Building
 
