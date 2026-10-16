@@ -158,6 +158,7 @@
                     </includes>
                     <excludes>
                         <exclude>**/SoftRetentionIT.java</exclude>
+                        <exclude>**/JdkIT.java</exclude>
                     </excludes>
                 </configuration>
                 <executions>
@@ -185,6 +186,26 @@
                             </systemPropertyVariables>
                             <argLine>@{argLine} -Xmx64m</argLine>
                             <summaryFile>${project.build.directory}/failsafe-reports/failsafe-summary-soft-retention.xml</summaryFile>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <!-- CRC-32 and CRC-32C calculated by the classes of the JDK, in a JVM of its own: the property is
+                             read once, when the first model is created; on Java 9+ the jar gives the version of JdkCrcs
+                             that knows CRC32C -->
+                        <id>jdk</id>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                        <configuration>
+                            <includes>
+                                <include>**/JdkIT.java</include>
+                            </includes>
+                            <excludes combine.self="override" />
+                            <systemPropertyVariables>
+                                <com.github.sftwnd.crayfish.common.crc.jdk>true</com.github.sftwnd.crayfish.common.crc.jdk>
+                            </systemPropertyVariables>
+                            <summaryFile>${project.build.directory}/failsafe-reports/failsafe-summary-jdk.xml</summaryFile>
                         </configuration>
                     </execution>
                 </executions>

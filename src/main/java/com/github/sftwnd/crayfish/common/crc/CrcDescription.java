@@ -11,6 +11,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.UnaryOperator;
 
 /**
  * The description of a CRC parameter set: its names, its check value and the internal structures of the calculation.
@@ -28,6 +29,13 @@ import java.util.Optional;
  * is used first. On Java 9+ a cleaner thread removes the entry of a collected description from the pool, before Java 9
  * the pool removes such entries when it is used.
  * <p>
+ * The system property {@value #JDK_PROPERTY} {@code = true} makes the classes of the JDK calculate the CRCs they can,
+ * with the CRC instructions of the CPU: {@code java.util.zip.CRC32} the parameters of CRC-32/ISO-HDLC and
+ * CRC-32/JAMCRC, {@code java.util.zip.CRC32C} on Java 9+ those of CRC-32/ISCSI (CRC-32C); generally a CRC 32 bits wide
+ * with refin and the polynomial of the class, whatever init, refout and xorout. Java 8 has no {@code CRC32C}, so
+ * CRC-32C is calculated by the lookup tables of the library there. Only the speed changes, not the CRC values.
+ * The property is not set by default and is read once, when the first model is created.
+ * <p>
  * A description is unique for its parameters, so it is compared by identity. Descriptions are immutable and thread-safe.
  *
  * @since 2.0.0
@@ -40,7 +48,17 @@ public final class CrcDescription {
      */
     public static final String RETENTION_PROPERTY = "com.github.sftwnd.crayfish.common.crc.retention";
 
+    /**
+     * System property that makes the classes of the JDK calculate the CRCs they can: {@code true}; not set by default,
+     * when the lookup tables of the library calculate every CRC
+     * @since 2.0.1
+     */
+    public static final String JDK_PROPERTY = "com.github.sftwnd.crayfish.common.crc.jdk";
+
     private static final byte[] CHECK_DATA = CrcParameters.CHECK_INPUT.getBytes(StandardCharsets.US_ASCII);
+
+    // whether the classes of the JDK calculate the CRCs they can: read once, before the first description is created
+    private static final boolean JDK = jdk(System::getProperty);
 
     // the descriptions in use: one per parameter set
     private static final Interner<CrcParameters, CrcDescription> DESCRIPTIONS = new Interner<>(Retention.configured());
@@ -57,7 +75,8 @@ public final class CrcDescription {
     private CrcDescription(@NonNull final CrcParameters parameters) {
         this.parameters = parameters;
         this.standard = StandardCrc.find(parameters).orElse(null);
-        this.engine = new CrcEngine(parameters);
+        // JdkCrcEngine is loaded only with the property
+        this.engine = JDK ? JdkCrcEngine.of(parameters) : new CrcEngine(parameters);
         if (this.standard != null) {
             this.names = this.standard.names();
             this.aliases = this.standard.aliases();
@@ -71,6 +90,19 @@ public final class CrcDescription {
         for (int index = 0; index < this.models.length; index++) {
             this.models[index] = new CrcModel(this, index);
         }
+    }
+
+    /* whether the property read by the function asks for the classes of the JDK: "true" in any case. A security manager
+       that does not allow to read the property gives the default, the lookup tables of the library; the function is
+       a parameter for the tests of such a manager, which newer JDKs do not allow to install */
+    static boolean jdk(@NonNull final UnaryOperator<String> properties) {
+        String value;
+        try {
+            value = properties.apply(JDK_PROPERTY);
+        } catch (SecurityException e) {
+            value = null;
+        }
+        return value != null && Boolean.parseBoolean(value.trim());
     }
 
     // the description of the parameters: the one in use, or a new one
