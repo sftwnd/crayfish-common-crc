@@ -14,13 +14,14 @@ import java.util.Random;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
- * The calculation by the classes of the JDK: JdkCrcEngine against the engine of the lookup tables alone in one JVM.
- * The unit tests run with the class directory, where JdkCrcs is the version of Java 8 on every Java version, which knows
- * java.util.zip.CRC32 only; the property and java.util.zip.CRC32C of Java 9+ are tested by JdkIT with the jar
+ * The calculation by the classes of the JDK: the models of the class of the JDK against the models of the lookup tables
+ * in one JVM. The unit tests run with the class directory, where JdkCrcs is the version of Java 8 on every Java version,
+ * which knows java.util.zip.CRC32 only; the property and java.util.zip.CRC32C of Java 9+ are tested by JdkIT with the jar
  */
 class JdkCrcTest {
 
@@ -85,16 +86,17 @@ class JdkCrcTest {
     @Test
     void testDefaultWithoutTheProperty() {
         assumeTrue(System.getProperty(CrcDescription.JDK_PROPERTY) == null, "the property is set");
+        assertFalse(CrcDescription.isJdk(), "Without the property the default has to be the lookup tables of the library");
         for (String name : new String[]{"CRC-32", "CRC-32/JAMCRC", "CRC-32C"}) {
-            assertFalse(CrcModel.of(name).description().engine().isJdk(), name + ": without the property the lookup tables of the library have to calculate");
+            assertFalse(CrcModel.of(name).isJdk(), name + ": without the property the lookup tables of the library have to calculate");
         }
     }
 
     @Test
     void testParametersOfTheJdk() {
         for (CrcParameters parameters : parametersOfCrc32()) {
-            assertTrue(JdkCrcEngine.of(parameters).isJdk(), parameters + ": CRC32 has to calculate a reflected CRC-32 of its polynomial");
-            assertFalse(new CrcEngine(parameters).isJdk(), parameters + ": the engine without the JDK has to calculate with the lookup tables");
+            assertTrue(CrcModel.of(parameters, true).isJdk(), parameters + ": CRC32 has to calculate a reflected CRC-32 of its polynomial");
+            assertFalse(CrcModel.of(parameters, false).isJdk(), parameters + ": the model of the lookup tables has to calculate with the lookup tables");
         }
         // not reflected, another polynomial, another width; CRC-32C: the version of JdkCrcs of Java 8 knows no CRC32C
         List<CrcParameters> others = Arrays.asList(
@@ -107,14 +109,15 @@ class JdkCrcTest {
                 StandardCrc.CRC_16_ARC.parameters(),
                 StandardCrc.CRC_32_ISCSI.parameters());
         for (CrcParameters parameters : others) {
-            assertFalse(JdkCrcEngine.of(parameters).isJdk(), parameters + ": no class of the JDK of Java 8 calculates the CRC");
+            assertFalse(CrcModel.of(parameters, true).isJdk(), parameters + ": no class of the JDK of Java 8 calculates the CRC");
+            assertSame(CrcModel.of(parameters, false), CrcModel.of(parameters, true), parameters + ": the model of the lookup tables has to be given");
         }
     }
 
     @Test
     void testArrays() {
         for (CrcParameters parameters : parametersOfCrc32()) {
-            CrcEngine engine = JdkCrcEngine.of(parameters);
+            CrcEngine engine = CrcModel.of(parameters, true).engine();
             // the lookup tables below the minimal length of CRC32, CRC32 from it on
             for (int offset : new int[]{0, 1, 3, 7}) {
                 for (int length = 1; length <= 2 * MIN_LENGTH + 9; length++) {
@@ -136,8 +139,8 @@ class JdkCrcTest {
         // random registers
         long[] edges = {0xFFFFFFFFL, 0x0L, 0x1L, 0x80000000L, 0x7FFFFFFFL, 0xFFFFFFFEL, 0xFF000000L, 0x000000FFL};
         for (CrcParameters parameters : parametersOfCrc32()) {
-            CrcEngine engine = JdkCrcEngine.of(parameters);
-            CrcEngine tables = new CrcEngine(parameters);
+            CrcEngine engine = CrcModel.of(parameters, true).engine();
+            CrcEngine tables = CrcModel.of(parameters, false).engine();
             for (int i = 0; i < 2000; i++) {
                 long register = i < edges.length ? edges[i] : random.nextInt() & 0xFFFFFFFFL;
                 long value = tables.value(register);
@@ -154,7 +157,7 @@ class JdkCrcTest {
         // parts of the lookup tables and of CRC32 one after another, and single bytes, which the lookup tables calculate
         int[] parts = {100, 1, 1, MIN_LENGTH - 1, MIN_LENGTH, 1, 5000, 3, 1000};
         for (CrcParameters parameters : parametersOfCrc32()) {
-            CrcEngine engine = JdkCrcEngine.of(parameters);
+            CrcEngine engine = CrcModel.of(parameters, true).engine();
             long value = engine.empty();
             int offset = 0;
             for (int part : parts) {
@@ -169,7 +172,7 @@ class JdkCrcTest {
     void testByteBuffers() {
         int[] lengths = {1, MIN_LENGTH - 1, MIN_LENGTH, 100, 4095, 4096, 4097, 9000};
         for (CrcParameters parameters : parametersOfCrc32()) {
-            CrcEngine engine = JdkCrcEngine.of(parameters);
+            CrcEngine engine = CrcModel.of(parameters, true).engine();
             // the value of the first 9 bytes, the buffer the next bytes
             long first = engine.update(engine.empty(), DATA, 0, 9);
             for (int length : lengths) {

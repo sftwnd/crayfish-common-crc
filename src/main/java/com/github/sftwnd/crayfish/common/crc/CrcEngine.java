@@ -16,9 +16,9 @@ import java.nio.ByteBuffer;
  * register, the top 32 bits of the others), a wider one with the register of a long. The lookup tables are built on
  * the first calculation with data.
  * <p>
- * {@link JdkCrcEngine} extends the engine for the CRCs that a class of the JDK calculates, with the system property
- * {@link CrcDescription#JDK_PROPERTY}. Without the property no such engine is loaded, and the JIT compiler inlines
- * the calculation of this class as the only one
+ * {@link JdkCrcEngine} extends the engine for the models of the CRCs that a class of the JDK calculates, see
+ * {@link CrcModel#withJdk(boolean)}. As long as no such model is chosen, no such engine is loaded, and the JIT compiler
+ * inlines the calculation of this class as the only one
  */
 class CrcEngine {
 
@@ -86,7 +86,7 @@ class CrcEngine {
         return this.empty;
     }
 
-    // whether a class of the JDK calculates the CRC, see JdkCrcEngine; for the tests
+    // whether a class of the JDK calculates the CRC, see JdkCrcEngine and CrcModel.isJdk
     boolean isJdk() {
         return false;
     }
