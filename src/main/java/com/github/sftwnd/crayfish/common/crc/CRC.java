@@ -18,7 +18,8 @@ import java.util.Objects;
  * <p>
  * A calculation starts with {@link CrcModel#crc()} (the CRC of the empty data) or with {@link CrcModel#crc(long, long)}
  * (the CRC of data processed before). The CRC has the name of its model: a CRC of a model chosen by an alias tells
- * the alias.
+ * the alias. CRCs are compared by the parameters, not by the names: CRCs with the same description, CRC value and
+ * length are equal, whatever the names or the aliases their models were chosen by.
  *
  * @since 2.0.0
  * @author Andrey D. Shindarev
@@ -180,9 +181,11 @@ public final class CRC {
     }
 
     /**
-     * CRCs are equal if they have the same model, value and length
+     * CRCs are equal if they have the same description, CRC value and length, whatever the names or the aliases their
+     * models were chosen by: the CRCs of the same data by {@code CRC-32} and by {@code PKZIP} are equal (since 2.1.0;
+     * before, the CRCs of the models of other names were not equal)
      * @param o object to compare with
-     * @return true if o is a CRC with the same model, value and length
+     * @return true if o is a CRC with the same description, value and length
      */
     // @CheckForNull, as SpotBugs takes the parameter of Object.equals: @Nullable would tighten it
     @Override
@@ -194,14 +197,16 @@ public final class CRC {
             return false;
         }
         final CRC other = (CRC) o;
-        return this.model == other.model
+        // one description per parameter set, kept by the CRC: the CRCs of the same parameters have the same description
+        return this.model.description() == other.model.description()
             && this.value == other.value
             && this.length == other.length;
     }
 
+    // of the description, not of the model: equal CRCs of the models of other names have the same hash code
     @Override
     public int hashCode() {
-        int result = this.model.hashCode();
+        int result = this.model.description().hashCode();
         result = 31 * result + Long.hashCode(this.value);
         return 31 * result + Long.hashCode(this.length);
     }
