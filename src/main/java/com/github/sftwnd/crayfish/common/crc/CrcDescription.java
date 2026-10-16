@@ -227,7 +227,10 @@ public final class CrcDescription {
     }
 
     // the model of the name with the index in the names: calculated by the class of the JDK if jdk is true and a class
-    // of the JDK calculates the parameters, otherwise by the lookup tables
+    // of the JDK calculates the parameters, otherwise by the lookup tables. The index is the one of a name of the
+    // description (0, the name of the description, or the index of a name found), and both arrays have a model per
+    // name: javabugs:S6466 is a false positive
+    @SuppressWarnings("javabugs:S6466")
     @NonNull CrcModel model(final int index, final boolean jdk) {
         return jdk ? jdkModels()[index] : this.models[index];
     }

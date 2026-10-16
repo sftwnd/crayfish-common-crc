@@ -36,8 +36,8 @@ final class JdkCrcEngine extends CrcEngine {
     }
 
     // the engine of the parameters calculated by the class of the JDK, with the engine of the lookup tables of the
-    // description for the short data. A reflected CRC-32 has the register of the class of the JDK of its polynomial;
-    // init, refout and xorout are the conversion of the engine between the register and the CRC value. The type
+    // description for the short data. A reflected CRC-32 has the register of the class of the JDK of its polynomial,
+    // and init, refout and xorout are the conversion of the engine between the register and the CRC value. The type
     // CrcEngine of the result keeps this class out of the verification of the caller, see CrcDescription
     static @NonNull CrcEngine of(@NonNull final CrcParameters parameters, @NonNull final JdkCrc<?> jdk, @NonNull final CrcEngine lookup) {
         return new JdkCrcEngine(parameters, jdk, lookup);
