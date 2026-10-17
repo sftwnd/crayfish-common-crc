@@ -12,11 +12,15 @@ import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.LockSupport;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -103,6 +107,52 @@ class InternerTest {
             }
             assertEquals(1, values.size(), "Concurrent threads have to get one value of the key");
             assertEquals(1, created.get(), "One value has to be created for the key");
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    // waits until the thread is blocked by a lock: the lock of the entry in compute, as the factory of another thread
+    // holds it; the thread found no value on the fast path before
+    private static void awaitBlocked(AtomicReference<Thread> thread) {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+        while (thread.get() == null || thread.get().getState() != Thread.State.BLOCKED) {
+            if (System.nanoTime() - deadline > 0) {
+                throw new IllegalStateException("The second thread has not been blocked by the lock of the entry");
+            }
+            LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(1));
+        }
+    }
+
+    @Test
+    void testInternOfAKeyBeingCreated() throws Exception {
+        // the path of intern where compute finds the value that another thread has just created, in every run:
+        // testConcurrentIntern reaches it only when two of its threads meet inside compute
+        Interner<String, Object> interner = new Interner<>(Retention.WEAK);
+        AtomicInteger created = new AtomicInteger();
+        CountDownLatch creating = new CountDownLatch(1);
+        AtomicReference<Thread> second = new AtomicReference<>();
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            // the factory of the first thread waits inside compute until the second thread waits for the entry
+            Future<Object> first = executor.submit(() -> interner.intern("a", key -> {
+                created.incrementAndGet();
+                creating.countDown();
+                awaitBlocked(second);
+                return new Object();
+            }));
+            assertTrue(creating.await(30, TimeUnit.SECONDS), "The factory of the first thread has to be called");
+            Future<Object> next = executor.submit(() -> {
+                second.set(Thread.currentThread());
+                return interner.intern("a", key -> {
+                    created.incrementAndGet();
+                    return new Object();
+                });
+            });
+            Object value = first.get(30, TimeUnit.SECONDS);
+            assertSame(value, next.get(30, TimeUnit.SECONDS), "The second thread has to get the value created by the first one");
+            assertEquals(1, created.get(), "The value of the key has to be created once");
+            assertSame(value, interner.intern("a", key -> new Object()), "The value created has to stay in the pool");
         } finally {
             executor.shutdownNow();
         }
