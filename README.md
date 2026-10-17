@@ -131,6 +131,32 @@ Every setter checks that the value fits into the width. `build()` throws `Illega
 is not set: they have no neutral value, a forgotten one would give another CRC. A wrong check value makes `build()`
 throw `IllegalArgumentException`.
 
+### By samples of data
+
+To find out the CRC of a device or of a file format, take samples of its data with their CRCs:
+`StandardCrc.matching(data, value)` gives the algorithms of the catalogue whose CRC of the data is the value (*2.1.0*).
+
+```java
+    Set<StandardCrc> found = StandardCrc.matching(data, 0x4B37L);                    // the algorithms that give the value
+    found.retainAll(StandardCrc.matching(frame, 0, frame.length - 2, crcOfFrame));   // another sample narrows them down
+    if (found.size() == 1) {                                                         // the algorithm of the samples
+        CrcModel model = found.iterator().next().model();
+    }
+```
+
+One sample is ambiguous: an algorithm of n bits matches random data with a probability of 2^-n, so the algorithms of
+3 to 8 bits often match by chance. Take several samples and keep the algorithms that match all of them with
+`retainAll()`. The result is a new modifiable `EnumSet` in the order of the catalogue, empty if no algorithm gives the
+value.
+
+Unlike `model.crc(value, length)` and `combine`, the value is compared as it is: a value with bits above the width of an
+algorithm does not match it, so a CRC-32 kept in an `int` is given as `crc & 0xFFFFFFFFL`. Ignoring such bits would make
+the low bits of a 16-bit value match the CRC-8 algorithms.
+
+The CRCs are calculated with the lookup tables of the library, CRC-32 and CRC-32C as well: a call with data builds the
+tables of every algorithm whose width the value fits into, about 1 MiB for all 112, and the garbage collector collects
+them afterwards unless models of the algorithms are in use (see [Memory](#memory)).
+
 ## CRC
 
 ### Calculate

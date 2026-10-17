@@ -11,11 +11,13 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * The CRC algorithms of the <a href="https://reveng.sourceforge.io/crc-catalogue/all.htm">RevEng catalogue of
@@ -446,6 +448,64 @@ public enum StandardCrc {
     @CheckReturnValue
     public static @NonNull Optional<StandardCrc> find(@NonNull final CrcParameters parameters) {
         return Optional.ofNullable(BY_PARAMETERS.get(Objects.requireNonNull(parameters, "StandardCrc::find - parameters is null")));
+    }
+
+    /**
+     * Find the algorithms whose CRC of the data is the value: a sample of the data of a device or of a file format with
+     * its CRC tells the algorithms of the catalogue that the CRC can be. The value is compared as it is, unlike the value
+     * of {@link CrcModel#crc(long, long)}: a value with bits above the width of an algorithm does not match it, so
+     * a CRC-32 kept in an int is given as {@code crc & 0xFFFFFFFFL}. One sample is ambiguous: an algorithm of n bits
+     * matches random data with a probability of 2^-n, so the algorithms of 3 to 8 bits often match by chance; several
+     * samples narrow the algorithms down, {@code found.retainAll(StandardCrc.matching(sample, crcOfSample))}. The CRCs
+     * are calculated with the lookup tables of the library, CRC-32 and CRC-32C as well: a call with data builds the tables
+     * of every algorithm whose width the value fits into, about 1 MiB for all of them, and the garbage collector collects
+     * them afterwards unless models of the algorithms are in use
+     * @param data data
+     * @param value CRC value of the data
+     * @return new modifiable {@link EnumSet} of the algorithms that give the value, in the order of the catalogue; empty
+     *         if no algorithm gives it
+     * @since 2.1.0
+     */
+    @CheckReturnValue
+    public static @NonNull Set<StandardCrc> matching(@NonNull final byte[] data, final long value) {
+        Objects.requireNonNull(data, "StandardCrc::matching - data is null");
+        return matching(data, 0, data.length, value);
+    }
+
+    /**
+     * Find the algorithms whose CRC of a part of the data is the value, for example of a frame without its CRC at
+     * the end, see {@link #matching(byte[], long)}
+     * @param data data
+     * @param offset offset of the part in the data
+     * @param length length of the part
+     * @param value CRC value of the part of the data
+     * @return new modifiable {@link EnumSet} of the algorithms that give the value, in the order of the catalogue; empty
+     *         if no algorithm gives it
+     * @throws ArrayIndexOutOfBoundsException if the part is not inside the data
+     * @since 2.1.0
+     */
+    @CheckReturnValue
+    public static @NonNull Set<StandardCrc> matching(@NonNull final byte[] data, final int offset, final int length, final long value) {
+        Objects.requireNonNull(data, "StandardCrc::matching - data is null");
+        if (offset < 0 || length < 0 || length > data.length - offset) {
+            throw new ArrayIndexOutOfBoundsException("StandardCrc::matching - offset " + offset + " and length " + length
+                    + " out of the buffer length " + data.length);
+        }
+        Set<StandardCrc> found = EnumSet.noneOf(StandardCrc.class);
+        for (StandardCrc standard : values()) {
+            // a value with bits above the width is no CRC value of the algorithm: its lookup tables are not built
+            if ((value & ~CrcParameters.mask(standard.parameters.width())) == 0) {
+                // the engine of the lookup tables of the description in the pool, shared with the models of the
+                // algorithm in use; a model of the default way could be one of the JDK, and would check the part again
+                CrcEngine engine = CrcDescription.of(standard.parameters).engine();
+                long emptyValue = engine.empty();
+                long crc = length == 0 ? emptyValue : engine.update(emptyValue, data, offset, length);
+                if (crc == value) {
+                    found.add(standard);
+                }
+            }
+        }
+        return found;
     }
 
     // a name of the catalogue: the algorithm and the index of the name in its names
