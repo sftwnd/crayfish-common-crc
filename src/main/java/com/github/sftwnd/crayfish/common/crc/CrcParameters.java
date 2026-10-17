@@ -10,16 +10,15 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.EnumSet;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * The parameters of a CRC algorithm in the Rocksoft model of Ross Williams, as the
@@ -148,14 +147,10 @@ public final class CrcParameters {
                 throw new IllegalArgumentException(PARSE + " - field given twice: " + field.key);
             }
         }
-        List<String> missing = new ArrayList<>(REQUIRED.size());
-        for (Field field : REQUIRED) {
-            if (!fields.containsKey(field)) {
-                missing.add(field.key);
-            }
-        }
+        String missing = REQUIRED.stream().filter(field -> !fields.containsKey(field)).map(field -> field.key)
+                .collect(Collectors.joining(", "));
         if (!missing.isEmpty()) {
-            throw new IllegalArgumentException(PARSE + " - missing: " + String.join(", ", missing));
+            throw new IllegalArgumentException(PARSE + " - missing: " + missing);
         }
         return fields;
     }
