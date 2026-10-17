@@ -181,6 +181,20 @@ public final class CRC {
     }
 
     /**
+     * Get a new {@link java.util.zip.Checksum} that continues the calculation of this CRC, for
+     * {@link java.util.zip.CheckedOutputStream}, {@link java.util.zip.CheckedInputStream} and other code that works
+     * with a {@code Checksum}: the checksum of the model of this CRC with its CRC value and its length, the counterpart
+     * of {@link CrcChecksum#crc()}. The CRC does not change. {@link CrcChecksum#reset()} gives the checksum of the empty
+     * data, as for every checksum, not this CRC
+     * @return new mutable checksum with the model, the CRC value and the length of this CRC
+     * @since 2.1.0
+     */
+    @CheckReturnValue
+    public @NonNull CrcChecksum checksum() {
+        return new CrcChecksum(this.model, this.value, this.length);
+    }
+
+    /**
      * CRCs are equal if they have the same description, CRC value and length, whatever the names or the aliases their
      * models were chosen by: the CRCs of the same data by {@code CRC-32} and by {@code PKZIP} are equal (since 2.1.0;
      * before, the CRCs of the models of other names were not equal)
