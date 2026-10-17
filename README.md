@@ -285,6 +285,23 @@ Reading is the same, the CRC of the bytes read:
     }
 ```
 
+When only the CRC of the bytes is needed, a stream or a channel needs no loop (*2.1.0*): `model.crc(in)` and
+`crc.update(in)` read an `InputStream` to its end, until `read` returns -1, and so do `model.crc(channel)` and
+`crc.update(channel)` with a `ReadableByteChannel`, such as a `FileChannel`. The stream or the channel is read into
+a buffer of 8192 bytes and is not closed:
+
+```java
+    try (InputStream in = Files.newInputStream(path)) {
+        CRC crc = model.crc(in);                        // all the bytes of the stream
+    }
+    try (FileChannel channel = FileChannel.open(path)) {
+        CRC crc = model.crc(header).update(channel);    // the header followed by all the bytes of the channel
+    }
+```
+
+The `IOException` of the stream or of the channel is passed on. A `SelectableChannel` in non-blocking mode, which can
+read 0 bytes for ever, is rejected with `IllegalBlockingModeException` before a read, as by `Channels.newInputStream`.
+
 A `java.util.zip.Checksum` has the value only. Keep the `CrcChecksum` itself (`getChecksum()` of the stream returns a
 `Checksum`) to get the length of the bytes written as well, and the `CRC` of them, to combine it with the CRCs of other
 parts or to resume the calculation later:

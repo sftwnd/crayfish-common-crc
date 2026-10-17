@@ -8,7 +8,10 @@ import edu.umd.cs.findbugs.annotations.CheckReturnValue;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.nio.channels.ReadableByteChannel;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -451,6 +454,39 @@ public final class CrcModel {
         Objects.requireNonNull(data, VALUE_NULL_DATA);
         long emptyValue = this.engine.empty();
         return data.hasRemaining() ? this.engine.update(emptyValue, data) : emptyValue;
+    }
+
+    /**
+     * Calculate the CRC of the bytes of the stream, read to its end: until {@code read} returns -1. The stream is read
+     * into a buffer of 8192 bytes and is not closed
+     * @param in stream
+     * @return CRC of the bytes read
+     * @throws IOException if the stream throws it
+     * @throws ArithmeticException if the length of the data exceeds Long.MAX_VALUE
+     * @since 2.1.0
+     */
+    @CheckReturnValue
+    public @NonNull CRC crc(@NonNull final InputStream in) throws IOException {
+        Objects.requireNonNull(in, "CrcModel::crc - in is null");
+        return this.empty.update(in);
+    }
+
+    /**
+     * Calculate the CRC of the bytes of the channel, read to its end: until {@code read} returns -1. The channel is
+     * read into a buffer of 8192 bytes and is not closed
+     * @param channel channel
+     * @return CRC of the bytes read
+     * @throws IOException if the channel throws it
+     * @throws java.nio.channels.IllegalBlockingModeException if the channel is a
+     *         {@link java.nio.channels.SelectableChannel} in non-blocking mode, which can read 0 bytes for ever;
+     *         the channel is not read then
+     * @throws ArithmeticException if the length of the data exceeds Long.MAX_VALUE
+     * @since 2.1.0
+     */
+    @CheckReturnValue
+    public @NonNull CRC crc(@NonNull final ReadableByteChannel channel) throws IOException {
+        Objects.requireNonNull(channel, "CrcModel::crc - channel is null");
+        return this.empty.update(channel);
     }
 
     /**
