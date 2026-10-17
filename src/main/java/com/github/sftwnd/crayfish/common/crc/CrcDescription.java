@@ -97,7 +97,7 @@ public final class CrcDescription {
             this.names = Collections.singletonList(parameters.parametricName());
             this.aliases = Collections.emptyList();
             this.check = checkValue(this.engine);
-            this.residue = residueValue(parameters);
+            this.residue = parameters.residueValue();
         }
         this.models = new CrcModel[this.names.size()];
         for (int index = 0; index < this.models.length; index++) {
@@ -154,20 +154,6 @@ public final class CrcDescription {
     // the check value of the parameters a bit at a time: the lookup tables are not built
     static long checkValue(@NonNull final CrcEngine engine) {
         return engine.bitwise(CHECK_DATA);
-    }
-
-    // the residue of the parameters as the catalogue calculates it, a bit at a time: the register of the width
-    // initialised with xorout, reflected if refout, after as many zero bits as the width, reflected if refin
-    static long residueValue(@NonNull final CrcParameters parameters) {
-        int width = parameters.width();
-        int shift = Long.SIZE - width;
-        long mask = CrcParameters.mask(width);
-        long register = parameters.refout() ? Long.reverse(parameters.xorout()) >>> shift : parameters.xorout();
-        for (int bit = 0; bit < width; bit++) {
-            // a zero bit: the register is shifted, and the polynomial XOR-ed if the bit shifted out is set
-            register = ((register << 1) & mask) ^ (parameters.poly() & -(register >>> (width - 1)));
-        }
-        return parameters.refin() ? Long.reverse(register) >>> shift : register;
     }
 
     /**

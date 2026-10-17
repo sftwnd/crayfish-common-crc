@@ -84,14 +84,15 @@ public final class CrcParameters {
      * {@code width} (decimal, 1..64), {@code poly}, {@code init} and {@code xorout} (hexadecimal with {@code 0x}, digits
      * of any case, fitting into the width), {@code refin} and {@code refout} ({@code true} or {@code false}). The other
      * fields of the parameter lines of the catalogue are optional: {@code check} (hexadecimal, verified: the CRC of
-     * {@link #CHECK_INPUT}), {@code residue} (hexadecimal, accepted) and {@code name} (a quoted string, which may contain
-     * whitespace; ignored, as the parameters have no name), so the format of {@link CrcDescription#toString()} is parsed
-     * as well. The parameters of an algorithm of the catalogue give the model with its name, see
-     * {@link CrcModel#of(CrcParameters)}
+     * {@link #CHECK_INPUT}), {@code residue} (hexadecimal, verified: the residue of the parameters, see
+     * {@link CrcDescription#residue()}) and {@code name} (a quoted string, which may contain whitespace; ignored, as the
+     * parameters have no name), so the format of {@link CrcDescription#toString()} is parsed as well. The parameters of
+     * an algorithm of the catalogue give the model with its name, see {@link CrcModel#of(CrcParameters)}
      * @param line parameter line
      * @return parameters of the line
      * @throws IllegalArgumentException if a field is unknown, given twice or missing, if a value is not valid or does
-     *         not fit into the width, or if the check value is not the CRC of {@link #CHECK_INPUT}
+     *         not fit into the width, if the check value is not the CRC of {@link #CHECK_INPUT}, or if the residue is not
+     *         the residue of the parameters
      * @since 2.1.0
      */
     public static @NonNull CrcParameters parse(@NonNull final String line) {
@@ -102,9 +103,8 @@ public final class CrcParameters {
         if (fields.containsKey(Field.CHECK)) {
             verifyCheck(parameters, parseHex(fields, Field.CHECK, width));
         }
-        // the residue is accepted: a hexadecimal value of the width
         if (fields.containsKey(Field.RESIDUE)) {
-            parseHex(fields, Field.RESIDUE, width);
+            verifyResidue(parameters, parseHex(fields, Field.RESIDUE, width));
         }
         // the name is ignored: the parameters have no name
         String name = fields.get(Field.NAME);
@@ -216,6 +216,16 @@ public final class CrcParameters {
         }
     }
 
+    // the residue of a line has to be the residue of the parameters, calculated as the catalogue does, without the
+    // pool of the descriptions as well
+    private static void verifyResidue(@NonNull final CrcParameters parameters, final long residue) {
+        long actual = parameters.residueValue();
+        if (actual != residue) {
+            throw new IllegalArgumentException(PARSE + " - wrong residue " + hex(residue, parameters.width) + " for " + parameters
+                    + ": the residue of the parameters is " + hex(actual, parameters.width));
+        }
+    }
+
     /**
      * Get the CRC width
      * @return CRC width in bits: 1..64
@@ -315,6 +325,20 @@ public final class CrcParameters {
             hex.append('0');
         }
         return hex.append(digits).toString();
+    }
+
+    // the residue of the parameters as the catalogue calculates it, a bit at a time: the register of the width
+    // initialised with xorout, reflected if refout, after as many zero bits as the width, reflected if refin. A method
+    // of the parameters, so that the residue of a parameter line is verified without the pool of the descriptions
+    long residueValue() {
+        int shift = Long.SIZE - this.width;
+        long mask = mask(this.width);
+        long register = this.refout ? Long.reverse(this.xorout) >>> shift : this.xorout;
+        for (int bit = 0; bit < this.width; bit++) {
+            // a zero bit: the register is shifted, and the polynomial XOR-ed if the bit shifted out is set
+            register = ((register << 1) & mask) ^ (this.poly & -(register >>> (this.width - 1)));
+        }
+        return this.refin ? Long.reverse(register) >>> shift : register;
     }
 
     // the name of the parameters outside the catalogue: the format of the names of the unregistered models of 1.x,

@@ -159,6 +159,20 @@ class CrcParametersParseTest {
     }
 
     @Test
+    void testResidue() {
+        assertRejected("wrong residue 0x0001 for width=16  poly=0x8005  init=0x0000  refin=true  refout=true  xorout=0x0000: "
+                + "the residue of the parameters is 0x0000", arc("residue", "0x0001"));
+        // the residue of parameters outside the catalogue
+        CrcParameters parameters = CrcParameters.of(21, 0x102899L, 0x1FFFFFL, true, false, 0x1L);
+        long value = CrcModel.of(parameters).residue();
+        String residue = CrcParameters.hex(value, 21);
+        assertEquals(parameters, CrcParameters.parse(parameters + "  residue=" + residue), "The residue of other parameters has to be accepted");
+        String wrong = CrcParameters.hex(value ^ 0x1L, 21);
+        assertRejected("wrong residue " + wrong + " for " + parameters + ": the residue of the parameters is " + residue,
+                parameters + "  residue=" + wrong);
+    }
+
+    @Test
     void testNull() {
         NullPointerException exception = assertThrows(NullPointerException.class, () -> CrcParameters.parse(null),
                 "parse(null) has to throw NullPointerException");

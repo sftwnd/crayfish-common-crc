@@ -138,7 +138,7 @@ class ResidueTest {
             long residue = Long.parseUnsignedLong(field(line, "residue").substring(2), 16);
             StandardCrc standard = StandardCrc.find(name).orElseThrow(() -> new AssertionError(name + " has to be predefined"));
             assertEquals(residue, standard.residue(), name + ": the constant has to keep the residue of the catalogue");
-            assertEquals(residue, CrcDescription.residueValue(standard.parameters()), name + ": the calculated residue has to be the residue of the catalogue");
+            assertEquals(residue, standard.parameters().residueValue(), name + ": the calculated residue has to be the residue of the catalogue");
             assertEquals(residue, divided(standard.parameters()), name + ": the residue of the catalogue has to be the residue of the definition");
             for (String alias : standard.names()) {
                 assertEquals(residue, CrcModel.of(alias).residue(), alias + ": the model has to have the residue of the catalogue");

@@ -127,10 +127,10 @@ The parameters of an algorithm of the catalogue give the model with its name.
 
 The fields `name=value` are separated by whitespace, in any order, each at most once. The parameters are required:
 `width` (decimal), `poly`, `init` and `xorout` (hexadecimal with `0x`, digits of any case), `refin` and `refout`
-(`true` or `false`). The other fields of the parameter lines of the catalogue are optional: `check` is verified,
-`residue` is accepted, and `name`, a quoted string, is ignored, as the parameters have no name. An unknown field,
-a field given twice or missing, a value that is not valid or does not fit into the width and a wrong check value throw
-`IllegalArgumentException`.
+(`true` or `false`). The other fields of the parameter lines of the catalogue are optional: `check` and `residue`
+are verified, and `name`, a quoted string, is ignored, as the parameters have no name. An unknown field, a field given
+twice or missing, a value that is not valid or does not fit into the width, a wrong check value and a wrong residue
+throw `IllegalArgumentException`.
 
 ### With a builder
 
