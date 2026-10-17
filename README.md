@@ -391,6 +391,13 @@ so is a direct `ByteBuffer` (CRC-32 of 4 KB 2.21 → 0.17 µs, CRC-32C 2.34 → 
 above the lookup tables calculate, so CRC-32 of 16 bytes costs about the same with the JDK: the class of the JDK
 only adds the check of the length.
 
+The speed of `CRC32` depends on the address of the data in memory. In a JMH test on JDK 8, 21 and 25 (Intel Core
+i9-9980HK) the CRC of 64 bytes, 256 bytes and 1 KB took 15–17, 21–24 and 48–50 ns when the data started at an address
+divisible by 16, and 36–41, 49–57 and 76–86 ns at any other address; at 4 KB the difference was about 15%, at 1 MB none.
+The CRC-32 rows of the table above match the data at another address. The address of an array is chosen by the JVM (it
+is divisible by 8, and the garbage collector may move the array), so two arrays of the same length can differ in speed,
+whether the library or the application calls `CRC32`. `CRC32C` does not depend on the address.
+
 ## Supported CRC algorithms
 
 112 algorithms of 21 widths; aliases in italics, every name and alias is accepted by `CrcModel.of()`.
