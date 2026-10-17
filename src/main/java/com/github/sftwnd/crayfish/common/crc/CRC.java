@@ -9,6 +9,7 @@ import edu.umd.cs.findbugs.annotations.CheckReturnValue;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Objects;
 
 /**
@@ -68,6 +69,31 @@ public final class CRC {
      */
     public long length() {
         return this.length;
+    }
+
+    /**
+     * Get the CRC value as bytes in the byte order given, as a protocol sends or stores the CRC after the data:
+     * {@code (width + 7) / 8} bytes with the value in their low bits, the unused high bits of the most significant
+     * byte 0. The check value {@code 0xdaf} of CRC-12/UMTS is {@code 0d af} big-endian, {@code af 0d} little-endian.
+     * There is no default order: the order belongs to the protocol, for example CRC-16/MODBUS is sent least significant
+     * byte first, CRC-16/XMODEM most significant byte first
+     * @param order byte order: {@link ByteOrder#BIG_ENDIAN}, the most significant byte first, or
+     *              {@link ByteOrder#LITTLE_ENDIAN}, the least significant byte first
+     * @return CRC value in a new array of {@code (width + 7) / 8} bytes
+     * @since 2.1.0
+     */
+    @CheckReturnValue
+    public @NonNull byte[] bytes(@NonNull final ByteOrder order) {
+        Objects.requireNonNull(order, "CRC::bytes - order is null");
+        byte[] bytes = new byte[(this.model.parameters().width() + 7) / 8];
+        int last = bytes.length - 1;
+        boolean bigEndian = order == ByteOrder.BIG_ENDIAN;
+        // the bytes of the value from the least significant one; the value has no bits above the width, so the unused
+        // high bits of the most significant byte are 0 without a mask
+        for (int i = 0; i <= last; i++) {
+            bytes[bigEndian ? last - i : i] = (byte) (this.value >>> (8 * i));
+        }
+        return bytes;
     }
 
     /**
