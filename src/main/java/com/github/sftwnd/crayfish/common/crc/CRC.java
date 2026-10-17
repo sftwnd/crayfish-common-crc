@@ -8,8 +8,13 @@ import edu.umd.cs.findbugs.annotations.CheckForNull;
 import edu.umd.cs.findbugs.annotations.CheckReturnValue;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.channels.IllegalBlockingModeException;
+import java.nio.channels.ReadableByteChannel;
+import java.nio.channels.SelectableChannel;
 import java.util.Objects;
 
 /**
@@ -28,6 +33,9 @@ import java.util.Objects;
 public final class CRC {
 
     private static final String UPDATE_NULL_DATA = "CRC::update - data is null";
+    // the buffer that a stream or a channel is read into, a new one per call: the size of the buffers of
+    // BufferedInputStream and of InputStream.transferTo of Java 9+
+    private static final int STREAM_BUFFER = 8192;
 
     private final CrcModel model;
     private final long value;
@@ -160,6 +168,58 @@ public final class CRC {
         }
         long total = Math.addExact(this.length, remaining);
         return new CRC(this.model, this.model.engine().update(this.value, data), total);
+    }
+
+    /**
+     * Calculate the CRC of the data of this CRC followed by the bytes of the stream, read to its end: until
+     * {@code read} returns -1. The stream is read into a buffer of 8192 bytes and is not closed
+     * @param in stream
+     * @return new CRC, or this CRC if no bytes are read
+     * @throws IOException if the stream throws it
+     * @throws ArithmeticException if the length of the data exceeds Long.MAX_VALUE
+     * @since 2.1.0
+     */
+    @CheckReturnValue
+    public @NonNull CRC update(@NonNull final InputStream in) throws IOException {
+        Objects.requireNonNull(in, "CRC::update - in is null");
+        byte[] buffer = new byte[STREAM_BUFFER];
+        CRC crc = this;
+        // every part read is calculated as by update(byte[]), so a model of the JDK gives the parts to the class of
+        // the JDK; a read of 0 bytes, which the contract of InputStream.read does not allow, gives the same CRC
+        for (int read = in.read(buffer); read >= 0; read = in.read(buffer)) {
+            crc = crc.update(buffer, 0, read);
+        }
+        return crc;
+    }
+
+    /**
+     * Calculate the CRC of the data of this CRC followed by the bytes of the channel, read to its end: until
+     * {@code read} returns -1. The channel is read into a buffer of 8192 bytes and is not closed
+     * @param channel channel
+     * @return new CRC, or this CRC if no bytes are read
+     * @throws IOException if the channel throws it
+     * @throws IllegalBlockingModeException if the channel is a {@link SelectableChannel} in non-blocking mode, which
+     *         can read 0 bytes for ever; the channel is not read then
+     * @throws ArithmeticException if the length of the data exceeds Long.MAX_VALUE
+     * @since 2.1.0
+     */
+    @CheckReturnValue
+    public @NonNull CRC update(@NonNull final ReadableByteChannel channel) throws IOException {
+        Objects.requireNonNull(channel, "CRC::update - channel is null");
+        // rejected before a read, as by Channels.newInputStream
+        if (channel instanceof SelectableChannel && !((SelectableChannel) channel).isBlocking()) {
+            throw new IllegalBlockingModeException();
+        }
+        byte[] array = new byte[STREAM_BUFFER];
+        ByteBuffer buffer = ByteBuffer.wrap(array);
+        CRC crc = this;
+        // the parts read are calculated in the array, as by update(InputStream); a read of 0 bytes, which a channel
+        // can return, gives the same CRC
+        for (int read = channel.read(buffer); read >= 0; read = channel.read(buffer)) {
+            crc = crc.update(array, 0, read);
+            buffer.clear();
+        }
+        return crc;
     }
 
     /**
