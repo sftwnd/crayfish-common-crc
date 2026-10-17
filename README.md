@@ -318,6 +318,50 @@ For CRC-32/ISO-HDLC, CRC-32/JAMCRC and, on Java 9+, CRC-32C the JDK classes `jav
 faster: the JVM calculates them with the CRC instructions of the CPU. A model of the JDK calculates with them,
 `CrcChecksum` included, see [CRC-32 and CRC-32C of the JDK](#crc-32-and-crc-32c-of-the-jdk).
 
+### Codewords
+
+A codeword is data followed by its CRC, as a frame of a protocol or a block of a file carries them. `isValid` checks
+a codeword (*2.1.0*): it calculates the CRC of the data and compares it with the bytes after the data.
+
+```java
+    CrcModel modbus = CrcModel.of("CRC-16/MODBUS");
+    boolean valid = modbus.isValid(frame);             // the data of the frame followed by its CRC, low byte first
+    boolean inside = modbus.isValid(buffer, 4, 10);    // a codeword of 10 bytes at the offset 4 of a buffer
+    boolean received = modbus.isValid(byteBuffer);     // the remaining bytes of a ByteBuffer
+```
+
+The CRC takes `(width + 7) / 8` bytes after the data: the least significant byte first if refout, the most significant
+byte first otherwise, so the CRC of CRC-16/MODBUS comes low byte first and that of CRC-16/XMODEM high byte first. The
+check is exact for every width, reflection and polynomial; for a width that is not a multiple of 8 the unused high bits
+of the CRC bytes have to be 0. A codeword shorter than the CRC is not valid, and the CRC of the empty data alone is
+a valid codeword. The codeword of a `ByteBuffer` is its remaining bytes, and its position is advanced to its limit, as
+by `crc(ByteBuffer)`.
+
+The residue of the catalogue is the register after an error-free codeword, before the final XOR: `model.residue()`,
+`description.residue()` and `StandardCrc.residue()` (*2.1.0*), for example `0xDEBB20E3` of CRC-32/ISO-HDLC and `0xF0B8`
+of CRC-16/IBM-SDLC; 36 algorithms of the catalogue have a residue other than 0. For a width that is a multiple of 8 and
+refin = refout the CRC value of every valid codeword is `residue ^ xorout`, whatever the data, so a codeword read as
+a stream is checked by the value of its checksum:
+
+```java
+    CrcModel crc32 = CrcModel.of("CRC-32");
+    long valid = crc32.residue() ^ crc32.parameters().xorout();    // 0x2144DF1C, whatever the data
+    try (CheckedInputStream in = new CheckedInputStream(Files.newInputStream(path), crc32.checksum())) {
+        byte[] buffer = new byte[8192];
+        while (in.read(buffer) >= 0) {
+            // process the buffer: the data followed by the 4 bytes of its CRC, low byte first
+        }
+        boolean ok = in.getChecksum().getValue() == valid;
+    }
+```
+
+`CrcDescription.toString()` gives the whole parameter line of the catalogue, the residue between the check value and
+the name (*2.1.0*; without the residue in 2.0.0):
+
+```text
+width=16  poly=0x8005  init=0x0000  refin=true  refout=true  xorout=0x0000  check=0xbb3d  residue=0x0000  name="CRC-16/ARC"
+```
+
 ## Names
 
 ```java

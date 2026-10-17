@@ -33,6 +33,7 @@ import java.util.Optional;
 public final class CrcModel {
 
     private static final String VALUE_NULL_DATA = "CrcModel::value - data is null";
+    private static final String IS_VALID_NULL_CODEWORD = "CrcModel::isValid - codeword is null";
 
     private final CrcDescription description;
     // the index of the name in the names of the description
@@ -199,6 +200,15 @@ public final class CrcModel {
     }
 
     /**
+     * Get the residue of the model, see {@link CrcDescription#residue()}
+     * @return residue
+     * @since 2.1.0
+     */
+    public long residue() {
+        return this.description.residue();
+    }
+
+    /**
      * Get the CRC of the empty data: the start of a calculation
      * @return CRC of the empty data
      */
@@ -329,6 +339,93 @@ public final class CrcModel {
         }
         long mask = this.engine.mask();
         return length2 == 0 ? value1 & mask : this.engine.combine(value1 & mask, value2 & mask, length2);
+    }
+
+    /**
+     * Check whether the codeword is data followed by its CRC: the CRC value in {@code (width + 7) / 8} bytes, the least
+     * significant byte first if refout, the most significant byte first otherwise; for a width that is a multiple of 8
+     * and refin = refout the error-free codeword of the residue of the catalogue, see {@link #residue()}. The CRC of
+     * the data is calculated and compared with the bytes after it, so the check is exact for every width, reflection
+     * and polynomial; for a width that is not a multiple of 8 the unused high bits of the CRC bytes have to be 0.
+     * The CRC of the empty data alone is a valid codeword
+     * @param codeword data followed by its CRC
+     * @return true if the codeword is data followed by its CRC; false otherwise, also for a codeword shorter than the CRC
+     * @since 2.1.0
+     */
+    @CheckReturnValue
+    public boolean isValid(@NonNull final byte[] codeword) {
+        Objects.requireNonNull(codeword, IS_VALID_NULL_CODEWORD);
+        return isValid(codeword, 0, codeword.length);
+    }
+
+    /**
+     * Check whether a part of the buffer is a codeword, data followed by its CRC, see {@link #isValid(byte[])}
+     * @param codeword buffer
+     * @param offset offset of the codeword in the buffer
+     * @param length length of the codeword: the data and the CRC
+     * @return true if the part is data followed by its CRC; false otherwise, also for a part shorter than the CRC
+     * @throws ArrayIndexOutOfBoundsException if the part is not inside the buffer
+     * @since 2.1.0
+     */
+    @CheckReturnValue
+    public boolean isValid(@NonNull final byte[] codeword, final int offset, final int length) {
+        Objects.requireNonNull(codeword, IS_VALID_NULL_CODEWORD);
+        if (offset < 0 || length < 0 || length > codeword.length - offset) {
+            throw new ArrayIndexOutOfBoundsException("CrcModel::isValid - offset " + offset + " and length " + length
+                    + " out of the buffer length " + codeword.length);
+        }
+        int dataLength = length - crcLength();
+        return dataLength >= 0 && value(codeword, offset, dataLength) == crcValue(codeword, offset + dataLength);
+    }
+
+    /**
+     * Check whether the remaining bytes of the buffer, from its position to its limit, are a codeword, data followed
+     * by its CRC, see {@link #isValid(byte[])}: heap, direct and read-only buffers. The position of the buffer is
+     * advanced to its limit
+     * @param codeword buffer
+     * @return true if the remaining bytes are data followed by its CRC; false otherwise, also if fewer bytes remain
+     *         than the CRC has
+     * @since 2.1.0
+     */
+    @CheckReturnValue
+    public boolean isValid(@NonNull final ByteBuffer codeword) {
+        Objects.requireNonNull(codeword, IS_VALID_NULL_CODEWORD);
+        int crcLength = crcLength();
+        int dataLength = codeword.remaining() - crcLength;
+        if (dataLength < 0) {
+            codeword.position(codeword.limit());
+            return false;
+        }
+        // the data in a view of the buffer that ends before the CRC: the limit of the buffer is not changed
+        ByteBuffer data = codeword.duplicate();
+        data.limit(data.position() + dataLength);
+        long value = value(data);
+        byte[] crc = new byte[crcLength];
+        codeword.position(data.limit());
+        codeword.get(crc);
+        return value == crcValue(crc, 0);
+    }
+
+    // the number of the bytes of the CRC in a codeword: the bits of the width in whole bytes
+    private int crcLength() {
+        return (this.description.parameters().width() + 7) / 8;
+    }
+
+    // the CRC value in the bytes of a codeword after its data, see isValid: the least significant byte first if refout,
+    // the most significant byte first otherwise
+    private long crcValue(@NonNull final byte[] codeword, final int offset) {
+        int end = offset + crcLength();
+        long crc = 0;
+        if (this.description.parameters().refout()) {
+            for (int i = end - 1; i >= offset; i--) {
+                crc = (crc << 8) | (codeword[i] & 0xff);
+            }
+        } else {
+            for (int i = offset; i < end; i++) {
+                crc = (crc << 8) | (codeword[i] & 0xff);
+            }
+        }
+        return crc;
     }
 
     /**

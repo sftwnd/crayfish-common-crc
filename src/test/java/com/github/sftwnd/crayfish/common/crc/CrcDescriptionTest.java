@@ -66,7 +66,7 @@ class CrcDescriptionTest {
         assertThrows(UnsupportedOperationException.class, () -> descriptionNames.add("CRC-TEST"), "The names have to be unmodifiable");
         List<String> descriptionAliases = description.aliases();
         assertThrows(UnsupportedOperationException.class, () -> descriptionAliases.add("CRC-TEST"), "The aliases have to be unmodifiable");
-        assertEquals("width=16  poly=0x1021  init=0x0000  refin=true  refout=true  xorout=0x0000  check=0x2189  name=\"CRC-16/KERMIT\"",
+        assertEquals("width=16  poly=0x1021  init=0x0000  refin=true  refout=true  xorout=0x0000  check=0x2189  residue=0x0000  name=\"CRC-16/KERMIT\"",
                 description.toString(), "Wrong format");
     }
 
@@ -82,8 +82,9 @@ class CrcDescriptionTest {
         assertEquals(check, description.check(), "Wrong check value");
         assertSame(description.model(), description.model("CRC-5/P15_I1F_RO_X3"), "The model of the name has to be unique");
         assertThrows(IllegalArgumentException.class, () -> description.model("CRC-5/USB"), "A name of other parameters has to be rejected");
+        // the residue: xorout reflected (0x18) times x^5 modulo x^5 + x^4 + x^2 + 1, not reflected
         assertEquals("width=5  poly=0x15  init=0x1f  refin=false  refout=true  xorout=0x03  check=" + CrcParameters.hex(check, 5)
-                + "  name=\"CRC-5/P15_I1F_RO_X3\"", description.toString(), "Wrong format");
+                + "  residue=0x0f  name=\"CRC-5/P15_I1F_RO_X3\"", description.toString(), "Wrong format");
     }
 
     @Test

@@ -73,6 +73,7 @@ public final class CrcDescription {
     private final List<String> names;
     private final List<String> aliases;
     private final long check;
+    private final long residue;
     // the calculation by the lookup tables; the calculation by a class of the JDK gives it the short data
     private final CrcEngine engine;
     // the models of the names calculated by the lookup tables, in the order of the names: a model is unique for its
@@ -91,10 +92,12 @@ public final class CrcDescription {
             this.names = this.standard.names();
             this.aliases = this.standard.aliases();
             this.check = this.standard.check();
+            this.residue = this.standard.residue();
         } else {
             this.names = Collections.singletonList(parameters.parametricName());
             this.aliases = Collections.emptyList();
             this.check = checkValue(this.engine);
+            this.residue = residueValue(parameters);
         }
         this.models = new CrcModel[this.names.size()];
         for (int index = 0; index < this.models.length; index++) {
@@ -153,6 +156,20 @@ public final class CrcDescription {
         return engine.bitwise(CHECK_DATA);
     }
 
+    // the residue of the parameters as the catalogue calculates it, a bit at a time: the register of the width
+    // initialised with xorout, reflected if refout, after as many zero bits as the width, reflected if refin
+    static long residueValue(@NonNull final CrcParameters parameters) {
+        int width = parameters.width();
+        int shift = Long.SIZE - width;
+        long mask = CrcParameters.mask(width);
+        long register = parameters.refout() ? Long.reverse(parameters.xorout()) >>> shift : parameters.xorout();
+        for (int bit = 0; bit < width; bit++) {
+            // a zero bit: the register is shifted, and the polynomial XOR-ed if the bit shifted out is set
+            register = ((register << 1) & mask) ^ (parameters.poly() & -(register >>> (width - 1)));
+        }
+        return parameters.refin() ? Long.reverse(register) >>> shift : register;
+    }
+
     /**
      * Get the parameters
      * @return parameters of the description
@@ -191,6 +208,20 @@ public final class CrcDescription {
      */
     public long check() {
         return this.check;
+    }
+
+    /**
+     * Get the residue of the catalogue: the register after an error-free codeword (the data followed by the width bits
+     * of its CRC), reflected if refout, without the final XOR; calculated as the catalogue does, the register of
+     * the width initialised with xorout, reflected if refout, after as many zero bits as the width, reflected if refin.
+     * For a width that is a multiple of 8 and refin = refout, the CRC value of a valid codeword of
+     * {@link CrcModel#isValid(byte[])} is {@code residue ^ xorout}, whatever the data: {@code 0x2144df1c} for
+     * CRC-32/ISO-HDLC, for example, the value of a {@link CrcChecksum} that has read such a codeword as a stream
+     * @return residue
+     * @since 2.1.0
+     */
+    public long residue() {
+        return this.residue;
     }
 
     /**
@@ -275,13 +306,16 @@ public final class CrcDescription {
     }
 
     /**
-     * The description in the format of the catalogue: the parameters, the check value and the name, for example
-     * {@code width=16  poly=0x8005  init=0x0000  refin=true  refout=true  xorout=0x0000  check=0xbb3d  name="CRC-16/ARC"}
+     * The description as the parameter line of the catalogue: the parameters, the check value, the residue (since
+     * 2.1.0) and the name, for example
+     * {@code width=16  poly=0x8005  init=0x0000  refin=true  refout=true  xorout=0x0000  check=0xbb3d  residue=0x0000  name="CRC-16/ARC"}
      * @return description as string
      */
     @Override
     public @NonNull String toString() {
-        return this.parameters + "  check=" + CrcParameters.hex(this.check, this.parameters.width()) + "  name=\"" + name() + '"';
+        int width = this.parameters.width();
+        return this.parameters + "  check=" + CrcParameters.hex(this.check, width) + "  residue=" + CrcParameters.hex(this.residue, width)
+                + "  name=\"" + name() + '"';
     }
 
 }
