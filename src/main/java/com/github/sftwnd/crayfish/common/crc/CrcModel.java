@@ -110,9 +110,8 @@ public final class CrcModel {
     }
 
     // the model of a name, null if the name is unknown: a name of the catalogue gives the index of its model,
-    // without a search in the names of the description
+    // without a search in the names of the description; the callers check the name with their own messages
     private static @Nullable CrcModel lookUp(@NonNull final String name, final boolean jdk) {
-        Objects.requireNonNull(name, "CrcModel::find - name is null");
         StandardCrc.Name standard = StandardCrc.name(name);
         if (standard != null) {
             return CrcDescription.of(standard.standard.parameters()).model(standard.index, jdk);
