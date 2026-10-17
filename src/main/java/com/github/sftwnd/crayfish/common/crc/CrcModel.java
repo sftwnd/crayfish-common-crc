@@ -19,7 +19,11 @@ import java.util.Optional;
  * The CRCs of a model have its name, so a CRC of a model chosen by an alias tells the alias.
  * <p>
  * A model is chosen by a name ({@link #of(String)}), by the parameters ({@link #of(CrcParameters)}) or with a builder
- * ({@link #builder(int)}). There is one model per description and name: models are compared by identity.
+ * ({@link #builder(int)}). A model of a CRC that a class of the JDK calculates (CRC-32, CRC-32C, see
+ * {@link CrcDescription}) is calculated by the class of the JDK or by the lookup tables of the library: as chosen
+ * ({@link #of(String, boolean)}, {@link #withJdk(boolean)}), otherwise as the default of {@link CrcDescription#isJdk()}
+ * at the moment the model is chosen. A model keeps its way, and so do its CRCs and checksums. There is one model per
+ * description, name and way: models are compared by identity.
  * A model keeps its description, and so the lookup tables of the calculation, from being collected.
  * Models are immutable and thread-safe.
  *
@@ -33,29 +37,44 @@ public final class CrcModel {
     private final CrcDescription description;
     // the index of the name in the names of the description
     private final int index;
-    // the calculation of the description, kept by the model for a short way from a CRC
+    // the calculation of the model: the lookup tables of the description or a class of the JDK, kept by the model for
+    // a short way from a CRC
     private final CrcEngine engine;
     // the CRC of the empty data
     private final CRC empty;
 
-    // created by the description, one model per name
-    CrcModel(@NonNull final CrcDescription description, final int index) {
+    // created by the description, one model per name and way
+    CrcModel(@NonNull final CrcDescription description, final int index, @NonNull final CrcEngine engine) {
         this.description = description;
         this.index = index;
-        this.engine = description.engine();
-        this.empty = new CRC(this, this.engine.empty(), 0);
+        this.engine = engine;
+        this.empty = new CRC(this, engine.empty(), 0);
     }
 
     /**
      * Get the model by a name: the name or an alias of an algorithm of the catalogue (see {@link StandardCrc}),
-     * or the name of a description made of the parameters (see {@link CrcDescription}). The case of the name matters
+     * or the name of a description made of the parameters (see {@link CrcDescription}). The case of the name matters.
+     * The model is calculated the way of {@link CrcDescription#isJdk()}
      * @param name name of the model
      * @return model with the name; for a name made of the parameters of an algorithm of the catalogue, the model with
      *         the name of the algorithm
      * @throws IllegalArgumentException if the name is unknown
      */
     public static @NonNull CrcModel of(@NonNull final String name) {
-        CrcModel model = lookUp(name);
+        return of(name, CrcDescription.isJdk());
+    }
+
+    /**
+     * Get the model by a name, see {@link #of(String)}, calculated the way given
+     * @param name name of the model
+     * @param jdk true for the class of the JDK, if a class of the JDK calculates the CRC; false for the lookup tables
+     *            of the library
+     * @return model with the name and the way, see {@link #withJdk(boolean)}
+     * @throws IllegalArgumentException if the name is unknown
+     * @since 2.1.0
+     */
+    public static @NonNull CrcModel of(@NonNull final String name, final boolean jdk) {
+        CrcModel model = lookUp(name, jdk);
         if (model == null) {
             throw new IllegalArgumentException("CrcModel::of - unknown CRC name: " + name);
         }
@@ -69,28 +88,57 @@ public final class CrcModel {
      */
     @CheckReturnValue
     public static @NonNull Optional<CrcModel> find(@NonNull final String name) {
-        return Optional.ofNullable(lookUp(name));
+        return find(name, CrcDescription.isJdk());
+    }
+
+    /**
+     * Find the model by a name, see {@link #of(String, boolean)}
+     * @param name name of the model
+     * @param jdk true for the class of the JDK, if a class of the JDK calculates the CRC; false for the lookup tables
+     *            of the library
+     * @return model with the name and the way, empty if the name is unknown
+     * @since 2.1.0
+     */
+    @CheckReturnValue
+    public static @NonNull Optional<CrcModel> find(@NonNull final String name, final boolean jdk) {
+        return Optional.ofNullable(lookUp(name, jdk));
     }
 
     // the model of a name, null if the name is unknown: a name of the catalogue gives the index of its model,
     // without a search in the names of the description
-    private static @Nullable CrcModel lookUp(@NonNull final String name) {
+    private static @Nullable CrcModel lookUp(@NonNull final String name, final boolean jdk) {
         Objects.requireNonNull(name, "CrcModel::find - name is null");
         StandardCrc.Name standard = StandardCrc.name(name);
         if (standard != null) {
-            return CrcDescription.of(standard.standard.parameters()).model(standard.index);
+            return CrcDescription.of(standard.standard.parameters()).model(standard.index, jdk);
         }
         CrcParameters parameters = CrcParameters.parse(name);
-        return parameters == null ? null : CrcDescription.of(parameters).modelOf(name);
+        return parameters == null ? null : CrcDescription.of(parameters).modelOf(name, jdk);
     }
 
     /**
-     * Get the model of the parameters, with the name of their description
+     * Get the model of the parameters, with the name of their description, calculated the way of
+     * {@link CrcDescription#isJdk()}
      * @param parameters CRC parameters
      * @return model of the parameters: for the parameters of an algorithm of the catalogue, the model with its name
      */
     public static @NonNull CrcModel of(@NonNull final CrcParameters parameters) {
-        return CrcDescription.of(Objects.requireNonNull(parameters, "CrcModel::of - parameters is null")).model();
+        return of(parameters, CrcDescription.isJdk());
+    }
+
+    /**
+     * Get the model of the parameters, see {@link #of(CrcParameters)}, calculated the way given
+     * @param parameters CRC parameters
+     * @param jdk true for the class of the JDK, if a class of the JDK calculates the CRC; false for the lookup tables
+     *            of the library
+     * @return model of the parameters with the way, see {@link #withJdk(boolean)}
+     * @since 2.1.0
+     */
+    // the model 0, of the name of the description, always exists: javabugs:S6466 is a false positive, see
+    // CrcDescription.model()
+    @SuppressWarnings("javabugs:S6466")
+    public static @NonNull CrcModel of(@NonNull final CrcParameters parameters, final boolean jdk) {
+        return CrcDescription.of(Objects.requireNonNull(parameters, "CrcModel::of - parameters is null")).model(0, jdk);
     }
 
     /**
@@ -308,6 +356,29 @@ public final class CrcModel {
         return data.hasRemaining() ? this.engine.update(emptyValue, data) : emptyValue;
     }
 
+    /**
+     * Get the model of the description and the name of this model, calculated the way given. Only the speed differs,
+     * not the CRC values: the CRCs of both are equal, and they can be combined
+     * @param jdk true for the class of the JDK, if a class of the JDK calculates the CRC (CRC-32, CRC-32C on Java 9+,
+     *            see {@link CrcDescription}); false for the lookup tables of the library
+     * @return model calculated the way given, this model if it is calculated so; the model of the lookup tables if
+     *         no class of the JDK calculates the CRC
+     * @since 2.1.0
+     */
+    @CheckReturnValue
+    public @NonNull CrcModel withJdk(final boolean jdk) {
+        return this.description.model(this.index, jdk);
+    }
+
+    /**
+     * Whether a class of the JDK calculates the CRCs of the model, see {@link #withJdk(boolean)}
+     * @return true if a class of the JDK calculates the CRCs, false if the lookup tables of the library do
+     * @since 2.1.0
+     */
+    public boolean isJdk() {
+        return this.engine.isJdk();
+    }
+
     @NonNull CrcEngine engine() {
         return this.engine;
     }
@@ -342,6 +413,8 @@ public final class CrcModel {
         private long xorout;
         private long check;
         private boolean checkSet;
+        private boolean jdk;
+        private boolean jdkSet;
 
         Builder(final int width) {
             CrcParameters.checkWidth("CrcModel::builder", width);
@@ -427,7 +500,20 @@ public final class CrcModel {
         }
 
         /**
-         * Build the model of the parameters, see {@link CrcModel#of(CrcParameters)}
+         * Set the way of the calculation of the model, the way of {@link CrcDescription#isJdk()} if it is not set
+         * @param jdk true for the class of the JDK, if a class of the JDK calculates the CRC; false for the lookup
+         *            tables of the library
+         * @return this builder
+         * @since 2.1.0
+         */
+        public @NonNull Builder jdk(final boolean jdk) {
+            this.jdk = jdk;
+            this.jdkSet = true;
+            return this;
+        }
+
+        /**
+         * Build the model of the parameters, see {@link CrcModel#of(CrcParameters)} and {@link CrcModel#of(CrcParameters, boolean)}
          * @return model of the parameters
          * @throws IllegalStateException if the polynomial, refin or refout is not set
          * @throws IllegalArgumentException if a check value is set and the parameters have another one
@@ -455,7 +541,7 @@ public final class CrcModel {
                             + " for " + parameters + ": the CRC of \"" + CrcParameters.CHECK_INPUT + "\" is " + CrcParameters.hex(actual, width));
                 }
             }
-            return CrcModel.of(parameters);
+            return jdkSet ? CrcModel.of(parameters, jdk) : CrcModel.of(parameters);
         }
 
     }
