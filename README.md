@@ -115,6 +115,23 @@ about 15 ns. For calculations in a loop, keep the model in a field rather than c
 
 The parameters of an algorithm of the catalogue give the model with its name.
 
+`CrcParameters.parse()` reads the parameters from a parameter line of the catalogue, the format of
+`CrcParameters.toString()` and of `CrcDescription.toString()` (*2.1.0*):
+
+```java
+    CrcParameters arc = CrcParameters.parse("width=16  poly=0x8005  init=0x0000  refin=true  refout=true  xorout=0x0000");
+    CrcModel model = CrcModel.of(CrcParameters.parse("width=16 poly=0x8005 init=0x0000 refin=true refout=true"
+            + " xorout=0x0000 check=0xbb3d residue=0x0000 name=\"CRC-16/ARC\""));          // CRC-16/ARC
+    CrcParameters same = CrcParameters.parse(model.description().toString());
+```
+
+The fields `name=value` are separated by whitespace, in any order, each at most once. The parameters are required:
+`width` (decimal), `poly`, `init` and `xorout` (hexadecimal with `0x`, digits of any case), `refin` and `refout`
+(`true` or `false`). The other fields of the parameter lines of the catalogue are optional: `check` and `residue`
+are verified, and `name`, a quoted string, is ignored, as the parameters have no name. An unknown field, a field given
+twice or missing, a value that is not valid or does not fit into the width, a wrong check value and a wrong residue
+throw `IllegalArgumentException`.
+
 ### With a builder
 
 ```java
