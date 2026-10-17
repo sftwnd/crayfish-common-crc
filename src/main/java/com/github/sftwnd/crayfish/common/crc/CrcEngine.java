@@ -137,6 +137,31 @@ class CrcEngine {
         return value(register);
     }
 
+    /* the CRC value after count bits, 1..64, a bit at a time, without the lookup tables: from bit count - 1 down to
+       bit 0, or from bit 0 up if refin; the bits above count are ignored. As CrcTables.divide does with a byte,
+       the bits are XOR-ed into the register at once, the first bit into the bit that the register shifts out first
+       (bit 63 of a register aligned to it, bit 0 of a reflected one), and the register takes a step of the division
+       per bit: the bits beyond a register narrower than count are the next ones */
+    long updateBits(final long value, final long bits, final int count) {
+        long register = register(value) ^ (refin ? bits & CrcParameters.mask(count) : bits << (Long.SIZE - count));
+        for (int bit = 0; bit < count; bit++) {
+            if (refin) {
+                register = (register & 1) != 0 ? (register >>> 1) ^ poly : register >>> 1;
+            } else {
+                register = register < 0 ? (register << 1) ^ poly : register << 1;
+            }
+        }
+        return value(register);
+    }
+
+    // the CRC value after the first count bits of a byte, 1..7, in the order in which the model reads the bits of
+    // a byte: the top bits, or the low bits if refin
+    long updateBits(final long value, final byte b, final int count) {
+        int next = b & 0xff;
+        long bits = refin ? next : next >>> (Byte.SIZE - count);
+        return updateBits(value, bits, count);
+    }
+
     /* the CRC value after the bytes of the data: the offset and the length are checked by the caller, length > 0.
        The data is processed 8 bytes at a time, then the rest a byte at a time. The loops are separate methods,
        so that this method stays small enough for the JIT compiler to inline it */
