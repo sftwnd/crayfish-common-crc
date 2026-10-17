@@ -336,18 +336,15 @@ public final class CrcModel {
      * @param data data
      * @param count number of the first bits of the data
      * @return CRC value of the first bits of the data
-     * @throws IllegalArgumentException if the count is negative
-     * @throws ArrayIndexOutOfBoundsException if the count exceeds the bits of the data
+     * @throws ArrayIndexOutOfBoundsException if the count is negative or exceeds the bits of the data, as the length of
+     *         {@link #value(byte[], int)}
      * @since 2.1.0
      */
     @CheckReturnValue
     public long valueOfBits(@NonNull final byte[] data, final long count) {
         Objects.requireNonNull(data, "CrcModel::valueOfBits - data is null");
-        if (count < 0) {
-            throw new IllegalArgumentException("CrcModel::valueOfBits - count is negative: " + count);
-        }
         long dataBits = 8L * data.length;
-        if (count > dataBits) {
+        if (count < 0 || count > dataBits) {
             throw new ArrayIndexOutOfBoundsException("CrcModel::valueOfBits - count " + count + " out of the "
                     + dataBits + " bits of the buffer length " + data.length);
         }

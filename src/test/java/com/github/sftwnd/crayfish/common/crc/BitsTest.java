@@ -275,10 +275,11 @@ class BitsTest {
         assertEquals("CrcModel::valueOfBits - count 17 out of the 16 bits of the buffer length 2", beyond.getMessage(), "Wrong message");
         assertThrows(ArrayIndexOutOfBoundsException.class, () -> model.valueOfBits(new byte[0], 1), "A bit of the empty data has to be rejected");
         assertThrows(ArrayIndexOutOfBoundsException.class, () -> model.valueOfBits(data, Long.MAX_VALUE), "The largest count has to be rejected");
-        IllegalArgumentException negative = assertThrows(IllegalArgumentException.class, () -> model.valueOfBits(data, -1L),
+        // a negative count of the first bits of the data, as a negative length of the first bytes of value(data, length)
+        ArrayIndexOutOfBoundsException negative = assertThrows(ArrayIndexOutOfBoundsException.class, () -> model.valueOfBits(data, -1L),
                 "A negative count has to be rejected");
-        assertEquals("CrcModel::valueOfBits - count is negative: -1", negative.getMessage(), "Wrong message");
-        assertThrows(IllegalArgumentException.class, () -> model.valueOfBits(data, Long.MIN_VALUE), "A negative count has to be rejected");
+        assertEquals("CrcModel::valueOfBits - count -1 out of the 16 bits of the buffer length 2", negative.getMessage(), "Wrong message");
+        assertThrows(ArrayIndexOutOfBoundsException.class, () -> model.valueOfBits(data, Long.MIN_VALUE), "A negative count has to be rejected");
         NullPointerException nullData = assertThrows(NullPointerException.class, () -> model.valueOfBits(null, 0),
                 "valueOfBits(null, 0) has to throw NullPointerException");
         assertEquals("CrcModel::valueOfBits - data is null", nullData.getMessage(), "Wrong message");
