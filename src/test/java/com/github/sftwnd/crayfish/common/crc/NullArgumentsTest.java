@@ -6,12 +6,17 @@ package com.github.sftwnd.crayfish.common.crc;
 
 import org.junit.jupiter.api.Test;
 
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.channels.Channels;
+import java.nio.channels.ReadableByteChannel;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -55,6 +60,9 @@ class NullArgumentsTest {
         SAMPLES.put(String.class, () -> "CRC-32");
         SAMPLES.put(byte[].class, CHECK::clone);
         SAMPLES.put(ByteBuffer.class, () -> ByteBuffer.wrap(CHECK.clone()));
+        SAMPLES.put(ByteOrder.class, () -> ByteOrder.BIG_ENDIAN);
+        SAMPLES.put(InputStream.class, () -> new ByteArrayInputStream(CHECK.clone()));
+        SAMPLES.put(ReadableByteChannel.class, () -> Channels.newChannel(new ByteArrayInputStream(CHECK.clone())));
         SAMPLES.put(CrcParameters.class, StandardCrc.CRC_32_ISO_HDLC::parameters);
         SAMPLES.put(StandardCrc.class, () -> StandardCrc.CRC_32_ISO_HDLC);
         SAMPLES.put(CrcDescription.class, () -> CrcModel.of("CRC-32").description());
