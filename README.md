@@ -454,9 +454,10 @@ algorithm of the catalogue gives the model with the name of the algorithm.
 - `-Dcom.github.sftwnd.crayfish.common.crc.retention=soft` makes the pool refer to them softly: an unused description
   is kept until the memory runs short. It helps if a model is chosen by its name for every calculation and not kept.
   The property is read once, when the pool is used first.
-- On Java 9+ the daemon thread `crayfish-crc-eviction` of a `java.lang.ref.Cleaner` removes the entries of the collected
-  descriptions from the pool; before Java 9, and with a jar without the `Multi-Release` attribute, the pool removes them
-  when it is used.
+- The pool removes the entries of the collected descriptions when it is used, on every Java version. The library starts
+  no thread that would keep its class loader: an application server that redeploys a web application with the library,
+  an OSGi framework that updates the bundle or a host that reloads a plugin can unload it (*2.1.0*; in 2.0.0 the daemon
+  thread `crayfish-crc-eviction` removed the entries on Java 9+ and kept the class loader from being collected).
 
 ## Speed
 
@@ -677,8 +678,8 @@ module my.application {
 }
 ```
 
-The module descriptor, the Java 9 version of the eviction of the pool and the class that knows `java.util.zip.CRC32C`
-are in `META-INF/versions/9` of the multi-release jar, so Java 8 ignores them.
+The module descriptor and the class that knows `java.util.zip.CRC32C` are in `META-INF/versions/9` of the multi-release
+jar, so Java 8 ignores them.
 
 ## Building
 

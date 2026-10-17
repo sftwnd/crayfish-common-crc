@@ -202,7 +202,7 @@ class CrcDescriptionTest {
         assertTrue(descriptions.containsKey(parameters), "The description has to be in the pool");
         Gc.awaitCleared(probes.get(0), "The unused description has to be collected");
         Gc.awaitCleared(probes.get(1), "The lookup tables of the unused description have to be collected");
-        // before Java 9 the pool removes the entry when it is used, here by size(); on Java 9+ the cleaner does
+        // the pool removes the entry when it is used, here by size()
         Gc.await(() -> descriptions.size() >= 0 && !descriptions.containsKey(parameters), "The entry of the collected description has to be removed");
         assertEquals(CrcReference.crc(parameters, CHECK), CrcModel.of(parameters).crc(CHECK).value(), "A new description of the parameters has to calculate");
     }
