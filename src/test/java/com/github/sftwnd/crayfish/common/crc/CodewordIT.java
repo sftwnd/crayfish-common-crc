@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.zip.CheckedInputStream;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -120,6 +121,19 @@ class CodewordIT {
                         assertEquals(buffer.limit(), buffer.position(), kind + ": the position has to be advanced to the limit");
                     }
                 }
+            }
+        }
+    }
+
+    @Test
+    void testCodewordOfData() {
+        for (CrcModel model : models()) {
+            for (int length : LENGTHS) {
+                String message = model + ", " + length + " bytes of data";
+                byte[] codeword = model.codeword(Arrays.copyOf(DATA, length));
+                assertArrayEquals(codeword(model.parameters(), length), codeword, message + ": the data has to be followed by its CRC");
+                assertTrue(model.isValid(codeword), message + ": isValid has to accept the codeword");
+                assertArrayEquals(codeword, model.codeword(DATA, 0, length), message + ": wrong codeword of the first bytes of the data");
             }
         }
     }

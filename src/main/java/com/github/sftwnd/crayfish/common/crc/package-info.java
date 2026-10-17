@@ -6,7 +6,7 @@
 /**
  * CRC calculation for every CRC of the Rocksoft model up to 64 bits, with the algorithms of the
  * <a href="https://reveng.sourceforge.io/crc-catalogue/all.htm">RevEng catalogue</a> predefined: the CRC of arrays,
- * buffers, streams and bits, combined and continued, and the check of codewords, data followed by their CRC.
+ * buffers, streams and bits, combined and continued, and codewords, data followed by their CRC, built and checked.
  * <ul>
  * <li>{@link com.github.sftwnd.crayfish.common.crc.CrcParameters} - the parameters of a CRC algorithm: width, poly,
  * init, refin, refout and xorout, also parsed from a parameter line of the catalogue;</li>
@@ -29,7 +29,8 @@
  * long single = model.value(data);   // the CRC value of one buffer
  * CRC crc = model.crc().update(part1).update(part2);
  * long value = crc.value();
- * boolean valid = model.isValid(codeword);   // data followed by its CRC
+ * byte[] codeword = model.codeword(data);    // the data followed by its CRC
+ * boolean valid = model.isValid(codeword);   // true
  * }</pre>
  */
 package com.github.sftwnd.crayfish.common.crc;

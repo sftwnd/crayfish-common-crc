@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -17,8 +18,10 @@ import java.util.function.IntFunction;
 import java.util.zip.CheckedInputStream;
 
 import static java.nio.charset.StandardCharsets.US_ASCII;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -269,6 +272,70 @@ class CodewordTest {
         assertThrows(NullPointerException.class, () -> model.isValid(null, 0, 0), "isValid(null, 0, 0) has to throw NullPointerException");
         nullCodeword = assertThrows(NullPointerException.class, () -> model.isValid((ByteBuffer) null), "isValid(null buffer) has to throw NullPointerException");
         assertEquals("CrcModel::isValid - codeword is null", nullCodeword.getMessage(), "Wrong message");
+    }
+
+    @Test
+    void testCodewordOfData() {
+        for (CrcModel model : models()) {
+            for (int length : LENGTHS) {
+                String message = model + (model.isJdk() ? " of the JDK" : "") + ", " + length + " bytes of data";
+                byte[] data = Arrays.copyOf(DATA, length);
+                byte[] codeword = model.codeword(data);
+                assertArrayEquals(codeword(model.parameters(), length), codeword, message + ": the data has to be followed by its CRC");
+                assertTrue(model.isValid(codeword), message + ": isValid has to accept the codeword");
+                assertArrayEquals(Arrays.copyOf(DATA, length), data, message + ": the data has not got to change");
+            }
+        }
+        // CRC-16/MODBUS low byte first, CRC-16/XMODEM high byte first, CRC-12/UMTS in 2 bytes with the unused high bits 0
+        byte[] modbus = Arrays.copyOf(CHECK, CHECK.length + 2);
+        modbus[9] = 0x37;
+        modbus[10] = 0x4B;
+        assertArrayEquals(modbus, CrcModel.of("CRC-16/MODBUS").codeword(CHECK), "Wrong codeword of CRC-16/MODBUS");
+        byte[] xmodem = Arrays.copyOf(CHECK, CHECK.length + 2);
+        xmodem[9] = 0x31;
+        xmodem[10] = (byte) 0xC3;
+        assertArrayEquals(xmodem, CrcModel.of("CRC-16/XMODEM").codeword(CHECK), "Wrong codeword of CRC-16/XMODEM");
+        byte[] umts = Arrays.copyOf(CHECK, CHECK.length + 2);
+        umts[9] = (byte) 0xAF;
+        umts[10] = 0x0D;
+        assertArrayEquals(umts, CrcModel.of("CRC-12/UMTS").codeword(CHECK), "Wrong codeword of CRC-12/UMTS (refout)");
+    }
+
+    @Test
+    void testCodewordOfAPart() {
+        CrcModel modbus = CrcModel.of("CRC-16/MODBUS");
+        byte[] framed = Arrays.copyOf(DATA, 40);
+        System.arraycopy(CHECK, 0, framed, 13, CHECK.length);
+        assertArrayEquals(modbus.codeword(CHECK), modbus.codeword(framed, 13, CHECK.length),
+                "The check data inside other data has to give the codeword of the check data");
+        for (CrcModel model : models()) {
+            String message = model + (model.isJdk() ? " of the JDK" : "");
+            byte[] codeword = model.codeword(DATA, 7, 250);
+            assertArrayEquals(model.codeword(Arrays.copyOfRange(DATA, 7, 257)), codeword, message + ": wrong codeword of a part of the data");
+            assertTrue(model.isValid(codeword), message + ": isValid has to accept the codeword of a part");
+            ByteOrder order = model.parameters().refout() ? ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN;
+            assertArrayEquals(model.crc().bytes(order), model.codeword(DATA, 5000, 0),
+                    message + ": the codeword of the empty part at the end has to be the CRC of the empty data");
+        }
+        byte[] first = modbus.codeword(CHECK);
+        assertNotSame(first, modbus.codeword(CHECK), "Every call has to give a new array");
+    }
+
+    @Test
+    void testCodewordErrors() {
+        CrcModel model = CrcModel.of("CRC-16/MODBUS");
+        byte[] data = new byte[16];
+        NullPointerException nullData = assertThrows(NullPointerException.class, () -> model.codeword(null), "codeword(null) has to throw NullPointerException");
+        assertEquals("CrcModel::codeword - data is null", nullData.getMessage(), "Wrong message");
+        NullPointerException nullPart = assertThrows(NullPointerException.class, () -> model.codeword(null, 0, 0),
+                "codeword(null, offset, length) has to throw NullPointerException");
+        assertEquals("CrcModel::codeword - data is null", nullPart.getMessage(), "Wrong message");
+        assertThrows(ArrayIndexOutOfBoundsException.class, () -> model.codeword(data, -1, 8), "A negative offset has to be rejected");
+        assertThrows(ArrayIndexOutOfBoundsException.class, () -> model.codeword(data, 0, -1), "A negative length has to be rejected");
+        assertThrows(ArrayIndexOutOfBoundsException.class, () -> model.codeword(data, 17, 0), "An offset beyond the data has to be rejected");
+        ArrayIndexOutOfBoundsException beyond = assertThrows(ArrayIndexOutOfBoundsException.class, () -> model.codeword(data, 5, 12),
+                "The bytes beyond the data have to be rejected");
+        assertEquals("CrcModel::codeword - offset 5 and length 12 out of the buffer length 16", beyond.getMessage(), "Wrong message");
     }
 
     @Test

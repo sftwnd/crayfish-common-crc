@@ -35,8 +35,8 @@ the latest 1.x release; see [Versions and support](#versions-and-support) for th
 - **Streams** — a `java.util.zip.Checksum` of any model for `CheckedOutputStream`, `CheckedInputStream` and other code
   written for `CRC32` (*2.0*); the CRC of an `InputStream` or of a channel read to its end (*2.1.0*, see
   [Streams](#streams))
-- **Codewords** — check data followed by its CRC, with the residues of the catalogue, and get the bytes of a CRC in the
-  byte order of a protocol (*2.1.0*, see [Codewords](#codewords) and [Calculate](#calculate))
+- **Codewords** — build and check data followed by its CRC, with the residues of the catalogue, and get the bytes of
+  a CRC in the byte order of a protocol (*2.1.0*, see [Codewords](#codewords) and [Calculate](#calculate))
 - **Bits** — the CRC of data that is not a whole number of bytes, such as the frames of CAN, FlexRay and USB
   (*2.1.0*, see [Bits](#bits))
 - **Names and aliases** — a model is chosen by the name or by any alias of the catalogue, and its CRCs tell the name
@@ -414,6 +414,15 @@ check is exact for every width, reflection and polynomial; for a width that is n
 of the CRC bytes have to be 0. A codeword shorter than the CRC is not valid, and the CRC of the empty data alone is
 a valid codeword. The codeword of a `ByteBuffer` is its remaining bytes, and its position is advanced to its limit, as
 by `crc(ByteBuffer)`.
+
+`codeword(data)` builds the codeword of data: a new array with the data followed by its CRC in this byte order, which
+`isValid` accepts (*2.1.0*):
+
+```java
+    byte[] frame = modbus.codeword(pdu);                     // the PDU followed by its CRC, low byte first
+    byte[] block = modbus.codeword(buffer, offset, length);  // a part of an array followed by its CRC
+    boolean sent = modbus.isValid(frame);                    // true
+```
 
 The residue of the catalogue is the register after an error-free codeword, before the final XOR: `model.residue()`,
 `description.residue()` and `StandardCrc.residue()` (*2.1.0*), for example `0xDEBB20E3` of CRC-32/ISO-HDLC and `0xF0B8`
