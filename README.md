@@ -200,6 +200,23 @@ second part, with 63 values per parameter set built on the first `combine`.
 
 The bits above the width are ignored, so a CRC-32 kept in an `int` can be passed as is.
 
+A `CrcChecksum` (see [Streams](#streams)) continues a CRC as well: `crc.checksum()` is a new checksum of the model of
+the CRC with its value and its length, the counterpart of `checksum.crc()` (*2.1.0*). With it a `CheckedOutputStream`
+appends to a file whose CRC is kept, and a `CheckedInputStream` continues a transfer after a restart:
+
+```java
+    CrcChecksum checksum = model.crc(savedValue, savedLength).checksum();
+    try (OutputStream file = Files.newOutputStream(path, StandardOpenOption.APPEND);
+         CheckedOutputStream out = new CheckedOutputStream(file, checksum)) {
+        out.write(moreData);               // after the bytes written before
+    }
+    CRC whole = checksum.crc();            // the CRC of the whole file
+```
+
+The CRC does not change, and every call gives a new checksum. `reset()` gives the checksum of the empty data, as for
+every `CrcChecksum`, not the CRC the checksum was created from. A checksum of a model of the JDK continues with the
+class of the JDK, as the CRC does.
+
 ### Streams
 
 `model.checksum()` is a `java.util.zip.Checksum` of the model, so any CRC works with the JDK classes made for `CRC32`.
@@ -365,10 +382,10 @@ The initial default is given by the system property
   the lookup tables, JMH on x86), a direct `ByteBuffer` at its address, without a copy. Shorter data, the single bytes
   of `CrcChecksum.update(int)` and `combine` stay with the library.
 - A checksum of the JDK cannot be given a CRC value to start from. For the CRC of data processed before (an update of
-  a CRC with data, a resumed CRC, every update of a `CrcChecksum` after the first one) the library gives the class of
-  the JDK the first 4 bytes of the data XOR-ed with the difference of the register of the value and the initial
-  register `0xFFFFFFFF`, and the rest of the data as it is: after 4 bytes the register of a reflected CRC-32 depends
-  only on the register XOR-ed with them. The data itself is not changed.
+  a CRC with data, a resumed CRC, every update of a `CrcChecksum` after the first one, every update of a checksum of
+  `crc.checksum()`) the library gives the class of the JDK the first 4 bytes of the data XOR-ed with the difference of
+  the register of the value and the initial register `0xFFFFFFFF`, and the rest of the data as it is: after 4 bytes the
+  register of a reflected CRC-32 depends only on the register XOR-ed with them. The data itself is not changed.
 - As long as no model of the JDK is chosen, nothing changes: the class of the calculation with the JDK is not even
   loaded.
 - When models of the JDK and of the lookup tables are used in one JVM, the calls of the calculation meet both classes,
