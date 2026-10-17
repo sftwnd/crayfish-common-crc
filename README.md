@@ -353,8 +353,9 @@ The initial default is given by the system property
 - When models of the JDK and of the lookup tables are used in one JVM, the calls of the calculation meet both classes,
   and the JIT compiler compiles them for both. In a JMH test (a model of the lookup tables after a model of `CRC32` in
   the same JVM) the lookup tables got 6–16% slower for CRC-64 on JDK 8, 6–8% slower for CRC-16 and CRC-32 of 1 KB and
-  9–10% faster of 256 bytes on JDK 25, and stayed the same on JDK 21. The system property alone mixes them as well,
-  when the JDK calculates CRC-32 and the lookup tables the other models.
+  9–10% faster of 256 bytes on JDK 25, and about 5% faster for CRC-16 and CRC-32 of 1 KB on JDK 21; the other
+  differences did not repeat in every pair of runs. The system property alone mixes them as well, when the JDK
+  calculates CRC-32 and the lookup tables the other models.
 
 `model.value(data)` of the lookup tables and of the JDK (JMH, Intel Core i9-9980HK, the average time of a call):
 
