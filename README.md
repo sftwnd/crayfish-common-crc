@@ -295,6 +295,27 @@ algorithm of the catalogue gives the model with the name of the algorithm.
   descriptions from the pool; before Java 9, and with a jar without the `Multi-Release` attribute, the pool removes them
   when it is used.
 
+## Speed
+
+The lookup tables are calculated by loops that the JIT compiler inlines into the calls of the calculation, such as
+`CrcModel.value`, so the speed of a CRC depends on the code compiled around the loop. In a JMH test (Intel Core
+i9-9980HK, JDK 8, 21 and 25):
+
+- CRCs of other kinds calculated through the same calls in one JVM are compiled into the same code: CRC-16 or CRC-32
+  next to CRC-64 (registers of different sizes), the lookup tables next to the classes of the JDK (see
+  [CRC-32 and CRC-32C of the JDK](#crc-32-and-crc-32c-of-the-jdk)). A model of the lookup tables calculated after one
+  of another kind got up to 20% slower or faster, and CRC-64/XZ of 64 bytes after CRC-32 of 1 KB got 1.5–1.9 times
+  slower in most runs on JDK 21 and 25, likely because the compiler optimizes the shared code for the loop that ran
+  more often.
+- The warm-up changes the speed as well, with one model only: CRC-16/ARC of 1 KB took 535 or 618 ns on JDK 8 and 543
+  or 449 ns on JDK 25, depending on the method that the loop was compiled into.
+
+Keeping the loops out of the inlining makes the speed almost independent of the other CRCs, but costs up to 30% where
+one kind is calculated alone, so the library keeps them inlined. An application that needs a steady speed more can
+keep them out with the HotSpot option
+`-XX:CompileCommand=dontinline,com/github/sftwnd/crayfish/common/crc/CrcEngine.*Blocks`; the option names internal
+methods, which may change in a later version.
+
 ## CRC-32 and CRC-32C of the JDK
 
 The JDK has classes of its own for two CRCs, and the JVM calculates them with the CRC instructions of the CPU.
@@ -351,11 +372,11 @@ The initial default is given by the system property
 - As long as no model of the JDK is chosen, nothing changes: the class of the calculation with the JDK is not even
   loaded.
 - When models of the JDK and of the lookup tables are used in one JVM, the calls of the calculation meet both classes,
-  and the JIT compiler compiles them for both. In a JMH test (a model of the lookup tables after a model of `CRC32` in
-  the same JVM) the lookup tables got 6–16% slower for CRC-64 on JDK 8, 6–8% slower for CRC-16 and CRC-32 of 1 KB and
-  9–10% faster of 256 bytes on JDK 25, and about 5% faster for CRC-16 and CRC-32 of 1 KB on JDK 21; the other
-  differences did not repeat in every pair of runs. The system property alone mixes them as well, when the JDK
-  calculates CRC-32 and the lookup tables the other models.
+  and the JIT compiler compiles them for both, as for CRCs of other kinds (see [Speed](#speed)). In a JMH test (a model
+  of the lookup tables after a model of `CRC32` in the same JVM) the lookup tables got 6–16% slower for CRC-64 on JDK 8,
+  6–8% slower for CRC-16 and CRC-32 of 1 KB and 9–10% faster of 256 bytes on JDK 25, and about 5% faster for CRC-16 and
+  CRC-32 of 1 KB on JDK 21; the other differences did not repeat in every pair of runs. The system property alone
+  mixes them as well, when the JDK calculates CRC-32 and the lookup tables the other models.
 
 `model.value(data)` of the lookup tables and of the JDK (JMH, Intel Core i9-9980HK, the average time of a call):
 
