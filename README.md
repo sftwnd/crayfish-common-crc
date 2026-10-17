@@ -247,6 +247,33 @@ Both CRCs have to have the same parameters: a model and its alias are fine, othe
 cost does not depend on the size of the data: one multiplication modulo the polynomial per bit set in the length of the
 second part, with 63 values per parameter set built on the first `combine`.
 
+### Bits
+
+Some protocols calculate the CRC of bits that are not a whole number of bytes: CRC-15/CAN of a CAN frame, CRC-11/FLEXRAY
+of the header of a FlexRay frame, CRC-5/USB of a USB token. `valueOfBits` calculates the CRC value of such bits
+(*2.1.0*):
+
+```java
+    // CAN: the 19 bits before the data and the data, packed most significant bit first
+    long can = CrcModel.of("CRC-15/CAN").valueOfBits(frameBits, 19 + 8 * dlc);
+    // FlexRay: the 20 bits of the header in a long
+    long header = CrcModel.of("CRC-11/FLEXRAY").valueOfBits(headerBits, 20);
+    // USB: the 11 bits of a token, the first bit in bit 0 (refin)
+    long token = CrcModel.of("CRC-5/USB").valueOfBits(address | endpoint << 7, 11);
+```
+
+- `model.valueOfBits(data, count)` is the CRC value of the first `count` bits of a byte array, read in the order in
+  which the model reads the bits of a byte: the most significant bit first, the least significant bit first if refin.
+  So `valueOfBits(data, 8L * n)` equals `value(data, n)`, and `valueOfBits(data, 0)` is the value of the empty data.
+- `model.valueOfBits(bits, count)` is the CRC value of `count` bits of a `long`, 0 to 64, read in the same order: from
+  bit `count - 1` down to bit 0, or from bit 0 up if refin. The bits above `count` are ignored.
+- The whole bytes of an array are calculated as by `value(data, n)`, with the lookup tables or the class of the JDK of
+  the model; the rest of the bits and the bits of a `long` a bit at a time.
+- There is the value only, no `CRC`: a `CRC` keeps the length of its data in bytes, for `combine`, `crc(value, length)`
+  and `equals`.
+- A negative count and a count above 64 of a `long` throw `IllegalArgumentException`, a count beyond the data
+  `ArrayIndexOutOfBoundsException`.
+
 ### Resume
 
 ```java

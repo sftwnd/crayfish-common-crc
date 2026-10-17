@@ -327,6 +327,59 @@ public final class CrcModel {
     }
 
     /**
+     * Calculate the CRC value of the first bits of the data, for data that is not a whole number of bytes, such as
+     * the bits of a CAN frame. The bits are read in the order in which the model reads the bits of a byte: the most
+     * significant bit first, the least significant bit first if refin. So {@code valueOfBits(data, 8L * n)} equals
+     * {@code value(data, n)}, and {@code valueOfBits(data, 0)} is the value of the empty data. The whole bytes are
+     * calculated as by {@link #value(byte[], int)}, the rest of the bits a bit at a time. The value only, no
+     * {@link CRC}: a CRC keeps the length of its data in bytes
+     * @param data data
+     * @param count number of the first bits of the data
+     * @return CRC value of the first bits of the data
+     * @throws IllegalArgumentException if the count is negative
+     * @throws ArrayIndexOutOfBoundsException if the count exceeds the bits of the data
+     * @since 2.1.0
+     */
+    @CheckReturnValue
+    public long valueOfBits(@NonNull final byte[] data, final long count) {
+        Objects.requireNonNull(data, "CrcModel::valueOfBits - data is null");
+        if (count < 0) {
+            throw new IllegalArgumentException("CrcModel::valueOfBits - count is negative: " + count);
+        }
+        long dataBits = 8L * data.length;
+        if (count > dataBits) {
+            throw new ArrayIndexOutOfBoundsException("CrcModel::valueOfBits - count " + count + " out of the "
+                    + dataBits + " bits of the buffer length " + data.length);
+        }
+        // the whole bytes the way of value, with the lookup tables or the class of the JDK; the rest of the bits, less
+        // than 8 of the next byte, a bit at a time
+        int length = (int) (count >>> 3);
+        int rest = (int) (count & 7);
+        long value = value(data, 0, length);
+        return rest == 0 ? value : this.engine.updateBits(value, data[length], rest);
+    }
+
+    /**
+     * Calculate the CRC value of bits of a long, for a short sequence of bits such as the header of a FlexRay frame or
+     * a USB token. The bits are read in the order of {@link #valueOfBits(byte[], long)}: from bit {@code count - 1}
+     * down to bit 0, or from bit 0 up if refin; the bits above the count are ignored. So
+     * {@code valueOfBits(b & 0xFF, 8)} equals {@code value(new byte[]{b})}. The bits are calculated a bit at a time
+     * @param bits bits in the low count bits of the long
+     * @param count number of the bits: 0..64
+     * @return CRC value of the bits
+     * @throws IllegalArgumentException if the count is not in 0..64
+     * @since 2.1.0
+     */
+    @CheckReturnValue
+    public long valueOfBits(final long bits, final int count) {
+        if (count < 0 || count > Long.SIZE) {
+            throw new IllegalArgumentException("CrcModel::valueOfBits - count has to be in 0..64: " + count);
+        }
+        long emptyValue = this.engine.empty();
+        return count == 0 ? emptyValue : this.engine.updateBits(emptyValue, bits, count);
+    }
+
+    /**
      * Get a new {@link java.util.zip.Checksum} of the model, for {@link java.util.zip.CheckedOutputStream},
      * {@link java.util.zip.CheckedInputStream} and other code that works with a {@code Checksum}
      * @return new mutable checksum of the empty data
