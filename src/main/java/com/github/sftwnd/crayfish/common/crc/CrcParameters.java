@@ -8,7 +8,16 @@ import edu.umd.cs.findbugs.annotations.CheckForNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 
+import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.EnumMap;
+import java.util.EnumSet;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -67,6 +76,149 @@ public final class CrcParameters {
         checkFits(source, "init", init, width);
         checkFits(source, "xorout", xorout, width);
         return new CrcParameters(width, poly, init, refin, refout, xorout);
+    }
+
+    /**
+     * Parse the parameters of a CRC algorithm from a parameter line of the catalogue, the format of {@link #toString()},
+     * for example {@code width=16  poly=0x8005  init=0x0000  refin=true  refout=true  xorout=0x0000}. The fields
+     * {@code name=value} are separated by whitespace, in any order, each at most once. The parameters are required:
+     * {@code width} (decimal, 1..64), {@code poly}, {@code init} and {@code xorout} (hexadecimal with {@code 0x}, digits
+     * of any case, fitting into the width), {@code refin} and {@code refout} ({@code true} or {@code false}). The other
+     * fields of the parameter lines of the catalogue are optional: {@code check} (hexadecimal, verified: the CRC of
+     * {@link #CHECK_INPUT}), {@code residue} (hexadecimal, accepted) and {@code name} (a quoted string, which may contain
+     * whitespace; ignored, as the parameters have no name), so the format of {@link CrcDescription#toString()} is parsed
+     * as well. The parameters of an algorithm of the catalogue give the model with its name, see
+     * {@link CrcModel#of(CrcParameters)}
+     * @param line parameter line
+     * @return parameters of the line
+     * @throws IllegalArgumentException if a field is unknown, given twice or missing, if a value is not valid or does
+     *         not fit into the width, or if the check value is not the CRC of {@link #CHECK_INPUT}
+     * @since 2.1.0
+     */
+    public static @NonNull CrcParameters parse(@NonNull final String line) {
+        Map<Field, String> fields = fields(Objects.requireNonNull(line, PARSE + " - line is null"));
+        int width = parseWidth(fields.get(Field.WIDTH));
+        CrcParameters parameters = new CrcParameters(width, parseHex(fields, Field.POLY, width), parseHex(fields, Field.INIT, width),
+                parseFlag(fields, Field.REFIN), parseFlag(fields, Field.REFOUT), parseHex(fields, Field.XOROUT, width));
+        if (fields.containsKey(Field.CHECK)) {
+            verifyCheck(parameters, parseHex(fields, Field.CHECK, width));
+        }
+        // the residue is accepted: a hexadecimal value of the width
+        if (fields.containsKey(Field.RESIDUE)) {
+            parseHex(fields, Field.RESIDUE, width);
+        }
+        // the name is ignored: the parameters have no name
+        String name = fields.get(Field.NAME);
+        if (name != null && name.charAt(0) != '"') {
+            throw new IllegalArgumentException(PARSE + " - name is not a quoted string: " + name);
+        }
+        return parameters;
+    }
+
+    private static final String PARSE = "CrcParameters::parse";
+
+    // a field of a parameter line from the start of the region on: the name, '=' and the value, quoted (whitespace
+    // allowed inside the quotes) or without whitespace and quotes, followed by whitespace or the end of the line
+    private static final Pattern FIELD = Pattern.compile("([^\\s=\"]++)=(\"[^\"]*+\"|[^\\s\"]++)(?:\\s++|$)");
+    private static final Pattern DECIMAL = Pattern.compile("\\d++");
+    private static final Pattern HEXADECIMAL = Pattern.compile("0x\\p{XDigit}++");
+
+    // the fields of a parameter line: the parameters in the order of toString(), which are required, then the other
+    // fields of the parameter lines of the catalogue
+    private enum Field {
+        WIDTH, POLY, INIT, REFIN, REFOUT, XOROUT, CHECK, RESIDUE, NAME;
+
+        // the name of the field in a line
+        final String key = name().toLowerCase(Locale.ROOT);
+    }
+
+    private static final Set<Field> REQUIRED = EnumSet.range(Field.WIDTH, Field.XOROUT);
+
+    // the values of the fields of a parameter line: every field is known and given once, every parameter is given
+    private static @NonNull Map<Field, String> fields(@NonNull final String line) {
+        Map<Field, String> fields = new EnumMap<>(Field.class);
+        String text = line.trim();
+        Matcher matcher = FIELD.matcher(text);
+        for (int position = 0; position < text.length(); position = matcher.end()) {
+            if (!matcher.region(position, text.length()).lookingAt()) {
+                throw new IllegalArgumentException(PARSE + " - not a field name=value: " + text.substring(position));
+            }
+            Field field = field(matcher.group(1));
+            if (fields.put(field, matcher.group(2)) != null) {
+                throw new IllegalArgumentException(PARSE + " - field given twice: " + field.key);
+            }
+        }
+        List<String> missing = new ArrayList<>(REQUIRED.size());
+        for (Field field : REQUIRED) {
+            if (!fields.containsKey(field)) {
+                missing.add(field.key);
+            }
+        }
+        if (!missing.isEmpty()) {
+            throw new IllegalArgumentException(PARSE + " - missing: " + String.join(", ", missing));
+        }
+        return fields;
+    }
+
+    // the field of a name in a line
+    private static @NonNull Field field(@NonNull final String key) {
+        for (Field field : Field.values()) {
+            if (field.key.equals(key)) {
+                return field;
+            }
+        }
+        throw new IllegalArgumentException(PARSE + " - unknown field: " + key);
+    }
+
+    // the width of a line: a decimal number in 1..64
+    private static int parseWidth(@NonNull final String text) {
+        if (!DECIMAL.matcher(text).matches()) {
+            throw new IllegalArgumentException(PARSE + " - width is not a decimal number: " + text);
+        }
+        // the digits are read until the width exceeds 64, so that a longer number does not overflow
+        int width = 0;
+        for (int i = 0; i < text.length() && width <= 64; i++) {
+            width = width * 10 + text.charAt(i) - '0';
+        }
+        if (width < 1 || width > 64) {
+            throw new IllegalArgumentException(PARSE + " - width has to be in 1..64: " + text);
+        }
+        return width;
+    }
+
+    // a hexadecimal value of a line: 0x followed by digits of any case, with any number of leading zeros, fitting
+    // into the width
+    private static long parseHex(@NonNull final Map<Field, String> fields, @NonNull final Field field, final int width) {
+        String text = fields.get(field);
+        if (!HEXADECIMAL.matcher(text).matches()) {
+            throw new IllegalArgumentException(PARSE + " - " + field.key + " is not a hexadecimal number with 0x: " + text);
+        }
+        BigInteger value = new BigInteger(text.substring(2), 16);
+        if (value.bitLength() > width) {
+            String hint = field == Field.POLY ? " (poly without the x^" + width + " term)" : "";
+            throw new IllegalArgumentException(PARSE + " - " + field.key + " " + text + " does not fit into the width " + width + hint);
+        }
+        return value.longValue();
+    }
+
+    // a flag of a line: true or false
+    private static boolean parseFlag(@NonNull final Map<Field, String> fields, @NonNull final Field field) {
+        String text = fields.get(field);
+        boolean flag = "true".equals(text);
+        if (!flag && !"false".equals(text)) {
+            throw new IllegalArgumentException(PARSE + " - " + field.key + " is not true or false: " + text);
+        }
+        return flag;
+    }
+
+    // the check value of a line has to be the CRC of CHECK_INPUT, calculated a bit at a time as for a builder with
+    // a check value; CrcDescription is not used, so that a line is parsed without the pool of the descriptions
+    private static void verifyCheck(@NonNull final CrcParameters parameters, final long check) {
+        long actual = new CrcEngine(parameters).bitwise(CHECK_INPUT.getBytes(StandardCharsets.US_ASCII));
+        if (actual != check) {
+            throw new IllegalArgumentException(PARSE + " - wrong check value " + hex(check, parameters.width) + " for " + parameters
+                    + ": the CRC of \"" + CHECK_INPUT + "\" is " + hex(actual, parameters.width));
+        }
     }
 
     /**
@@ -199,7 +351,7 @@ public final class CrcParameters {
 
     // the parameters of a parametric name, null if the name is not a parametric name in its canonical form:
     // every parameter set has exactly one name
-    static @Nullable CrcParameters parse(@NonNull final String name) {
+    static @Nullable CrcParameters parseName(@NonNull final String name) {
         Matcher matcher = PARAMETRIC_NAME.matcher(name);
         if (!matcher.matches()) {
             return null;

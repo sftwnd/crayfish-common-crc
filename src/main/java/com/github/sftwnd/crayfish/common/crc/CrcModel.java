@@ -113,7 +113,7 @@ public final class CrcModel {
         if (standard != null) {
             return CrcDescription.of(standard.standard.parameters()).model(standard.index, jdk);
         }
-        CrcParameters parameters = CrcParameters.parse(name);
+        CrcParameters parameters = CrcParameters.parseName(name);
         return parameters == null ? null : CrcDescription.of(parameters).modelOf(name, jdk);
     }
 
