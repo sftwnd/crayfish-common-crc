@@ -284,8 +284,12 @@ of the header of a FlexRay frame, CRC-5/USB of a USB token. `valueOfBits` calcul
   the model; the rest of the bits and the bits of a `long` a bit at a time.
 - There is the value only, no `CRC`: a `CRC` keeps the length of its data in bytes, for `combine`, `crc(value, length)`
   and `equals`.
-- A negative count and a count above 64 of a `long` throw `IllegalArgumentException`, a count beyond the data
-  `ArrayIndexOutOfBoundsException`.
+- The CRC value of bits followed by their CRC in the order of the model is `residue ^ xorout` for refin = refout,
+  whatever the bits and the width, so a receiver checks a frame with its CRC by one call: a CAN frame of `count` bits
+  followed by its 15 bits of CRC-15/CAN is valid if `can.valueOfBits(frame, count + 15)` is 0, the residue of
+  CRC-15/CAN XOR-ed with its xorout (see [Codewords](#codewords) for the data of whole bytes).
+- A count of an array that is negative or beyond its bits throws `ArrayIndexOutOfBoundsException`, as the length of
+  `value(data, length)` does; a count of a `long` outside 0 to 64 throws `IllegalArgumentException`.
 
 ### Resume
 

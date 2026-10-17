@@ -16,7 +16,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.UnaryOperator;
 
 /**
- * The description of a CRC parameter set: its names, its check value and the internal structures of the calculation.
+ * The description of a CRC parameter set: its names, its check value, its residue and the internal structures of
+ * the calculation.
  * There is one description per parameter set: every model and every CRC of the parameters, by any name, refers to it,
  * and the lookup tables of the calculation are built once, on the first calculation with data.
  * <p>
@@ -204,7 +205,9 @@ public final class CrcDescription {
      * the width initialised with xorout, reflected if refout, after as many zero bits as the width, reflected if refin.
      * For a width that is a multiple of 8 and refin = refout, the CRC value of a valid codeword of
      * {@link CrcModel#isValid(byte[])} is {@code residue ^ xorout}, whatever the data: {@code 0x2144df1c} for
-     * CRC-32/ISO-HDLC, for example, the value of a {@link CrcChecksum} that has read such a codeword as a stream
+     * CRC-32/ISO-HDLC, for example, the value of a {@link CrcChecksum} that has read such a codeword as a stream. For
+     * refin = refout and every width, so is the CRC value of bits followed by their CRC in the order of the model, see
+     * {@link CrcModel#valueOfBits(byte[], long)}
      * @return residue
      * @since 2.1.0
      */
