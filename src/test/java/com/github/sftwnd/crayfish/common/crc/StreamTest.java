@@ -31,7 +31,6 @@ import java.util.concurrent.TimeUnit;
 
 import static java.nio.charset.StandardCharsets.US_ASCII;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -305,7 +304,7 @@ class StreamTest {
     }
 
     @Test
-    void testIOException() throws IOException {
+    void testIOException() {
         CrcModel model = CrcModel.of("CRC-64/XZ");
         CRC crc = model.crc(CHECK);
         IOException failure = new IOException("the stream fails after the data");
