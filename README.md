@@ -12,8 +12,8 @@
 **Fast, zero-dependency CRC library for Java 8+: every CRC from CRC-3 to CRC-64 of the RevEng catalogue — and any custom one.**
 
 112 predefined CRC algorithms (186 names with aliases): CRC-32, CRC-32C, CRC-16/MODBUS, CRC-16/CCITT-FALSE,
-CRC-16/XMODEM, CRC-8, CRC-64/ECMA-182, CRC-64/NVME and many more. Parameters and check values are those of the
-[RevEng CRC catalogue](https://reveng.sourceforge.io/crc-catalogue/all.htm).
+CRC-16/XMODEM, CRC-8, CRC-64/ECMA-182, CRC-64/NVME and many more. Parameters, check values and residues are those of
+the [RevEng CRC catalogue](https://reveng.sourceforge.io/crc-catalogue/all.htm).
 
 The API of 2.0 is not compatible with 1.x, see [Migrating from 1.x](#migrating-from-1x). The README of 1.x is that of
 the tag [crayfish-common-crc-1.2.0](https://github.com/sftwnd/crayfish-common-crc/blob/crayfish-common-crc-1.2.0/README.md),
@@ -22,24 +22,36 @@ the latest 1.x release; see [Versions and support](#versions-and-support) for th
 ## Features
 
 - **Fast** — table-driven, slicing-by-8 for every model, not only for CRC-32: 8 bytes per step, 2–4 times faster than
-  one byte per step on buffers from 256 bytes
+  one byte per step on buffers from 256 bytes; a CRC up to 32 bits wide is calculated with the register of an `int`,
+  1.1–1.7 times as fast as in 2.0 (*2.1.0*, see [Speed](#speed))
 - **CPU instructions on request** — the JDK classes `java.util.zip.CRC32` and `CRC32C` calculate CRC-32,
   CRC-32/JAMCRC and CRC-32C with the CRC instructions of the CPU, with the whole API of the library: chosen per model,
   or by a default set by a system property or a call (*2.1.0*)
 - **Immutable** — a CRC is a value: an update or a combination gives a new CRC, so a CRC can be shared between threads
   and kept as the state of a calculation (*2.0*)
 - **Combine and resume** — join the CRCs of parts calculated independently (in parallel threads or on other nodes),
-  like zlib `crc32_combine`; continue a calculation from a saved CRC value and length, also of 2 GiB and more
+  like zlib `crc32_combine`; continue a calculation from a saved CRC value and length, also of 2 GiB and more, as
+  a `CRC` or as a `java.util.zip.Checksum` (*2.1.0*, see [Resume](#resume))
 - **Streams** — a `java.util.zip.Checksum` of any model for `CheckedOutputStream`, `CheckedInputStream` and other code
-  written for `CRC32` (*2.0*)
+  written for `CRC32` (*2.0*); the CRC of an `InputStream` or of a channel read to its end (*2.1.0*, see
+  [Streams](#streams))
+- **Codewords** — check data followed by its CRC, with the residues of the catalogue, and get the bytes of a CRC in the
+  byte order of a protocol (*2.1.0*, see [Codewords](#codewords) and [Calculate](#calculate))
+- **Bits** — the CRC of data that is not a whole number of bytes, such as the frames of CAN, FlexRay and USB
+  (*2.1.0*, see [Bits](#bits))
 - **Names and aliases** — a model is chosen by the name or by any alias of the catalogue, and its CRCs tell the name
   it was chosen by; other parameters get a unique name of their own (*2.0*)
+- **Find the algorithm** — the algorithms of the catalogue that give the CRCs of samples of data, and the parameters of
+  a parameter line of the catalogue (*2.1.0*, see [By samples of data](#by-samples-of-data) and
+  [By parameters](#by-parameters))
 - **Memory on demand** — one description per parameter set; its lookup tables are built on the first calculation and
-  collected with it when no model of the parameters is used any more (*2.0*)
+  collected with it when no model of the parameters is used any more (*2.0*); no thread of its own, so the library is
+  unloaded with a redeployed application (*2.1.0*, see [Memory](#memory))
 - **Java 8+ and modular** — runs on Java 8; on Java 9+ it is the named JPMS module `com.github.sftwnd.crayfish_common_crc`
   of a multi-release jar; OSGi bundle headers included
 - **Zero runtime dependencies** — a single small jar
-- **Verified** — every predefined model is tested against its RevEng check value and a bit-by-bit reference implementation
+- **Verified** — every predefined model is tested against its RevEng check value and residue and a bit-by-bit
+  reference implementation
 - **Any CRC up to 64 bits** — width 1…64, any poly, init, refin, refout, xorout
 - **BSD 3-Clause** license
 
@@ -51,14 +63,14 @@ Maven:
 <dependency>
     <groupId>com.github.sftwnd.crayfish.common</groupId>
     <artifactId>crayfish-common-crc</artifactId>
-    <version>2.0.0</version>
+    <version>2.1.0</version>
 </dependency>
 ```
 
 Gradle:
 
 ```groovy
-implementation 'com.github.sftwnd.crayfish.common:crayfish-common-crc:2.0.0'
+implementation 'com.github.sftwnd.crayfish.common:crayfish-common-crc:2.1.0'
 ```
 
 ## Quick start
@@ -73,10 +85,10 @@ implementation 'com.github.sftwnd.crayfish.common:crayfish-common-crc:2.0.0'
 
 | Type | What it is |
 |---|---|
-| `CrcParameters` | the parameters of a CRC algorithm: width, poly, init, refin, refout, xorout |
-| `StandardCrc` | the 112 algorithms of the catalogue: name, aliases, parameters, check value |
-| `CrcDescription` | the one description of a parameter set: names, check value, lookup tables |
-| `CrcModel` | a description with the name it was chosen by |
+| `CrcParameters` | the parameters of a CRC algorithm: width, poly, init, refin, refout, xorout; also read from a parameter line of the catalogue |
+| `StandardCrc` | the 112 algorithms of the catalogue: name, aliases, parameters, check value, residue |
+| `CrcDescription` | the one description of a parameter set: names, check value, residue, lookup tables |
+| `CrcModel` | a description with the name it was chosen by and the way of the calculation: the lookup tables or a class of the JDK |
 | `CRC` | the immutable CRC of data: model, value, length |
 | `CrcChecksum` | the mutable `java.util.zip.Checksum` of a model, for streams |
 
@@ -189,7 +201,8 @@ them afterwards unless models of the algorithms are in use (see [Memory](#memory
 ```
 
 `model.value(...)` equals `model.crc(...).value()` without creating a `CRC`; a `CRC` is needed to continue a calculation,
-to combine CRCs or to keep the length. `model.crc()` is the CRC of the empty data. A CRC is immutable, so the result of `update()` has to be used:
+to combine CRCs or to keep the length. `model.crc()` is the CRC of the empty data. A CRC is immutable, so the result of
+`update()` has to be used:
 
 ```java
     CRC crc = model.crc();
@@ -461,6 +474,10 @@ algorithm of the catalogue gives the model with the name of the algorithm.
 
 ## Speed
 
+The speed of 2.1.0 against 1.2.0 and 2.0.0, and of its lookup tables against the classes of the JDK, measured with JMH
+on JDK 8, 21 and 25 (the median of 5 rounds per point), is on the wiki page
+[Speed of 2.1.0](https://github.com/sftwnd/crayfish-common-crc/wiki/Speed-of-2.1.0).
+
 The lookup tables are calculated by loops that the JIT compiler inlines into the calls of the calculation, such as
 `CrcModel.value`, so the speed of a CRC depends on the code compiled around the loop. In a JMH test (Intel Core
 i9-9980HK, JDK 8, 21 and 25):
@@ -484,7 +501,7 @@ methods, which may change in a later version.
 
 The JDK has classes of its own for two CRCs, and the JVM calculates them with the CRC instructions of the CPU.
 A model of these CRCs can be calculated with them, with the whole API of the library: names and aliases, immutable
-CRCs, combine, resume, `CrcChecksum`, `ByteBuffer`:
+CRCs, combine, resume, `CrcChecksum`, `ByteBuffer`, streams and channels, codewords, bits:
 
 | Class of the JDK | Java | Models | From |
 |---|---|---|---|
