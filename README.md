@@ -466,15 +466,17 @@ CRCs, combine, resume, `CrcChecksum`, `ByteBuffer`:
 The way is chosen with the model, or the model gets the default:
 
 ```java
-    CrcModel jdk = CrcModel.of("CRC-32", true);      // java.util.zip.CRC32
-    CrcModel tables = CrcModel.of("CRC-32", false);  // the lookup tables of the library
-    CrcModel same = tables.withJdk(true);            // the model jdk
-    boolean byJdk = jdk.isJdk();                     // true
+    CrcModel jdk = CrcModel.of("CRC-32", true);                  // java.util.zip.CRC32
+    CrcModel tables = CrcModel.of("CRC-32", false);              // the lookup tables of the library
+    CrcModel same = tables.withJdk(true);                        // the model jdk
+    boolean byJdk = jdk.isJdk();                                 // true
+    CrcModel pkzip = tables.description().model("PKZIP", true);  // PKZIP, java.util.zip.CRC32
     CrcModel built = CrcModel.builder(32).poly(0x1EDC6F41L).init(0xFFFFFFFFL).reflected(true).xorout(0xFFFFFFFFL)
-            .jdk(true).build();                      // CRC-32C, java.util.zip.CRC32C on Java 9+
+            .jdk(true).build();                                  // CRC-32C, java.util.zip.CRC32C on Java 9+
+    CrcModel iscsi = StandardCrc.CRC_32_ISCSI.model(true);       // the model built
 
-    CrcDescription.setJdk(true);                     // the default of the models chosen without a choice
-    CrcModel byDefault = CrcModel.of("CRC-32C");     // java.util.zip.CRC32C on Java 9+
+    CrcDescription.setJdk(true);                                 // the default of the models chosen without a choice
+    CrcModel byDefault = CrcModel.of("CRC-32C");                 // java.util.zip.CRC32C on Java 9+
 ```
 
 The initial default is given by the system property
@@ -486,8 +488,11 @@ The initial default is given by the system property
 - Without the property the default is the lookup tables of the library. The property is read once, when the first
   model is created; `CrcDescription.setJdk(boolean)` changes the default later, `CrcDescription.isJdk()` tells it.
 - The default is applied when a model is chosen without a choice: `CrcModel.of(name)`, `find(name)`,
-  `of(parameters)`, the builder without `jdk(...)`, `StandardCrc.model()`, `CrcDescription.model()`. A model keeps
-  its way, and so do its CRCs and checksums: a change of the default does not change the models chosen before.
+  `of(parameters)`, the builder without `jdk(...)`, `StandardCrc.model()`, `CrcDescription.model()` and
+  `model(name)`. The way is chosen by `CrcModel.of(name, jdk)`, `find(name, jdk)`, `of(parameters, jdk)`, the builder
+  with `jdk(...)`, `model.withJdk(jdk)`, `StandardCrc.model(jdk)`, `CrcDescription.model(jdk)` and `model(name, jdk)`.
+  A model keeps its way, and so do its CRCs and checksums: a change of the default does not change the models chosen
+  before.
 - There is one model per description, name and way, and models are compared by identity. The CRC values are the same,
   only the speed changes: the CRCs of both ways are equal, have the same hash code and can be combined.
 - The way is a matter of the parameters, not of the name: every model of the parameters, by a name, an alias,

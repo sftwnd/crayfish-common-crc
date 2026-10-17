@@ -427,11 +427,24 @@ public enum StandardCrc {
     }
 
     /**
-     * Get the model of the algorithm with its name, the same as {@code CrcModel.of(crcName())}
+     * Get the model of the algorithm with its name, of the way of {@link CrcDescription#isJdk()}: the same as
+     * {@code CrcModel.of(crcName())}
      * @return model of the algorithm
      */
     public @NonNull CrcModel model() {
         return CrcModel.of(this.parameters);
+    }
+
+    /**
+     * Get the model of the algorithm with its name, calculated the way given: the same as
+     * {@code CrcModel.of(crcName(), jdk)}
+     * @param jdk true for the class of the JDK, if a class of the JDK calculates the CRC; false for the lookup tables
+     *            of the library
+     * @return model of the algorithm with the way, see {@link CrcModel#withJdk(boolean)}
+     * @since 2.1.0
+     */
+    public @NonNull CrcModel model(final boolean jdk) {
+        return CrcModel.of(this.parameters, jdk);
     }
 
     /**

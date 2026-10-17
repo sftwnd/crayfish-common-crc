@@ -447,7 +447,7 @@ class CRCTest {
         assertThrows(ArrayIndexOutOfBoundsException.class, () -> crc.update(data, Integer.MAX_VALUE, 2), "An overflowing end has to be rejected");
         ArrayIndexOutOfBoundsException exception = assertThrows(ArrayIndexOutOfBoundsException.class, () -> model.crc(data, 10, 7),
                 "The bytes beyond the buffer have to be rejected");
-        assertEquals("CRC::update - offset 10 and length 7 out of the buffer length 16", exception.getMessage(), "Wrong message");
+        assertEquals("CrcModel::crc - offset 10 and length 7 out of the buffer length 16", exception.getMessage(), "Wrong message");
         assertSame(crc, crc.update(data, 16, 0), "0 bytes at the end of the buffer are no data");
         assertThrows(NullPointerException.class, () -> crc.update((byte[]) null), "update(null) has to throw NullPointerException");
         assertThrows(NullPointerException.class, () -> crc.update(null, 0, 0), "update(null, 0, 0) has to throw NullPointerException");

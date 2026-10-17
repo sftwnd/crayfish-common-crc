@@ -10,6 +10,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.UnaryOperator;
@@ -108,7 +109,8 @@ public final class CrcDescription {
     /**
      * Whether the models chosen without a choice of the way are calculated by the classes of the JDK, for the CRCs
      * they calculate: {@link CrcModel#of(String)}, {@link CrcModel#find(String)}, {@link CrcModel#of(CrcParameters)},
-     * a builder without {@link CrcModel.Builder#jdk(boolean)}, {@link StandardCrc#model()} and {@link #model()}.
+     * a builder without {@link CrcModel.Builder#jdk(boolean)}, {@link StandardCrc#model()}, {@link #model()} and
+     * {@link #model(String)}.
      * Initially the value of the system property {@value #JDK_PROPERTY}, then the value of {@link #setJdk(boolean)}
      * @return true if the classes of the JDK calculate the models chosen without a choice, false if the lookup tables
      *         of the library do
@@ -236,11 +238,37 @@ public final class CrcDescription {
      * @throws IllegalArgumentException if the description has no such name
      */
     public @NonNull CrcModel model(@NonNull final String name) {
-        int index = this.names.indexOf(name);
+        return model(name, defaultJdk);
+    }
+
+    /**
+     * Get the model with the name of the description, calculated the way given
+     * @param jdk true for the class of the JDK, if a class of the JDK calculates the CRC; false for the lookup tables
+     *            of the library
+     * @return model with the name of the description and the way, see {@link CrcModel#withJdk(boolean)}
+     * @since 2.1.0
+     */
+    // the model 0 always exists, see model(): javabugs:S6466 is a false positive
+    @SuppressWarnings("javabugs:S6466")
+    public @NonNull CrcModel model(final boolean jdk) {
+        return model(0, jdk);
+    }
+
+    /**
+     * Get the model with one of the names of the description, calculated the way given
+     * @param name name or alias of the description
+     * @param jdk true for the class of the JDK, if a class of the JDK calculates the CRC; false for the lookup tables
+     *            of the library
+     * @return model with the name and the way, see {@link CrcModel#withJdk(boolean)}
+     * @throws IllegalArgumentException if the description has no such name
+     * @since 2.1.0
+     */
+    public @NonNull CrcModel model(@NonNull final String name, final boolean jdk) {
+        int index = this.names.indexOf(Objects.requireNonNull(name, "CrcDescription::model - name is null"));
         if (index < 0) {
             throw new IllegalArgumentException("CrcDescription::model - " + name() + " has no name " + name);
         }
-        return model(index, defaultJdk);
+        return model(index, jdk);
     }
 
     // the model of the name with the index in the names: calculated by the class of the JDK if jdk is true and a class

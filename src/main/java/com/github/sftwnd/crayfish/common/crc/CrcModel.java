@@ -37,6 +37,7 @@ public final class CrcModel {
 
     private static final String VALUE_NULL_DATA = "CrcModel::value - data is null";
     private static final String IS_VALID_NULL_CODEWORD = "CrcModel::isValid - codeword is null";
+    private static final String CRC_NULL_DATA = "CrcModel::crc - data is null";
 
     private final CrcDescription description;
     // the index of the name in the names of the description
@@ -78,7 +79,7 @@ public final class CrcModel {
      * @since 2.1.0
      */
     public static @NonNull CrcModel of(@NonNull final String name, final boolean jdk) {
-        CrcModel model = lookUp(name, jdk);
+        CrcModel model = lookUp(Objects.requireNonNull(name, "CrcModel::of - name is null"), jdk);
         if (model == null) {
             throw new IllegalArgumentException("CrcModel::of - unknown CRC name: " + name);
         }
@@ -105,7 +106,7 @@ public final class CrcModel {
      */
     @CheckReturnValue
     public static @NonNull Optional<CrcModel> find(@NonNull final String name, final boolean jdk) {
-        return Optional.ofNullable(lookUp(name, jdk));
+        return Optional.ofNullable(lookUp(Objects.requireNonNull(name, "CrcModel::find - name is null"), jdk));
     }
 
     // the model of a name, null if the name is unknown: a name of the catalogue gives the index of its model,
@@ -157,6 +158,12 @@ public final class CrcModel {
      * @throws IllegalArgumentException if the width is not in 1..64, or if poly, init or xorout do not fit into width bits
      */
     public static @NonNull CrcModel of(final int width, final long poly, final long init, final boolean refin, final boolean refout, final long xorout) {
+        // the checks of CrcParameters.of, with the messages of this method
+        String source = "CrcModel::of";
+        CrcParameters.checkWidth(source, width);
+        CrcParameters.checkFits(source, "poly", poly, width);
+        CrcParameters.checkFits(source, "init", init, width);
+        CrcParameters.checkFits(source, "xorout", xorout, width);
         return of(CrcParameters.of(width, poly, init, refin, refout, xorout));
     }
 
@@ -226,6 +233,7 @@ public final class CrcModel {
      */
     @CheckReturnValue
     public @NonNull CRC crc(@NonNull final byte[] data) {
+        Objects.requireNonNull(data, CRC_NULL_DATA);
         return this.empty.update(data);
     }
 
@@ -238,7 +246,7 @@ public final class CrcModel {
      */
     @CheckReturnValue
     public @NonNull CRC crc(@NonNull final byte[] data, final int length) {
-        return this.empty.update(data, 0, length);
+        return crc(data, 0, length);
     }
 
     /**
@@ -251,6 +259,12 @@ public final class CrcModel {
      */
     @CheckReturnValue
     public @NonNull CRC crc(@NonNull final byte[] data, final int offset, final int length) {
+        // the checks of CRC.update, with the messages of this method
+        Objects.requireNonNull(data, CRC_NULL_DATA);
+        if (offset < 0 || length < 0 || length > data.length - offset) {
+            throw new ArrayIndexOutOfBoundsException("CrcModel::crc - offset " + offset + " and length " + length
+                    + " out of the buffer length " + data.length);
+        }
         return this.empty.update(data, offset, length);
     }
 
@@ -439,7 +453,7 @@ public final class CrcModel {
      */
     @CheckReturnValue
     public @NonNull CRC crc(@NonNull final ByteBuffer data) {
-        Objects.requireNonNull(data, "CrcModel::crc - data is null");
+        Objects.requireNonNull(data, CRC_NULL_DATA);
         return this.empty.update(data);
     }
 
