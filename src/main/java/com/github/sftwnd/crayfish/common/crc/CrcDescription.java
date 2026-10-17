@@ -28,8 +28,8 @@ import java.util.function.UnaryOperator;
  * the garbage collector collects the description with its lookup tables, and the next model of the parameters gets
  * a new description. The system property {@value #RETENTION_PROPERTY} {@code = soft} makes the pool refer to them
  * softly instead: an unused description is kept until the memory runs short. The property is read once, when the pool
- * is used first. On Java 9+ a cleaner thread removes the entry of a collected description from the pool, before Java 9
- * the pool removes such entries when it is used.
+ * is used first. The pool removes the entries of the collected descriptions when it is used, on every Java version:
+ * the library starts no thread, which would keep its class loader from being collected.
  * <p>
  * The classes of the JDK calculate some CRCs with the CRC instructions of the CPU: {@code java.util.zip.CRC32}
  * the parameters of CRC-32/ISO-HDLC and CRC-32/JAMCRC, {@code java.util.zip.CRC32C} on Java 9+ those of CRC-32/ISCSI

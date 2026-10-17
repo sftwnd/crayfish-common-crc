@@ -215,7 +215,7 @@
                 <artifactId>jacoco-maven-plugin</artifactId>
                 <configuration>
                     <excludes>
-                        <!-- the Java 9 version of Eviction has the name of the class it replaces: the report covers
+                        <!-- the Java 9 version of JdkCrcs has the name of the class it replaces: the report covers
                              the classes of target/classes -->
                         <exclude>META-INF/versions/**</exclude>
                     </excludes>
@@ -250,7 +250,7 @@ Bundle-License: BSD-3-Clause;link="https://opensource.org/licenses/BSD-3-Clause"
 Automatic-Module-Name: ${javaModuleName}
 Multi-Release: true
 # bnd 6 does not know multi-release jars and takes the classes of META-INF/versions/9 (the module descriptor and the
-# Java 9 version of Eviction) for classes in the wrong directory
+# Java 9 version of JdkCrcs) for classes in the wrong directory
 -fixupmessages: "Classes found in the wrong directory: *META-INF/versions/9/*";restrict:=error;is:=ignore
 Export-Package: com.github.sftwnd.crayfish.common.crc;version="${version;===;${Bundle-Version}}"
 -noextraheaders: true

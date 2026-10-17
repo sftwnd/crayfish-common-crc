@@ -57,7 +57,7 @@ class InternerTest {
         AtomicInteger created = new AtomicInteger();
         WeakReference<Object> probe = intern(interner, "a", created);
         Gc.awaitCleared(probe, "The unused value has to be collected");
-        // the entry is removed by size() before Java 9, by the cleaner on Java 9+
+        // the entry is removed on the next access to the pool, here by size()
         Gc.await(() -> interner.size() == 0, "The entry of the collected value has to be removed");
         assertFalse(interner.containsKey("a"), "The entry of the collected value has to be removed");
         assertNotNull(intern(interner, "a", created), "A new value has to be created");
@@ -149,13 +149,18 @@ class InternerTest {
     }
 
     @Test
-    void testEvictionOfTheClassDirectory() {
-        // the unit tests use target/classes, not the multi-release jar: the version of Eviction before Java 9
-        assertFalse(Eviction.isAsynchronous(), "The pool has to remove the entries itself");
-        Object referent = new Object();
-        Runnable action = () -> { };
-        assertThrows(UnsupportedOperationException.class, () -> Eviction.register(referent, action),
-                "No cleaner is registered before Java 9");
+    void testInternRemovesTheEntryOfACollectedValue() throws InterruptedException {
+        Interner<String, Object> interner = new Interner<>(Retention.WEAK);
+        WeakReference<Object> probe = intern(interner, "a", new AtomicInteger());
+        Object value = interner.intern("b", key -> new Object());
+        Gc.awaitCleared(probe, "The unused value has to be collected");
+        // no thread removes the entries: the entry of the collected value stays until the pool is used
+        assertTrue(interner.containsKey("a"), "The entry of the collected value has to stay until the next access");
+        // the reference handler of the JVM queues the cleared reference after the collection: the access is repeated
+        // until the pool finds it in its queue
+        Gc.await(() -> interner.intern("b", key -> new Object()) == value && !interner.containsKey("a"),
+                "The next intern of another key has to remove the entry of the collected value");
+        assertEquals(1, interner.size(), "The entry of the value in use has to be kept");
     }
 
 }
