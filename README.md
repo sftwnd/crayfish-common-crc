@@ -170,6 +170,21 @@ As with `java.util.zip.Checksum.update(ByteBuffer)`, the position of the buffer 
 A buffer with an accessible array is calculated in the array; a direct or read-only buffer is copied in parts of 4096
 bytes.
 
+`crc.bytes(order)` gives the CRC value as bytes in the byte order of a protocol, to send or store the CRC after the data
+(*2.1.0*): `(width + 7) / 8` bytes with the value in their low bits, so for a width that is not a multiple of 8 the
+unused high bits of the most significant byte are 0:
+
+```java
+    byte[] check = "123456789".getBytes(StandardCharsets.US_ASCII);
+    byte[] modbus = CrcModel.of("CRC-16/MODBUS").crc(check).bytes(ByteOrder.LITTLE_ENDIAN);   // 37 4b (0x4b37)
+    byte[] xmodem = CrcModel.of("CRC-16/XMODEM").crc(check).bytes(ByteOrder.BIG_ENDIAN);      // 31 c3 (0x31c3)
+    byte[] umts = CrcModel.of("CRC-12/UMTS").crc(check).bytes(ByteOrder.BIG_ENDIAN);          // 0d af (0xdaf)
+```
+
+Every call gives a new array. There is no default order, as the order belongs to the protocol: CRC-16/MODBUS and the
+frame check sequence of Ethernet (CRC-32) are sent least significant byte first, CRC-16/XMODEM and the CRC of a PNG
+chunk most significant byte first.
+
 ### Combine
 
 ```java
