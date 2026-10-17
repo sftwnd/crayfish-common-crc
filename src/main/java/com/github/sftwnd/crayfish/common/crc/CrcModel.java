@@ -38,6 +38,7 @@ public final class CrcModel {
     private static final String VALUE_NULL_DATA = "CrcModel::value - data is null";
     private static final String IS_VALID_NULL_CODEWORD = "CrcModel::isValid - codeword is null";
     private static final String CRC_NULL_DATA = "CrcModel::crc - data is null";
+    private static final String CODEWORD_NULL_DATA = "CrcModel::codeword - data is null";
 
     private final CrcDescription description;
     // the index of the name in the names of the description
@@ -472,9 +473,61 @@ public final class CrcModel {
         return value == crcValue(crc, 0);
     }
 
+    /**
+     * Get the codeword of the data: a new array with the data followed by its CRC in {@code (width + 7) / 8} bytes, the
+     * least significant byte first if refout, the most significant byte first otherwise, so that
+     * {@link #isValid(byte[])} accepts it: for example a frame to send or a block to store with its CRC. The bytes of
+     * the CRC in another order give {@code crc(data).bytes(order)}
+     * @param data data
+     * @return new array of the data followed by its CRC
+     * @throws ArithmeticException if the codeword is longer than Integer.MAX_VALUE bytes
+     * @since 2.1.0
+     */
+    @CheckReturnValue
+    public @NonNull byte[] codeword(@NonNull final byte[] data) {
+        Objects.requireNonNull(data, CODEWORD_NULL_DATA);
+        return codeword(data, 0, data.length);
+    }
+
+    /**
+     * Get the codeword of a part of the data: a new array with the part followed by its CRC, see
+     * {@link #codeword(byte[])}
+     * @param data data
+     * @param offset offset of the part in the data
+     * @param length length of the part
+     * @return new array of the part of the data followed by its CRC
+     * @throws ArrayIndexOutOfBoundsException if the part is not inside the data
+     * @throws ArithmeticException if the codeword is longer than Integer.MAX_VALUE bytes
+     * @since 2.1.0
+     */
+    @CheckReturnValue
+    public @NonNull byte[] codeword(@NonNull final byte[] data, final int offset, final int length) {
+        Objects.requireNonNull(data, CODEWORD_NULL_DATA);
+        if (offset < 0 || length < 0 || length > data.length - offset) {
+            throw new ArrayIndexOutOfBoundsException("CrcModel::codeword - offset " + offset + " and length " + length
+                    + " out of the buffer length " + data.length);
+        }
+        byte[] codeword = new byte[Math.addExact(length, crcLength())];
+        System.arraycopy(data, offset, codeword, 0, length);
+        // the CRC of the way of the model, the class of the JDK of a model of the JDK
+        encodeCrc(codeword, length, value(data, offset, length));
+        return codeword;
+    }
+
     // the number of the bytes of the CRC in a codeword: the bits of the width in whole bytes
     private int crcLength() {
         return (this.description.parameters().width() + 7) / 8;
+    }
+
+    // the CRC value in the bytes of a codeword after its data, in the order of crcValue: the byte i, counted from the
+    // least significant one, at i if refout, at crcLength - 1 - i otherwise. Not named put...: SpotBugs takes a method
+    // with such a name for a setter and the model for mutable (EI_EXPOSE_REP of CRC.model() and CrcChecksum.model())
+    private void encodeCrc(@NonNull final byte[] codeword, final int offset, final long crc) {
+        int crcLength = crcLength();
+        boolean refout = this.description.parameters().refout();
+        for (int i = 0; i < crcLength; i++) {
+            codeword[offset + (refout ? i : crcLength - 1 - i)] = (byte) (crc >>> (Byte.SIZE * i));
+        }
     }
 
     // the CRC value in the bytes of a codeword after its data, see isValid: the least significant byte first if refout,
