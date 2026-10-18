@@ -69,9 +69,9 @@
         <!-- the plugin version is the SpotBugs version plus a plugin revision; it analyzes with that SpotBugs (needs Java 11+) -->
         <spotbugs-maven-plugin.version>4.10.5.0</spotbugs-maven-plugin.version>
         <sonar-maven-plugin.version>5.8.0.7211</sonar-maven-plugin.version>
-        <!-- the server with the passphrase of the signing key: no such server, so the signing takes the passphrase
-             from gpg-agent, see the profile sign-artifacts -->
-        <gpg.serverId>gpg-agent</gpg.serverId>
+        <!-- the best practices of maven-gpg-plugin: the passphrase of the signing key comes from gpg-agent (or from
+             MAVEN_GPG_PASSPHRASE), not from a server of the settings, see the profile sign-artifacts -->
+        <gpg.bestPractices>true</gpg.bestPractices>
     </properties>
 
     <dependencies>
@@ -536,16 +536,12 @@ Export-Package: com.github.sftwnd.crayfish.common.crc;version="${version;===;${B
                                 <goals>
                                     <goal>sign</goal>
                                 </goals>
-                                <configuration>
-                                    <!-- the passphrase of the key comes from gpg-agent: before the release unlock the key
-                                         with any signature of gpg outside of the batch mode, so that gpg-agent caches it.
-                                         In batch mode the plugin runs gpg with the pinentry mode "error": a locked key fails
-                                         without a prompt. Without a server id the plugin takes the passphrase of the server
-                                         gpg.passphrase of .mvn/settings.xml (GPG_SIGNING_PASSPHRASE): the id names a server
-                                         that does not exist, and -Dgpg.serverId=gpg.passphrase takes that passphrase
-                                         instead -->
-                                    <passphraseServerId>${gpg.serverId}</passphraseServerId>
-                                </configuration>
+                                <!-- the passphrase of the key comes from gpg-agent: before the release unlock the key
+                                     with any signature of gpg outside of the batch mode, so that gpg-agent caches it.
+                                     In batch mode the plugin runs gpg with the pinentry mode "error": a locked key fails
+                                     without a prompt. The best practices (gpg.bestPractices) keep the plugin from taking
+                                     the passphrase of the server gpg.passphrase of .mvn/settings.xml (GPG_SIGNING_PASSPHRASE),
+                                     its default server id: -Dgpg.bestPractices=false takes that passphrase instead -->
                             </execution>
                         </executions>
                     </plugin>
