@@ -37,13 +37,13 @@
     </scm>
 
     <properties>
-        <java.version>1.8</java.version>
-        <maven.compiler.source>${java.version}</maven.compiler.source>
-        <maven.compiler.target>${java.version}</maven.compiler.target>
+        <maven.compiler.source>1.8</maven.compiler.source>
+        <maven.compiler.target>1.8</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <javaModuleName>com.github.sftwnd.crayfish_common_crc</javaModuleName>
         <spotbugs-annotations.version>4.10.5</spotbugs-annotations.version>
-        <junit.version>5.9.2</junit.version>
+        <!-- JUnit 6 requires Java 17: the tests run on Java 8 as well -->
+        <junit.version>5.14.4</junit.version>
         <!-- the JVM options of the tests, set by jacoco:prepare-agent; empty if JaCoCo is skipped, so that @{argLine}
              of the soft retention tests resolves -->
         <argLine />
@@ -51,21 +51,21 @@
              the release profile of the super POM uses as well, is skipped, so that it attaches no sources jar of its own -->
         <maven.source.skip>true</maven.source.skip>
         <!-- 3.11.0+: compileSourceRoots can be configured, for the module descriptor in src/main/java9 -->
-        <maven-compiler-plugin.version>3.15.0</maven-compiler-plugin.version>
-        <maven-deploy-plugin.version>3.1.4</maven-deploy-plugin.version>
-        <maven-enforcer-plugin.version>3.5.0</maven-enforcer-plugin.version>
-        <maven-gpg-plugin.version>3.0.1</maven-gpg-plugin.version>
-        <maven-jar-plugin.version>3.3.0</maven-jar-plugin.version>
-        <maven-javadoc-plugin.version>3.5.0</maven-javadoc-plugin.version>
-        <maven-release-plugin.version>2.5.3</maven-release-plugin.version>
-        <maven-resources-plugin.version>3.4.0</maven-resources-plugin.version>
-        <maven-source-plugin.version>3.2.1</maven-source-plugin.version>
-        <maven-surefire-plugin.version>2.22.2</maven-surefire-plugin.version>
-        <maven-failsafe-plugin.version>2.22.2</maven-failsafe-plugin.version>
-        <jacoco-maven-plugin.version>0.8.8</jacoco-maven-plugin.version>
+        <maven-compiler-plugin.version>3.16.0</maven-compiler-plugin.version>
+        <maven-deploy-plugin.version>3.2.0</maven-deploy-plugin.version>
+        <maven-enforcer-plugin.version>3.6.3</maven-enforcer-plugin.version>
+        <maven-gpg-plugin.version>3.2.8</maven-gpg-plugin.version>
+        <maven-jar-plugin.version>3.5.1</maven-jar-plugin.version>
+        <maven-javadoc-plugin.version>3.12.0</maven-javadoc-plugin.version>
+        <maven-release-plugin.version>3.3.1</maven-release-plugin.version>
+        <maven-resources-plugin.version>3.5.0</maven-resources-plugin.version>
+        <maven-source-plugin.version>3.4.0</maven-source-plugin.version>
+        <maven-surefire-plugin.version>3.6.0</maven-surefire-plugin.version>
+        <maven-failsafe-plugin.version>3.6.0</maven-failsafe-plugin.version>
+        <jacoco-maven-plugin.version>0.8.15</jacoco-maven-plugin.version>
         <!-- bnd 7 requires Java 17, the build has to run on Java 8 -->
         <bnd-maven-plugin.version>6.4.0</bnd-maven-plugin.version>
-        <central-publishing-maven-plugin.version>0.11.0</central-publishing-maven-plugin.version>
+        <central-publishing-maven-plugin.version>0.12.0</central-publishing-maven-plugin.version>
         <!-- the plugin version is the SpotBugs version plus a plugin revision; it analyzes with that SpotBugs (needs Java 11+) -->
         <spotbugs-maven-plugin.version>4.10.5.0</spotbugs-maven-plugin.version>
         <sonar-maven-plugin.version>5.8.0.7211</sonar-maven-plugin.version>
@@ -95,21 +95,16 @@
     </dependencies>
 
     <build>
-        <sourceDirectory>src/main/java</sourceDirectory>
-        <testSourceDirectory>src/test/java</testSourceDirectory>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <configuration>
-                    <source>${maven.compiler.source}</source>
-                    <target>${maven.compiler.target}</target>
                     <compilerArgs>
                         <arg>-Xlint:all</arg>
                         <!-- JDK 21+ reports Java 8 as an obsolete target; Java 8 stays the target of the library -->
                         <arg>-Xlint:-options</arg>
                     </compilerArgs>
-                    <showWarnings>true</showWarnings>
                 </configuration>
             </plugin>
             <plugin>
@@ -141,7 +136,6 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-javadoc-plugin</artifactId>
                 <configuration>
-                    <source>${maven.compiler.source}</source>
                     <!-- an undocumented public or protected member fails the build (JDK 17+ reports it) -->
                     <failOnWarnings>true</failOnWarnings>
                 </configuration>
@@ -155,23 +149,11 @@
                 </executions>
             </plugin>
             <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <configuration>
-                    <includes>
-                        <include>**/*Test.java</include>
-                    </includes>
-                </configuration>
-            </plugin>
-            <plugin>
                 <!-- the integration tests run with the jar instead of target/classes: on Java 9+ the classes of
                      META-INF/versions/9 of the multi-release jar are used, as by the users of the library -->
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-failsafe-plugin</artifactId>
                 <configuration>
-                    <includes>
-                        <include>**/*IT.java</include>
-                    </includes>
                     <excludes>
                         <exclude>**/SoftRetentionIT.java</exclude>
                         <exclude>**/JdkIT.java</exclude>
@@ -280,9 +262,6 @@ Export-Package: com.github.sftwnd.crayfish.common.crc;version="${version;===;${B
                 <artifactId>maven-jar-plugin</artifactId>
                 <configuration>
                     <archive>
-                        <manifest>
-                            <addDefaultImplementationEntries>false</addDefaultImplementationEntries>
-                        </manifest>
                         <manifestFile>${project.build.directory}/bnd/MANIFEST.MF</manifestFile>
                     </archive>
                 </configuration>
@@ -308,7 +287,8 @@ Export-Package: com.github.sftwnd.crayfish.common.crc;version="${version;===;${B
                 <artifactId>maven-release-plugin</artifactId>
                 <configuration>
                     <mavenExecutorId>forked-path</mavenExecutorId>
-                    <useReleaseProfile>false</useReleaseProfile>
+                    <!-- the release profile of the super POM is not used: useReleaseProfile (deprecated) is false by
+                         default -->
                     <releaseProfiles>sign-artifacts</releaseProfiles>
                 </configuration>
             </plugin>
@@ -493,13 +473,11 @@ Export-Package: com.github.sftwnd.crayfish.common.crc;version="${version;===;${B
                     <plugin>
                         <groupId>com.github.spotbugs</groupId>
                         <artifactId>spotbugs-maven-plugin</artifactId>
+                        <!-- a finding fails the build, and the tests are not analyzed: the defaults of failOnError and
+                             includeTests -->
                         <configuration>
                             <effort>Max</effort>
                             <threshold>Low</threshold>
-                            <!-- a finding fails the build -->
-                            <failOnError>true</failOnError>
-                            <!-- the library classes only, the tests are not analyzed -->
-                            <includeTests>false</includeTests>
                             <excludeFilterFile>${project.basedir}/spotbugs-exclude.xml</excludeFilterFile>
                         </configuration>
                         <executions>
@@ -562,9 +540,10 @@ Export-Package: com.github.sftwnd.crayfish.common.crc;version="${version;===;${B
                                     <!-- the passphrase of the key comes from gpg-agent: before the release unlock the key
                                          with any signature of gpg outside of the batch mode, so that gpg-agent caches it.
                                          In batch mode the plugin runs gpg with the pinentry mode "error": a locked key fails
-                                         without a prompt. -Dgpg.serverId=gpg.passphrase takes the passphrase of the server
-                                         gpg.passphrase of .mvn/settings.xml (GPG_SIGNING_PASSPHRASE) instead -->
-                                    <useAgent>true</useAgent>
+                                         without a prompt. Without a server id the plugin takes the passphrase of the server
+                                         gpg.passphrase of .mvn/settings.xml (GPG_SIGNING_PASSPHRASE): the id names a server
+                                         that does not exist, and -Dgpg.serverId=gpg.passphrase takes that passphrase
+                                         instead -->
                                     <passphraseServerId>${gpg.serverId}</passphraseServerId>
                                 </configuration>
                             </execution>
