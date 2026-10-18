@@ -387,7 +387,12 @@ class CodewordTest {
         assertThrows(NullPointerException.class, () -> model.isValid(null, 0, 0), "isValid(null, 0, 0) has to throw NullPointerException");
         nullCodeword = assertThrows(NullPointerException.class, () -> model.isValid((ByteBuffer) null), "isValid(null buffer) has to throw NullPointerException");
         assertEquals("CrcModel::isValid - codeword is null", nullCodeword.getMessage(), "Wrong message");
-        // in a byte order given
+    }
+
+    @Test
+    void testPartsOfAnArrayInTheOrderGiven() {
+        CrcModel model = CrcModel.of("CRC-16/ARC");
+        byte[] data = new byte[16];
         assertTrue(model.isValid(data, 3, 2, ByteOrder.BIG_ENDIAN), "Two zero bytes are the codeword of the empty data of CRC-16/ARC in both byte orders");
         assertFalse(model.isValid(data, 16, 0, ByteOrder.LITTLE_ENDIAN), "The empty part at the end of the data has to be accepted in the order given as well");
         ArrayIndexOutOfBoundsException ordered = assertThrows(ArrayIndexOutOfBoundsException.class, () -> model.isValid(data, 5, 12, ByteOrder.BIG_ENDIAN),
