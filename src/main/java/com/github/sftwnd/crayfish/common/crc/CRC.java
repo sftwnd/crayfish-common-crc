@@ -179,6 +179,19 @@ public final class CRC {
     }
 
     /**
+     * Get the CRC value as hexadecimal digits: {@code (width + 3) / 4} lower-case digits with the leading zeros and
+     * without a prefix, the digits that the catalogue writes after {@code 0x} and that {@link #toString()} shows, for
+     * example {@code cbf43926} for the CRC-32 and {@code daf} for the CRC-12/UMTS of the check data "123456789".
+     * {@code Long.parseUnsignedLong(hex, 16)} gives the CRC value back
+     * @return CRC value in {@code (width + 3) / 4} hexadecimal digits
+     * @since 2.1.0
+     */
+    @CheckReturnValue
+    public @NonNull String hex() {
+        return CrcParameters.digits(this.value, this.model.parameters().width());
+    }
+
+    /**
      * Calculate the CRC of the data of this CRC followed by the bytes of the buffer
      * @param data buffer
      * @return new CRC, or this CRC if the buffer is empty
