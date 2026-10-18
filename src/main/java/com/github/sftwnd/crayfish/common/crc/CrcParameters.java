@@ -374,6 +374,23 @@ public final class CrcParameters {
     private static final Pattern PARAMETRIC_NAME =
             Pattern.compile("CRC-([1-9]\\d?)/P(\\p{XDigit}{1,16})_I(\\p{XDigit}{1,16})(_RI)?(_RO)?(?:_X(\\p{XDigit}{1,16}))?");
 
+    // the name with the ASCII letters a to z in upper case, the same string if it has none: the catalogue and the
+    // parametric names write their letters in upper case, so that a name is found whatever the case of its letters.
+    // Only the ASCII letters change: no letter of another alphabet that looks alike matches, such as the dotless i
+    static @NonNull String upperCase(@NonNull final String name) {
+        char[] chars = null;
+        for (int i = 0; i < name.length(); i++) {
+            char c = name.charAt(i);
+            if (c >= 'a' && c <= 'z') {
+                if (chars == null) {
+                    chars = name.toCharArray();
+                }
+                chars[i] = (char) (c - ('a' - 'A'));
+            }
+        }
+        return chars == null ? name : new String(chars);
+    }
+
     // the parameters of a parametric name, null if the name is not a parametric name in its canonical form:
     // every parameter set has exactly one name
     static @Nullable CrcParameters parseName(@NonNull final String name) {

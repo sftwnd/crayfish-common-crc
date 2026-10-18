@@ -62,8 +62,9 @@ public final class CrcModel {
 
     /**
      * Get the model by a name: the name or an alias of an algorithm of the catalogue (see {@link StandardCrc}),
-     * or the name of a description made of the parameters (see {@link CrcDescription}). The case of the name matters.
-     * The model is calculated the way of {@link CrcDescription#isJdk()}
+     * or the name of a description made of the parameters (see {@link CrcDescription}), whatever the case of its ASCII
+     * letters (since 2.1.0; before, the case mattered): {@code crc-32c} gives the model of {@code CRC-32C}, with the
+     * name as the catalogue writes it. The model is calculated the way of {@link CrcDescription#isJdk()}
      * @param name name of the model
      * @return model with the name; for a name made of the parameters of an algorithm of the catalogue, the model with
      *         the name of the algorithm
@@ -114,14 +115,26 @@ public final class CrcModel {
     }
 
     // the model of a name, null if the name is unknown: a name of the catalogue gives the index of its model,
-    // without a search in the names of the description; the callers check the name with their own messages
+    // without a search in the names of the description; the callers check the name with their own messages. A name
+    // as the catalogue writes it takes the code of 2.0.0, another name the method below
     private static @Nullable CrcModel lookUp(@NonNull final String name, final boolean jdk) {
         StandardCrc.Name standard = StandardCrc.name(name);
         if (standard != null) {
             return CrcDescription.of(standard.standard.parameters()).model(standard.index, jdk);
         }
-        CrcParameters parameters = CrcParameters.parseName(name);
-        return parameters == null ? null : CrcDescription.of(parameters).modelOf(name, jdk);
+        return lookUpInUpperCase(name, jdk);
+    }
+
+    // the model of a name of the catalogue in another case or of a parametric name, null if the name is unknown: both
+    // are written in upper case, so the name is looked up and parsed in upper case, whatever the case of its letters
+    private static @Nullable CrcModel lookUpInUpperCase(@NonNull final String name, final boolean jdk) {
+        String upperCase = CrcParameters.upperCase(name);
+        StandardCrc.Name standard = StandardCrc.name(upperCase);
+        if (standard != null) {
+            return CrcDescription.of(standard.standard.parameters()).model(standard.index, jdk);
+        }
+        CrcParameters parameters = CrcParameters.parseName(upperCase);
+        return parameters == null ? null : CrcDescription.of(parameters).modelOf(upperCase, jdk);
     }
 
     /**
