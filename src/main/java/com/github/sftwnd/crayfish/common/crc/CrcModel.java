@@ -11,6 +11,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.channels.ReadableByteChannel;
 import java.util.ArrayList;
 import java.util.List;
@@ -37,8 +38,10 @@ public final class CrcModel {
 
     private static final String VALUE_NULL_DATA = "CrcModel::value - data is null";
     private static final String IS_VALID_NULL_CODEWORD = "CrcModel::isValid - codeword is null";
+    private static final String IS_VALID_NULL_ORDER = "CrcModel::isValid - order is null";
     private static final String CRC_NULL_DATA = "CrcModel::crc - data is null";
     private static final String CODEWORD_NULL_DATA = "CrcModel::codeword - data is null";
+    private static final String CODEWORD_NULL_ORDER = "CrcModel::codeword - order is null";
 
     private final CrcDescription description;
     // the index of the name in the names of the description
@@ -414,7 +417,9 @@ public final class CrcModel {
      * and refin = refout the error-free codeword of the residue of the catalogue, see {@link #residue()}. The CRC of
      * the data is calculated and compared with the bytes after it, so the check is exact for every width, reflection
      * and polynomial; for a width that is not a multiple of 8 the unused high bits of the CRC bytes have to be 0.
-     * The CRC of the empty data alone is a valid codeword
+     * The CRC of the empty data alone is a valid codeword. A format may store the CRC in the other byte order, as PNG
+     * stores the CRC-32 of a chunk most significant byte first: such a codeword is checked by
+     * {@link #isValid(byte[], ByteOrder)}
      * @param codeword data followed by its CRC
      * @return true if the codeword is data followed by its CRC; false otherwise, also for a codeword shorter than the CRC
      * @since 2.1.0
@@ -422,7 +427,7 @@ public final class CrcModel {
     @CheckReturnValue
     public boolean isValid(@NonNull final byte[] codeword) {
         Objects.requireNonNull(codeword, IS_VALID_NULL_CODEWORD);
-        return isValid(codeword, 0, codeword.length);
+        return isValid(codeword, 0, codeword.length, order());
     }
 
     /**
@@ -436,19 +441,13 @@ public final class CrcModel {
      */
     @CheckReturnValue
     public boolean isValid(@NonNull final byte[] codeword, final int offset, final int length) {
-        Objects.requireNonNull(codeword, IS_VALID_NULL_CODEWORD);
-        if (offset < 0 || length < 0 || length > codeword.length - offset) {
-            throw new ArrayIndexOutOfBoundsException("CrcModel::isValid - offset " + offset + " and length " + length
-                    + " out of the buffer length " + codeword.length);
-        }
-        int dataLength = length - crcLength();
-        return dataLength >= 0 && value(codeword, offset, dataLength) == crcValue(codeword, offset + dataLength);
+        return isValid(codeword, offset, length, order());
     }
 
     /**
      * Check whether the remaining bytes of the buffer, from its position to its limit, are a codeword, data followed
-     * by its CRC, see {@link #isValid(byte[])}: heap, direct and read-only buffers. The position of the buffer is
-     * advanced to its limit
+     * by its CRC, see {@link #isValid(byte[])}: heap, direct and read-only buffers. The byte order of the buffer is not
+     * used. The position of the buffer is advanced to its limit
      * @param codeword buffer
      * @return true if the remaining bytes are data followed by its CRC; false otherwise, also if fewer bytes remain
      *         than the CRC has
@@ -456,7 +455,72 @@ public final class CrcModel {
      */
     @CheckReturnValue
     public boolean isValid(@NonNull final ByteBuffer codeword) {
+        return isValid(codeword, order());
+    }
+
+    /**
+     * Check whether the codeword is data followed by its CRC in the byte order given, the order of a format: the CRC
+     * value in {@code (width + 7) / 8} bytes, the unused high bits of the most significant byte 0, as
+     * {@link CRC#bytes(ByteOrder)} gives them. A PNG chunk, for example, is the length of its data, its type, the data
+     * and the CRC-32 of the type and the data most significant byte first, as every number of PNG, while
+     * {@link #isValid(byte[])} takes the CRC-32 least significant byte first (refout): the type, the data and the CRC
+     * of a chunk at the offset {@code o} with {@code n} bytes of data are checked by
+     * {@code isValid(chunk, o + 4, n + 8, ByteOrder.BIG_ENDIAN)}. The order of the model, the least significant byte
+     * first if refout, the most significant byte first otherwise, gives the check of {@link #isValid(byte[])}; the
+     * residue of the catalogue, see {@link #residue()}, is that of the codewords in the order of the model only
+     * @param codeword data followed by its CRC
+     * @param order byte order of the CRC: {@link ByteOrder#BIG_ENDIAN}, the most significant byte first, or
+     *              {@link ByteOrder#LITTLE_ENDIAN}, the least significant byte first
+     * @return true if the codeword is data followed by its CRC in the order given; false otherwise, also for a codeword
+     *         shorter than the CRC
+     * @since 2.1.0
+     */
+    @CheckReturnValue
+    public boolean isValid(@NonNull final byte[] codeword, @NonNull final ByteOrder order) {
         Objects.requireNonNull(codeword, IS_VALID_NULL_CODEWORD);
+        return isValid(codeword, 0, codeword.length, order);
+    }
+
+    /**
+     * Check whether a part of the buffer is a codeword, data followed by its CRC in the byte order given, see
+     * {@link #isValid(byte[], ByteOrder)}
+     * @param codeword buffer
+     * @param offset offset of the codeword in the buffer
+     * @param length length of the codeword: the data and the CRC
+     * @param order byte order of the CRC: {@link ByteOrder#BIG_ENDIAN}, the most significant byte first, or
+     *              {@link ByteOrder#LITTLE_ENDIAN}, the least significant byte first
+     * @return true if the part is data followed by its CRC in the order given; false otherwise, also for a part shorter
+     *         than the CRC
+     * @throws ArrayIndexOutOfBoundsException if the part is not inside the buffer
+     * @since 2.1.0
+     */
+    @CheckReturnValue
+    public boolean isValid(@NonNull final byte[] codeword, final int offset, final int length, @NonNull final ByteOrder order) {
+        Objects.requireNonNull(codeword, IS_VALID_NULL_CODEWORD);
+        Objects.requireNonNull(order, IS_VALID_NULL_ORDER);
+        if (offset < 0 || length < 0 || length > codeword.length - offset) {
+            throw new ArrayIndexOutOfBoundsException("CrcModel::isValid - offset " + offset + " and length " + length
+                    + " out of the buffer length " + codeword.length);
+        }
+        int dataLength = length - crcLength();
+        return dataLength >= 0 && value(codeword, offset, dataLength) == crcValue(codeword, offset + dataLength, order);
+    }
+
+    /**
+     * Check whether the remaining bytes of the buffer, from its position to its limit, are a codeword, data followed
+     * by its CRC in the byte order given, see {@link #isValid(byte[], ByteOrder)}: heap, direct and read-only buffers.
+     * The byte order of the buffer is not used. The position of the buffer is advanced to its limit
+     * @param codeword buffer
+     * @param order byte order of the CRC: {@link ByteOrder#BIG_ENDIAN}, the most significant byte first, or
+     *              {@link ByteOrder#LITTLE_ENDIAN}, the least significant byte first
+     * @return true if the remaining bytes are data followed by its CRC in the order given; false otherwise, also if
+     *         fewer bytes remain than the CRC has
+     * @since 2.1.0
+     */
+    @CheckReturnValue
+    public boolean isValid(@NonNull final ByteBuffer codeword, @NonNull final ByteOrder order) {
+        Objects.requireNonNull(codeword, IS_VALID_NULL_CODEWORD);
+        Objects.requireNonNull(order, IS_VALID_NULL_ORDER);
         int crcLength = crcLength();
         int dataLength = codeword.remaining() - crcLength;
         if (dataLength < 0) {
@@ -470,14 +534,15 @@ public final class CrcModel {
         byte[] crc = new byte[crcLength];
         codeword.position(data.limit());
         codeword.get(crc);
-        return value == crcValue(crc, 0);
+        return value == crcValue(crc, 0, order);
     }
 
     /**
      * Get the codeword of the data: a new array with the data followed by its CRC in {@code (width + 7) / 8} bytes, the
      * least significant byte first if refout, the most significant byte first otherwise, so that
-     * {@link #isValid(byte[])} accepts it: for example a frame to send or a block to store with its CRC. The bytes of
-     * the CRC in another order give {@code crc(data).bytes(order)}
+     * {@link #isValid(byte[])} accepts it: for example a frame to send or a block to store with its CRC. The codeword
+     * with the CRC in the byte order of a format gives {@link #codeword(byte[], ByteOrder)}, the bytes of the CRC alone
+     * {@code crc(data).bytes(order)}
      * @param data data
      * @return new array of the data followed by its CRC
      * @throws ArithmeticException if the codeword is longer than Integer.MAX_VALUE bytes
@@ -486,7 +551,7 @@ public final class CrcModel {
     @CheckReturnValue
     public @NonNull byte[] codeword(@NonNull final byte[] data) {
         Objects.requireNonNull(data, CODEWORD_NULL_DATA);
-        return codeword(data, 0, data.length);
+        return codeword(data, 0, data.length, order());
     }
 
     /**
@@ -502,7 +567,46 @@ public final class CrcModel {
      */
     @CheckReturnValue
     public @NonNull byte[] codeword(@NonNull final byte[] data, final int offset, final int length) {
+        return codeword(data, offset, length, order());
+    }
+
+    /**
+     * Get the codeword of the data with the CRC in the byte order given, the order of a format: a new array with the
+     * data followed by its CRC in {@code (width + 7) / 8} bytes, the unused high bits of the most significant byte 0,
+     * so that {@link #isValid(byte[], ByteOrder)} accepts it in the same order. The type and the data of a PNG chunk,
+     * for example, followed by their CRC-32 most significant byte first, as every number of PNG:
+     * {@code codeword(typeAndData, ByteOrder.BIG_ENDIAN)}. The order of the model, the least significant byte first if
+     * refout, the most significant byte first otherwise, gives the codeword of {@link #codeword(byte[])}
+     * @param data data
+     * @param order byte order of the CRC: {@link ByteOrder#BIG_ENDIAN}, the most significant byte first, or
+     *              {@link ByteOrder#LITTLE_ENDIAN}, the least significant byte first
+     * @return new array of the data followed by its CRC in the order given
+     * @throws ArithmeticException if the codeword is longer than Integer.MAX_VALUE bytes
+     * @since 2.1.0
+     */
+    @CheckReturnValue
+    public @NonNull byte[] codeword(@NonNull final byte[] data, @NonNull final ByteOrder order) {
         Objects.requireNonNull(data, CODEWORD_NULL_DATA);
+        return codeword(data, 0, data.length, order);
+    }
+
+    /**
+     * Get the codeword of a part of the data with the CRC in the byte order given: a new array with the part followed
+     * by its CRC, see {@link #codeword(byte[], ByteOrder)}
+     * @param data data
+     * @param offset offset of the part in the data
+     * @param length length of the part
+     * @param order byte order of the CRC: {@link ByteOrder#BIG_ENDIAN}, the most significant byte first, or
+     *              {@link ByteOrder#LITTLE_ENDIAN}, the least significant byte first
+     * @return new array of the part of the data followed by its CRC in the order given
+     * @throws ArrayIndexOutOfBoundsException if the part is not inside the data
+     * @throws ArithmeticException if the codeword is longer than Integer.MAX_VALUE bytes
+     * @since 2.1.0
+     */
+    @CheckReturnValue
+    public @NonNull byte[] codeword(@NonNull final byte[] data, final int offset, final int length, @NonNull final ByteOrder order) {
+        Objects.requireNonNull(data, CODEWORD_NULL_DATA);
+        Objects.requireNonNull(order, CODEWORD_NULL_ORDER);
         if (offset < 0 || length < 0 || length > data.length - offset) {
             throw new ArrayIndexOutOfBoundsException("CrcModel::codeword - offset " + offset + " and length " + length
                     + " out of the buffer length " + data.length);
@@ -510,7 +614,7 @@ public final class CrcModel {
         byte[] codeword = new byte[Math.addExact(length, crcLength())];
         System.arraycopy(data, offset, codeword, 0, length);
         // the CRC of the way of the model, the class of the JDK of a model of the JDK
-        encodeCrc(codeword, length, value(data, offset, length));
+        encodeCrc(codeword, length, value(data, offset, length), order);
         return codeword;
     }
 
@@ -519,28 +623,35 @@ public final class CrcModel {
         return (this.description.parameters().width() + 7) / 8;
     }
 
+    // the byte order of the CRC in a codeword of isValid(byte[]) and codeword(byte[]), the order of the model: the
+    // least significant byte first if refout, the most significant byte first otherwise
+    private @NonNull ByteOrder order() {
+        return this.description.parameters().refout() ? ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN;
+    }
+
     // the CRC value in the bytes of a codeword after its data, in the order of crcValue: the byte i, counted from the
-    // least significant one, at i if refout, at crcLength - 1 - i otherwise. Not named put...: SpotBugs takes a method
-    // with such a name for a setter and the model for mutable (EI_EXPOSE_REP of CRC.model() and CrcChecksum.model())
-    private void encodeCrc(@NonNull final byte[] codeword, final int offset, final long crc) {
+    // least significant one, at crcLength - 1 - i big-endian, at i little-endian. Not named put...: SpotBugs takes
+    // a method with such a name for a setter and the model for mutable (EI_EXPOSE_REP of CRC.model() and
+    // CrcChecksum.model())
+    private void encodeCrc(@NonNull final byte[] codeword, final int offset, final long crc, @NonNull final ByteOrder order) {
         int crcLength = crcLength();
-        boolean refout = this.description.parameters().refout();
+        boolean bigEndian = order == ByteOrder.BIG_ENDIAN;
         for (int i = 0; i < crcLength; i++) {
-            codeword[offset + (refout ? i : crcLength - 1 - i)] = (byte) (crc >>> (Byte.SIZE * i));
+            codeword[offset + (bigEndian ? crcLength - 1 - i : i)] = (byte) (crc >>> (Byte.SIZE * i));
         }
     }
 
-    // the CRC value in the bytes of a codeword after its data, see isValid: the least significant byte first if refout,
-    // the most significant byte first otherwise
-    private long crcValue(@NonNull final byte[] codeword, final int offset) {
+    // the CRC value in the bytes of a codeword after its data, see isValid: the most significant byte first big-endian,
+    // the least significant byte first little-endian
+    private long crcValue(@NonNull final byte[] codeword, final int offset, @NonNull final ByteOrder order) {
         int end = offset + crcLength();
         long crc = 0;
-        if (this.description.parameters().refout()) {
-            for (int i = end - 1; i >= offset; i--) {
+        if (order == ByteOrder.BIG_ENDIAN) {
+            for (int i = offset; i < end; i++) {
                 crc = (crc << 8) | (codeword[i] & 0xff);
             }
         } else {
-            for (int i = offset; i < end; i++) {
+            for (int i = end - 1; i >= offset; i--) {
                 crc = (crc << 8) | (codeword[i] & 0xff);
             }
         }

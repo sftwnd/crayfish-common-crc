@@ -27,8 +27,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The check of a codeword, the data followed by its CRC: valid codewords of every model of the catalogue and of other
- * parameters, every single flipped bit, codewords shorter than the CRC, parts of arrays and buffers. The codewords are
- * made with the CRC of the reference, without the code of the library. The unit tests run with the class directory,
+ * parameters, in the byte order of the model and in both byte orders given, every single flipped bit, codewords
+ * shorter than the CRC, parts of arrays and buffers, chunks of PNG. The codewords are made with the CRC of the
+ * reference, without the code of the library. The unit tests run with the class directory,
  * where java.util.zip.CRC32 calculates the models of the JDK of CRC-32; CodewordIT tests CRC32C with the jar
  */
 class CodewordTest {
@@ -46,6 +47,8 @@ class CodewordTest {
     // the bytes before and after a codeword in an array or a buffer, which have not got to be checked
     private static final int BEFORE = 5;
     private static final int AFTER = 3;
+
+    private static final ByteOrder[] ORDERS = {ByteOrder.BIG_ENDIAN, ByteOrder.LITTLE_ENDIAN};
 
     private static final byte[] DATA = new byte[5000];
 
@@ -82,13 +85,23 @@ class CodewordTest {
     // the first length bytes of the data followed by their CRC of the reference in (width + 7) / 8 bytes, the least
     // significant byte first if refout, the most significant byte first otherwise
     private static byte[] codeword(CrcParameters parameters, int length) {
+        return codeword(parameters, length, parameters.refout() ? ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN);
+    }
+
+    // the first length bytes of the data followed by their CRC of the reference in (width + 7) / 8 bytes in the byte
+    // order given
+    private static byte[] codeword(CrcParameters parameters, int length, ByteOrder order) {
         int crcLength = (parameters.width() + 7) / 8;
         long crc = CrcReference.crc(parameters, DATA, 0, length);
         byte[] codeword = Arrays.copyOf(DATA, length + crcLength);
         for (int i = 0; i < crcLength; i++) {
-            codeword[length + i] = (byte) (crc >>> (Byte.SIZE * (parameters.refout() ? i : crcLength - 1 - i)));
+            codeword[length + i] = (byte) (crc >>> (Byte.SIZE * (order == ByteOrder.LITTLE_ENDIAN ? i : crcLength - 1 - i)));
         }
         return codeword;
+    }
+
+    private static ByteOrder other(ByteOrder order) {
+        return order == ByteOrder.BIG_ENDIAN ? ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN;
     }
 
     // the kinds of buffers: the codeword between the position and the limit, other bytes before and after it
@@ -151,6 +164,108 @@ class CodewordTest {
         byte[] cksum = Arrays.copyOf(CHECK, CHECK.length + 4);
         System.arraycopy(new byte[]{0x76, 0x5E, 0x76, (byte) 0x80}, 0, cksum, 9, 4);
         assertTrue(CrcModel.of("CRC-32/CKSUM").isValid(cksum), "The CRC of CRC-32/CKSUM (not refout) has to follow the data with its high byte first");
+    }
+
+    // the check data followed by the bytes of its CRC in the byte order given, the other order than that of the model
+    private static void assertCheckCodeword(String name, ByteOrder order, int... crc) {
+        CrcModel model = CrcModel.of(name);
+        byte[] expected = Arrays.copyOf(CHECK, CHECK.length + crc.length);
+        for (int i = 0; i < crc.length; i++) {
+            expected[CHECK.length + i] = (byte) crc[i];
+        }
+        String message = name + ", " + order;
+        assertArrayEquals(expected, model.codeword(CHECK, order), message + ": wrong codeword of the check data");
+        assertTrue(model.isValid(expected, order), message + ": isValid has to accept the codeword in the order given");
+        assertFalse(model.isValid(expected), message + ": the CRC in the other order than that of the model has not got to be valid without the order");
+    }
+
+    @Test
+    void testByteOrderGiven() {
+        // CRC-16/MODBUS high byte first, CRC-16/XMODEM low byte first, CRC-12/UMTS high byte first with the unused high
+        // bits 0, CRC-32/CKSUM low byte first
+        assertCheckCodeword("CRC-16/MODBUS", ByteOrder.BIG_ENDIAN, 0x4B, 0x37);
+        assertCheckCodeword("CRC-16/XMODEM", ByteOrder.LITTLE_ENDIAN, 0xC3, 0x31);
+        assertCheckCodeword("CRC-12/UMTS", ByteOrder.BIG_ENDIAN, 0x0D, 0xAF);
+        assertCheckCodeword("CRC-32/CKSUM", ByteOrder.LITTLE_ENDIAN, 0x80, 0x76, 0x5E, 0x76);
+    }
+
+    @Test
+    void testPngChunks() {
+        // the chunks IHDR of an image of 3 x 2 pixels (8 bits per sample, RGB) and IEND, as javax.imageio writes them:
+        // the length of the data, the type, the data and the CRC-32 of the type and the data, most significant byte
+        // first as every number of PNG; 0x1216f14d and 0xae426082 are the CRC-32 of zlib as well
+        byte[] ihdr = {0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52, 0, 0, 0, 3, 0, 0, 0, 2, 8, 2, 0, 0, 0, 0x12, 0x16, (byte) 0xF1, 0x4D};
+        byte[] iend = {0, 0, 0, 0, 0x49, 0x45, 0x4E, 0x44, (byte) 0xAE, 0x42, 0x60, (byte) 0x82};
+        for (CrcModel crc32 : new CrcModel[]{CrcModel.of("CRC-32", false), CrcModel.of("CRC-32", true)}) {
+            for (byte[] chunk : new byte[][]{ihdr, iend}) {
+                int n = chunk.length - 12;
+                String message = "The chunk " + new String(chunk, 4, 4, US_ASCII) + (crc32.isJdk() ? " of the JDK" : "");
+                assertTrue(crc32.isValid(chunk, 4, n + 8, ByteOrder.BIG_ENDIAN),
+                        message + ": the type and the data followed by their CRC-32 high byte first have to be valid big-endian");
+                assertFalse(crc32.isValid(chunk, 4, n + 8), message + ": the CRC-32 high byte first has not got to be valid in the order of CRC-32");
+                assertFalse(crc32.isValid(chunk, 4, n + 8, ByteOrder.LITTLE_ENDIAN), message + ": the CRC-32 high byte first has not got to be valid little-endian");
+                assertTrue(crc32.isValid(ByteBuffer.wrap(chunk, 4, n + 8), ByteOrder.BIG_ENDIAN), message + " in a buffer has to be valid big-endian");
+                byte[] stored = Arrays.copyOfRange(chunk, 4, chunk.length);
+                assertArrayEquals(stored, crc32.codeword(Arrays.copyOfRange(chunk, 4, n + 8), ByteOrder.BIG_ENDIAN),
+                        message + ": the type and the data have to be followed by their CRC-32 high byte first");
+                assertArrayEquals(stored, crc32.codeword(chunk, 4, n + 4, ByteOrder.BIG_ENDIAN), message + ": wrong codeword of the type and the data in the chunk");
+            }
+        }
+    }
+
+    @Test
+    void testByteOrdersGiven() {
+        for (CrcModel model : models()) {
+            ByteOrder natural = model.parameters().refout() ? ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN;
+            for (ByteOrder order : ORDERS) {
+                for (int length : LENGTHS) {
+                    String message = model + (model.isJdk() ? " of the JDK" : "") + ", " + length + " bytes of data, " + order;
+                    byte[] expected = codeword(model.parameters(), length, order);
+                    byte[] codeword = model.codeword(Arrays.copyOf(DATA, length), order);
+                    assertArrayEquals(expected, codeword, message + ": the data has to be followed by its CRC in the order given");
+                    assertArrayEquals(expected, model.codeword(DATA, 0, length, order), message + ": wrong codeword of the first bytes of the data");
+                    assertTrue(model.isValid(codeword, order), message + ": isValid has to accept the codeword in the order given");
+                    byte[] inside = new byte[BEFORE + codeword.length + AFTER];
+                    Arrays.fill(inside, (byte) 0x5A);
+                    System.arraycopy(codeword, 0, inside, BEFORE, codeword.length);
+                    assertTrue(model.isValid(inside, BEFORE, codeword.length, order), message + ": the codeword inside an array has to be valid");
+                    for (Kind kind : Kind.values()) {
+                        // the byte order of the buffer is not used
+                        ByteBuffer buffer = kind.buffer(codeword).order(other(order));
+                        assertTrue(model.isValid(buffer, order), message + " in a " + kind + " buffer of the other order: the codeword has to be valid");
+                        assertRead(buffer, codeword.length, message + " in a " + kind + " buffer");
+                    }
+                    if (order == natural) {
+                        assertArrayEquals(model.codeword(Arrays.copyOf(DATA, length)), codeword, message + ": the order of the model has to give the codeword of codeword(data)");
+                        assertTrue(model.isValid(Kind.HEAP.buffer(codeword).order(other(order))),
+                                message + ": isValid of a buffer has to take the order of the model, not that of the buffer");
+                    } else if (!Arrays.equals(expected, codeword(model.parameters(), length))) {
+                        // the CRC bytes of a palindrome, and a CRC of 1 byte, are the same in both orders
+                        assertFalse(model.isValid(codeword), message + ": the CRC in the other order than that of the model has not got to be valid without the order");
+                        assertFalse(model.isValid(codeword(model.parameters(), length), order),
+                                message + ": the CRC in the order of the model has not got to be valid in the other order");
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    void testFlippedBitsInTheOrdersGiven() {
+        for (CrcModel model : models()) {
+            for (ByteOrder order : ORDERS) {
+                for (int length : FLIPPED_LENGTHS) {
+                    byte[] codeword = codeword(model.parameters(), length, order);
+                    String message = model + ", " + length + " bytes of data, " + order;
+                    for (int bit = 0; bit < codeword.length * Byte.SIZE; bit++) {
+                        codeword[bit / Byte.SIZE] ^= (byte) (1 << (bit % Byte.SIZE));
+                        assertFalse(model.isValid(codeword, order), message + ": the codeword with the bit " + bit + " flipped has not got to be valid");
+                        codeword[bit / Byte.SIZE] ^= (byte) (1 << (bit % Byte.SIZE));
+                    }
+                    assertTrue(model.isValid(codeword, order), message + ": the codeword has to be valid again");
+                }
+            }
+        }
     }
 
     @Test
@@ -272,6 +387,20 @@ class CodewordTest {
         assertThrows(NullPointerException.class, () -> model.isValid(null, 0, 0), "isValid(null, 0, 0) has to throw NullPointerException");
         nullCodeword = assertThrows(NullPointerException.class, () -> model.isValid((ByteBuffer) null), "isValid(null buffer) has to throw NullPointerException");
         assertEquals("CrcModel::isValid - codeword is null", nullCodeword.getMessage(), "Wrong message");
+        // in a byte order given
+        assertTrue(model.isValid(data, 3, 2, ByteOrder.BIG_ENDIAN), "Two zero bytes are the codeword of the empty data of CRC-16/ARC in both byte orders");
+        assertFalse(model.isValid(data, 16, 0, ByteOrder.LITTLE_ENDIAN), "The empty part at the end of the data has to be accepted in the order given as well");
+        ArrayIndexOutOfBoundsException ordered = assertThrows(ArrayIndexOutOfBoundsException.class, () -> model.isValid(data, 5, 12, ByteOrder.BIG_ENDIAN),
+                "The bytes beyond the data have to be rejected in the order given as well");
+        assertEquals("CrcModel::isValid - offset 5 and length 12 out of the buffer length 16", ordered.getMessage(), "Wrong message");
+        NullPointerException nullOrder = assertThrows(NullPointerException.class, () -> model.isValid(data, null), "isValid(codeword, null) has to throw NullPointerException");
+        assertEquals("CrcModel::isValid - order is null", nullOrder.getMessage(), "Wrong message");
+        nullOrder = assertThrows(NullPointerException.class, () -> model.isValid(data, 0, 0, null), "isValid(codeword, 0, 0, null) has to throw NullPointerException");
+        assertEquals("CrcModel::isValid - order is null", nullOrder.getMessage(), "Wrong message");
+        ByteBuffer buffer = ByteBuffer.wrap(data);
+        nullOrder = assertThrows(NullPointerException.class, () -> model.isValid(buffer, null), "isValid(buffer, null) has to throw NullPointerException");
+        assertEquals("CrcModel::isValid - order is null", nullOrder.getMessage(), "Wrong message");
+        assertEquals(0, buffer.position(), "A null order has not got to read the buffer");
     }
 
     @Test
@@ -336,6 +465,17 @@ class CodewordTest {
         ArrayIndexOutOfBoundsException beyond = assertThrows(ArrayIndexOutOfBoundsException.class, () -> model.codeword(data, 5, 12),
                 "The bytes beyond the data have to be rejected");
         assertEquals("CrcModel::codeword - offset 5 and length 12 out of the buffer length 16", beyond.getMessage(), "Wrong message");
+        // in a byte order given
+        NullPointerException nullOrder = assertThrows(NullPointerException.class, () -> model.codeword(data, null), "codeword(data, null) has to throw NullPointerException");
+        assertEquals("CrcModel::codeword - order is null", nullOrder.getMessage(), "Wrong message");
+        nullOrder = assertThrows(NullPointerException.class, () -> model.codeword(data, 0, 0, null), "codeword(data, 0, 0, null) has to throw NullPointerException");
+        assertEquals("CrcModel::codeword - order is null", nullOrder.getMessage(), "Wrong message");
+        nullData = assertThrows(NullPointerException.class, () -> model.codeword(null, ByteOrder.BIG_ENDIAN),
+                "codeword(null, order) has to throw NullPointerException");
+        assertEquals("CrcModel::codeword - data is null", nullData.getMessage(), "Wrong message");
+        ArrayIndexOutOfBoundsException ordered = assertThrows(ArrayIndexOutOfBoundsException.class, () -> model.codeword(data, 5, 12, ByteOrder.BIG_ENDIAN),
+                "The bytes beyond the data have to be rejected in the order given as well");
+        assertEquals("CrcModel::codeword - offset 5 and length 12 out of the buffer length 16", ordered.getMessage(), "Wrong message");
     }
 
     @Test

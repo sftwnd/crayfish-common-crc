@@ -10,6 +10,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.URL;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
@@ -67,10 +68,15 @@ class CodewordIT {
     // the first length bytes of the data followed by their CRC of the reference, the least significant byte first if
     // refout, the most significant byte first otherwise
     private static byte[] codeword(CrcParameters parameters, int length) {
+        return codeword(parameters, length, parameters.refout() ? ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN);
+    }
+
+    // the first length bytes of the data followed by their CRC of the reference in the byte order given
+    private static byte[] codeword(CrcParameters parameters, int length, ByteOrder order) {
         long crc = CrcReference.crc(parameters, DATA, 0, length);
         byte[] codeword = Arrays.copyOf(DATA, length + CRC_LENGTH);
         for (int i = 0; i < CRC_LENGTH; i++) {
-            codeword[length + i] = (byte) (crc >>> (Byte.SIZE * (parameters.refout() ? i : CRC_LENGTH - 1 - i)));
+            codeword[length + i] = (byte) (crc >>> (Byte.SIZE * (order == ByteOrder.LITTLE_ENDIAN ? i : CRC_LENGTH - 1 - i)));
         }
         return codeword;
     }
@@ -134,6 +140,14 @@ class CodewordIT {
                 assertArrayEquals(codeword(model.parameters(), length), codeword, message + ": the data has to be followed by its CRC");
                 assertTrue(model.isValid(codeword), message + ": isValid has to accept the codeword");
                 assertArrayEquals(codeword, model.codeword(DATA, 0, length), message + ": wrong codeword of the first bytes of the data");
+                for (ByteOrder order : new ByteOrder[]{ByteOrder.BIG_ENDIAN, ByteOrder.LITTLE_ENDIAN}) {
+                    byte[] ordered = model.codeword(Arrays.copyOf(DATA, length), order);
+                    String kind = message + ", " + order;
+                    assertArrayEquals(codeword(model.parameters(), length, order), ordered, kind + ": the data has to be followed by its CRC in the order given");
+                    assertArrayEquals(ordered, model.codeword(DATA, 0, length, order), kind + ": wrong codeword of the first bytes of the data");
+                    assertTrue(model.isValid(ordered, order), kind + ": isValid has to accept the codeword in the order given");
+                    assertTrue(model.isValid(buffer(true, false, ordered), order), kind + ": isValid has to accept the codeword in a direct buffer");
+                }
             }
         }
     }

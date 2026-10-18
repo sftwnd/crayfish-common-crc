@@ -35,8 +35,9 @@ the latest 1.x release; see [Versions and support](#versions-and-support) for th
 - **Streams** — a `java.util.zip.Checksum` of any model for `CheckedOutputStream`, `CheckedInputStream` and other code
   written for `CRC32` (*2.0*); the CRC of an `InputStream` or of a channel read to its end (*2.1.0*, see
   [Streams](#streams))
-- **Codewords** — build and check data followed by its CRC, with the residues of the catalogue, and get the bytes of
-  a CRC in the byte order of a protocol (*2.1.0*, see [Codewords](#codewords) and [Calculate](#calculate))
+- **Codewords** — build and check data followed by its CRC, in the byte order of the model or of a format such as
+  PNG, with the residues of the catalogue, and get the bytes of a CRC in the byte order of a protocol (*2.1.0*, see
+  [Codewords](#codewords) and [Calculate](#calculate))
 - **Bits** — the CRC of data that is not a whole number of bytes, such as the frames of CAN, FlexRay and USB
   (*2.1.0*, see [Bits](#bits))
 - **Names and aliases** — a model is chosen by the name or by any alias of the catalogue, and its CRCs tell the name
@@ -424,11 +425,24 @@ by `crc(ByteBuffer)`.
     boolean sent = modbus.isValid(frame);                    // true
 ```
 
+This byte order is that of the model, not of a format: a format may store the CRC in the other order, and then
+`isValid` and `codeword` take the order of the format as the last argument (*2.1.0*). A PNG chunk is the length of its
+data in 4 bytes, its type in 4 bytes, the data and the CRC-32 of the type and the data, most significant byte first as
+every number of PNG. CRC-32 is refout, so `isValid` without the order expects the CRC least significant byte first and
+gives false for a chunk that is not damaged:
+
+```java
+    CrcModel crc32 = CrcModel.of("CRC-32");
+    boolean valid = crc32.isValid(chunk, 4, n + 8, ByteOrder.BIG_ENDIAN);   // the type, n bytes of data and the CRC
+    byte[] type = "IEND".getBytes(StandardCharsets.US_ASCII);
+    byte[] iend = crc32.codeword(type, ByteOrder.BIG_ENDIAN);               // 49 45 4e 44 ae 42 60 82
+```
+
 The residue of the catalogue is the register after an error-free codeword, before the final XOR: `model.residue()`,
 `description.residue()` and `StandardCrc.residue()` (*2.1.0*), for example `0xDEBB20E3` of CRC-32/ISO-HDLC and `0xF0B8`
 of CRC-16/IBM-SDLC; 36 algorithms of the catalogue have a residue other than 0. For a width that is a multiple of 8 and
-refin = refout the CRC value of every valid codeword is `residue ^ xorout`, whatever the data, so a codeword read as
-a stream is checked by the value of its checksum:
+refin = refout the CRC value of every valid codeword in the byte order of the model is `residue ^ xorout`, whatever the
+data, so a codeword read as a stream is checked by the value of its checksum:
 
 ```java
     CrcModel crc32 = CrcModel.of("CRC-32");
