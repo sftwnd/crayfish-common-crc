@@ -12,11 +12,15 @@ import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.LockSupport;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -57,7 +61,7 @@ class InternerTest {
         AtomicInteger created = new AtomicInteger();
         WeakReference<Object> probe = intern(interner, "a", created);
         Gc.awaitCleared(probe, "The unused value has to be collected");
-        // the entry is removed by size() before Java 9, by the cleaner on Java 9+
+        // the entry is removed on the next access to the pool, here by size()
         Gc.await(() -> interner.size() == 0, "The entry of the collected value has to be removed");
         assertFalse(interner.containsKey("a"), "The entry of the collected value has to be removed");
         assertNotNull(intern(interner, "a", created), "A new value has to be created");
@@ -108,6 +112,52 @@ class InternerTest {
         }
     }
 
+    // waits until the thread is blocked by a lock: the lock of the entry in compute, as the factory of another thread
+    // holds it; the thread found no value on the fast path before
+    private static void awaitBlocked(AtomicReference<Thread> thread) {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+        while (thread.get() == null || thread.get().getState() != Thread.State.BLOCKED) {
+            if (System.nanoTime() - deadline > 0) {
+                throw new IllegalStateException("The second thread has not been blocked by the lock of the entry");
+            }
+            LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(1));
+        }
+    }
+
+    @Test
+    void testInternOfAKeyBeingCreated() throws Exception {
+        // the path of intern where compute finds the value that another thread has just created, in every run:
+        // testConcurrentIntern reaches it only when two of its threads meet inside compute
+        Interner<String, Object> interner = new Interner<>(Retention.WEAK);
+        AtomicInteger created = new AtomicInteger();
+        CountDownLatch creating = new CountDownLatch(1);
+        AtomicReference<Thread> second = new AtomicReference<>();
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            // the factory of the first thread waits inside compute until the second thread waits for the entry
+            Future<Object> first = executor.submit(() -> interner.intern("a", key -> {
+                created.incrementAndGet();
+                creating.countDown();
+                awaitBlocked(second);
+                return new Object();
+            }));
+            assertTrue(creating.await(30, TimeUnit.SECONDS), "The factory of the first thread has to be called");
+            Future<Object> next = executor.submit(() -> {
+                second.set(Thread.currentThread());
+                return interner.intern("a", key -> {
+                    created.incrementAndGet();
+                    return new Object();
+                });
+            });
+            Object value = first.get(30, TimeUnit.SECONDS);
+            assertSame(value, next.get(30, TimeUnit.SECONDS), "The second thread has to get the value created by the first one");
+            assertEquals(1, created.get(), "The value of the key has to be created once");
+            assertSame(value, interner.intern("a", key -> new Object()), "The value created has to stay in the pool");
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
     @Test
     void testFactoryReturningNull() {
         Interner<String, Object> interner = new Interner<>(Retention.WEAK);
@@ -149,13 +199,18 @@ class InternerTest {
     }
 
     @Test
-    void testEvictionOfTheClassDirectory() {
-        // the unit tests use target/classes, not the multi-release jar: the version of Eviction before Java 9
-        assertFalse(Eviction.isAsynchronous(), "The pool has to remove the entries itself");
-        Object referent = new Object();
-        Runnable action = () -> { };
-        assertThrows(UnsupportedOperationException.class, () -> Eviction.register(referent, action),
-                "No cleaner is registered before Java 9");
+    void testInternRemovesTheEntryOfACollectedValue() throws InterruptedException {
+        Interner<String, Object> interner = new Interner<>(Retention.WEAK);
+        WeakReference<Object> probe = intern(interner, "a", new AtomicInteger());
+        Object value = interner.intern("b", key -> new Object());
+        Gc.awaitCleared(probe, "The unused value has to be collected");
+        // no thread removes the entries: the entry of the collected value stays until the pool is used
+        assertTrue(interner.containsKey("a"), "The entry of the collected value has to stay until the next access");
+        // the reference handler of the JVM queues the cleared reference after the collection: the access is repeated
+        // until the pool finds it in its queue
+        Gc.await(() -> interner.intern("b", key -> new Object()) == value && !interner.containsKey("a"),
+                "The next intern of another key has to remove the entry of the collected value");
+        assertEquals(1, interner.size(), "The entry of the value in use has to be kept");
     }
 
 }

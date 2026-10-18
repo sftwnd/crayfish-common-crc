@@ -13,6 +13,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
@@ -152,6 +153,36 @@ class CRCTest {
             for (int split = 0; split <= 40; split++) {
                 assertEquals(expected, model.crc(data, 3, split).update(data, 3 + split, 40 - split).value(),
                         model + ": wrong CRC of 40 bytes updated in two parts at " + split);
+            }
+        }
+    }
+
+    @Test
+    void testWordRegister() {
+        // up to 32 bits wide: the register of an int, 8 bytes at a time from 8 bytes on, blocks of 8 bytes and the rest
+        // at the offsets that are not multiples of 8, and the data a byte at a time
+        byte[] data = new byte[96];
+        new Random(32).nextBytes(data);
+        for (int width = 1; width <= 40; width++) {
+            long mask = CrcParameters.mask(width);
+            for (int kind = 0; kind < 4; kind++) {
+                CrcModel model = CrcModel.of(width, 0x42F0E1EBA9EA3693L & mask | 1L, 0x0123456789ABCDEFL & mask, (kind & 1) != 0, (kind & 2) != 0,
+                        0xFEDCBA9876543210L & mask);
+                for (int offset : new int[]{0, 1, 3, 7, 16}) {
+                    for (int length = 0; length <= 80; length++) {
+                        assertEquals(reference(model, data, offset, length), model.crc(data, offset, length).value(),
+                                model + ": wrong CRC of " + length + " bytes at the offset " + offset);
+                    }
+                }
+                CrcChecksum checksum = model.checksum();
+                for (int length = 0; length < data.length; length++) {
+                    checksum.update(data[length]);
+                    assertEquals(reference(model, data, 0, length + 1), checksum.getValue(), model + ": wrong CRC of " + (length + 1) + " bytes a byte at a time");
+                }
+                assertEquals(width <= 32 ? CrcTables.SLICE_COUNT * CrcTables.TABLE_SIZE : 0, model.description().engine().tables().words.length,
+                        model + ": the tables of a CRC up to 32 bits wide have to be the int ones, of a wider CRC the long ones");
+                assertEquals(width <= 32 ? 0 : CrcTables.SLICE_COUNT, model.description().engine().tables().slices.length,
+                        model + ": the tables of a wider CRC have to be the long ones");
             }
         }
     }
@@ -416,7 +447,7 @@ class CRCTest {
         assertThrows(ArrayIndexOutOfBoundsException.class, () -> crc.update(data, Integer.MAX_VALUE, 2), "An overflowing end has to be rejected");
         ArrayIndexOutOfBoundsException exception = assertThrows(ArrayIndexOutOfBoundsException.class, () -> model.crc(data, 10, 7),
                 "The bytes beyond the buffer have to be rejected");
-        assertEquals("CRC::update - offset 10 and length 7 out of the buffer length 16", exception.getMessage(), "Wrong message");
+        assertEquals("CrcModel::crc - offset 10 and length 7 out of the buffer length 16", exception.getMessage(), "Wrong message");
         assertSame(crc, crc.update(data, 16, 0), "0 bytes at the end of the buffer are no data");
         assertThrows(NullPointerException.class, () -> crc.update((byte[]) null), "update(null) has to throw NullPointerException");
         assertThrows(NullPointerException.class, () -> crc.update(null, 0, 0), "update(null, 0, 0) has to throw NullPointerException");
@@ -434,13 +465,52 @@ class CRCTest {
         assertEquals(crc, crc, "A CRC has to be equal to itself");
         assertEquals(crc, model.crc(CHECK), "CRCs of the same model over the same data have to be equal");
         assertEquals(crc.hashCode(), model.crc(CHECK).hashCode(), "Equal CRCs have to have the same hash code");
-        assertEquals(crc, model.crc(crc.value(), crc.length()), "A restored CRC has to be equal");
+        CRC restored = model.crc(crc.value(), crc.length());
+        assertEquals(crc, restored, "A restored CRC has to be equal");
+        assertEquals(crc.hashCode(), restored.hashCode(), "A restored CRC has to have the same hash code");
         assertNotEquals(crc, null, "A CRC is not equal to null");
         assertNotEquals(crc, model, "A CRC is not equal to its model");
         assertNotEquals(crc, model.crc(crc.value() ^ 1, CHECK.length), "CRCs with different values are not equal");
         assertNotEquals(crc, model.crc(crc.value(), CHECK.length + 1), "CRCs with different lengths are not equal");
-        assertNotEquals(crc, CrcModel.of("PKZIP").crc(CHECK), "CRCs of an alias and of its model are not equal");
+        assertNotEquals(crc, CrcModel.of("CRC-32/BZIP2").crc(crc.value(), crc.length()),
+                "CRCs of other parameters with the same value and length are not equal");
+        CRC alias = CrcModel.of("PKZIP").crc(CHECK);
+        assertEquals(crc, alias, "CRCs of a model and of its alias over the same data have to be equal");
+        assertEquals(alias, crc, "CRCs of an alias and of its model over the same data have to be equal");
+        assertEquals(crc.hashCode(), alias.hashCode(), "CRCs of a model and of its alias over the same data have to have the same hash code");
+        assertEquals("PKZIP", alias.name(), "A CRC equal to the CRC of another name has to keep its own name");
         assertEquals(model.crc().hashCode(), CrcModel.of("CRC-32").crc().hashCode(), "Equal empty CRCs have to have the same hash code");
+    }
+
+    @Test
+    void testEqualsOfAllNames() {
+        // the CRCs of the data by the name and by every alias of every algorithm of the catalogue, calculated in other
+        // ways too (in parts, combined with the CRC of another name, restored, by a checksum), are equal and have the
+        // same hash code, so that a set keeps one of them
+        for (StandardCrc standard : StandardCrc.values()) {
+            CrcModel main = standard.model();
+            CRC expected = main.crc(CHECK);
+            Set<CRC> set = new HashSet<>();
+            for (String name : standard.names()) {
+                CrcModel model = CrcModel.of(name);
+                CrcChecksum checksum = model.checksum();
+                checksum.update(CHECK, 0, CHECK.length);
+                List<CRC> crcs = Arrays.asList(
+                        model.crc(CHECK),
+                        model.crc(CHECK, 4).update(CHECK, 4, CHECK.length - 4),
+                        model.crc(CHECK, 3).combine(main.crc(CHECK, 3, CHECK.length - 3)),
+                        main.crc(CHECK, 3).combine(model.crc(CHECK, 3, CHECK.length - 3)),
+                        model.crc(expected.value(), expected.length()),
+                        checksum.crc());
+                for (CRC crc : crcs) {
+                    assertEquals(expected, crc, name + ": the CRC has to be equal to the CRC of " + standard.crcName());
+                    assertEquals(crc, expected, name + ": the CRC of " + standard.crcName() + " has to be equal to the CRC");
+                    assertEquals(expected.hashCode(), crc.hashCode(), name + ": equal CRCs have to have the same hash code");
+                }
+                set.addAll(crcs);
+            }
+            assertEquals(1, set.size(), standard.crcName() + ": a set has to keep one CRC of the data for all the names");
+        }
     }
 
     @Test

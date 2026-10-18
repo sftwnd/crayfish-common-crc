@@ -12,8 +12,8 @@
 **Fast, zero-dependency CRC library for Java 8+: every CRC from CRC-3 to CRC-64 of the RevEng catalogue — and any custom one.**
 
 112 predefined CRC algorithms (186 names with aliases): CRC-32, CRC-32C, CRC-16/MODBUS, CRC-16/CCITT-FALSE,
-CRC-16/XMODEM, CRC-8, CRC-64/ECMA-182, CRC-64/NVME and many more. Parameters and check values are those of the
-[RevEng CRC catalogue](https://reveng.sourceforge.io/crc-catalogue/all.htm).
+CRC-16/XMODEM, CRC-8, CRC-64/ECMA-182, CRC-64/NVME and many more. Parameters, check values and residues are those of
+the [RevEng CRC catalogue](https://reveng.sourceforge.io/crc-catalogue/all.htm).
 
 The API of 2.0 is not compatible with 1.x, see [Migrating from 1.x](#migrating-from-1x). The README of 1.x is that of
 the tag [crayfish-common-crc-1.2.0](https://github.com/sftwnd/crayfish-common-crc/blob/crayfish-common-crc-1.2.0/README.md),
@@ -22,21 +22,38 @@ the latest 1.x release; see [Versions and support](#versions-and-support) for th
 ## Features
 
 - **Fast** — table-driven, slicing-by-8 for every model, not only for CRC-32: 8 bytes per step, 2–4 times faster than
-  one byte per step on buffers from 256 bytes
+  one byte per step on buffers from 256 bytes; a CRC up to 32 bits wide is calculated with the register of an `int`,
+  1.1–1.7 times as fast as in 2.0 (*2.1.0*, see [Speed](#speed))
+- **CPU instructions on request** — the JDK classes `java.util.zip.CRC32` and `CRC32C` calculate CRC-32,
+  CRC-32/JAMCRC and CRC-32C with the CRC instructions of the CPU, with the whole API of the library: chosen per model,
+  or by a default set by a system property or a call (*2.1.0*)
 - **Immutable** — a CRC is a value: an update or a combination gives a new CRC, so a CRC can be shared between threads
   and kept as the state of a calculation (*2.0*)
 - **Combine and resume** — join the CRCs of parts calculated independently (in parallel threads or on other nodes),
-  like zlib `crc32_combine`; continue a calculation from a saved CRC value and length, also of 2 GiB and more
+  like zlib `crc32_combine`; continue a calculation from a saved CRC value and length, also of 2 GiB and more, as
+  a `CRC` or as a `java.util.zip.Checksum` (*2.1.0*, see [Resume](#resume))
 - **Streams** — a `java.util.zip.Checksum` of any model for `CheckedOutputStream`, `CheckedInputStream` and other code
-  written for `CRC32` (*2.0*)
-- **Names and aliases** — a model is chosen by the name or by any alias of the catalogue, and its CRCs tell the name
-  it was chosen by; other parameters get a unique name of their own (*2.0*)
+  written for `CRC32` (*2.0*); the CRC of an `InputStream` or of a channel read to its end (*2.1.0*, see
+  [Streams](#streams))
+- **Codewords** — build and check data followed by its CRC, in the byte order of the model or of a format such as
+  PNG, with the residues of the catalogue; the bytes of a CRC in the byte order of a protocol, in a new array or in an
+  array or a buffer of the caller, and its hexadecimal digits (*2.1.0*, see [Codewords](#codewords) and
+  [Calculate](#calculate))
+- **Bits** — the CRC of data that is not a whole number of bytes, such as the frames of CAN, FlexRay and USB
+  (*2.1.0*, see [Bits](#bits))
+- **Names and aliases** — a model is chosen by the name or by any alias of the catalogue, in any case of its letters
+  (*2.1.0*), and its CRCs tell the name it was chosen by; other parameters get a unique name of their own (*2.0*)
+- **Find the algorithm** — the algorithms of the catalogue that give the CRCs of samples of data, and the parameters of
+  a parameter line of the catalogue (*2.1.0*, see [By samples of data](#by-samples-of-data) and
+  [By parameters](#by-parameters))
 - **Memory on demand** — one description per parameter set; its lookup tables are built on the first calculation and
-  collected with it when no model of the parameters is used any more (*2.0*)
+  collected with it when no model of the parameters is used any more (*2.0*); no thread of its own, so the library is
+  unloaded with a redeployed application (*2.1.0*, see [Memory](#memory))
 - **Java 8+ and modular** — runs on Java 8; on Java 9+ it is the named JPMS module `com.github.sftwnd.crayfish_common_crc`
   of a multi-release jar; OSGi bundle headers included
 - **Zero runtime dependencies** — a single small jar
-- **Verified** — every predefined model is tested against its RevEng check value and a bit-by-bit reference implementation
+- **Verified** — every predefined model is tested against its RevEng check value and residue and a bit-by-bit
+  reference implementation
 - **Any CRC up to 64 bits** — width 1…64, any poly, init, refin, refout, xorout
 - **BSD 3-Clause** license
 
@@ -48,14 +65,14 @@ Maven:
 <dependency>
     <groupId>com.github.sftwnd.crayfish.common</groupId>
     <artifactId>crayfish-common-crc</artifactId>
-    <version>2.0.0</version>
+    <version>2.1.0</version>
 </dependency>
 ```
 
 Gradle:
 
 ```groovy
-implementation 'com.github.sftwnd.crayfish.common:crayfish-common-crc:2.0.0'
+implementation 'com.github.sftwnd.crayfish.common:crayfish-common-crc:2.1.0'
 ```
 
 ## Quick start
@@ -70,10 +87,10 @@ implementation 'com.github.sftwnd.crayfish.common:crayfish-common-crc:2.0.0'
 
 | Type | What it is |
 |---|---|
-| `CrcParameters` | the parameters of a CRC algorithm: width, poly, init, refin, refout, xorout |
-| `StandardCrc` | the 112 algorithms of the catalogue: name, aliases, parameters, check value |
-| `CrcDescription` | the one description of a parameter set: names, check value, lookup tables |
-| `CrcModel` | a description with the name it was chosen by |
+| `CrcParameters` | the parameters of a CRC algorithm: width, poly, init, refin, refout, xorout; also read from a parameter line of the catalogue |
+| `StandardCrc` | the 112 algorithms of the catalogue: name, aliases, parameters, check value, residue |
+| `CrcDescription` | the one description of a parameter set: names, check value, residue, lookup tables |
+| `CrcModel` | a description with the name it was chosen by and the way of the calculation: the lookup tables or a class of the JDK |
 | `CRC` | the immutable CRC of data: model, value, length |
 | `CrcChecksum` | the mutable `java.util.zip.Checksum` of a model, for streams |
 
@@ -88,8 +105,11 @@ implementation 'com.github.sftwnd.crayfish.common:crayfish-common-crc:2.0.0'
     CrcModel modbus = StandardCrc.CRC_16_MODBUS.model();
 ```
 
-`CrcModel.of()` throws `IllegalArgumentException` for an unknown name. The case of a name matters. The constants of
-`StandardCrc` are the names of the algorithms with `_` for every character other than `A-Z` and `0-9`.
+`CrcModel.of()` throws `IllegalArgumentException` for an unknown name. The case of the letters of a name does not
+matter (*2.1.0*; in 2.0.0 it did): `CrcModel.of("crc-32c")` is the model of `CRC-32C`, whose CRCs have the name as
+the catalogue writes it. Only the ASCII letters count, so letters of other alphabets that look alike, such as the
+dotless `ı`, match nothing. The constants of `StandardCrc` are the names of the algorithms with `_` for every character
+other than `A-Z` and `0-9`.
 
 A model chosen by its name costs a lookup in the catalogue and in the pool of the descriptions (see [Memory](#memory)),
 about 15 ns. For calculations in a loop, keep the model in a field rather than choosing it for every calculation:
@@ -112,6 +132,23 @@ about 15 ns. For calculations in a loop, keep the model in a field rather than c
 
 The parameters of an algorithm of the catalogue give the model with its name.
 
+`CrcParameters.parse()` reads the parameters from a parameter line of the catalogue, the format of
+`CrcParameters.toString()` and of `CrcDescription.toString()` (*2.1.0*):
+
+```java
+    CrcParameters arc = CrcParameters.parse("width=16  poly=0x8005  init=0x0000  refin=true  refout=true  xorout=0x0000");
+    CrcModel model = CrcModel.of(CrcParameters.parse("width=16 poly=0x8005 init=0x0000 refin=true refout=true"
+            + " xorout=0x0000 check=0xbb3d residue=0x0000 name=\"CRC-16/ARC\""));          // CRC-16/ARC
+    CrcParameters same = CrcParameters.parse(model.description().toString());
+```
+
+The fields `name=value` are separated by whitespace, in any order, each at most once. The parameters are required:
+`width` (decimal), `poly`, `init` and `xorout` (hexadecimal with `0x`, digits of any case), `refin` and `refout`
+(`true` or `false`). The other fields of the parameter lines of the catalogue are optional: `check` and `residue`
+are verified, and `name`, a quoted string, is ignored, as the parameters have no name. An unknown field, a field given
+twice or missing, a value that is not valid or does not fit into the width, a wrong check value and a wrong residue
+throw `IllegalArgumentException`.
+
 ### With a builder
 
 ```java
@@ -128,6 +165,32 @@ Every setter checks that the value fits into the width. `build()` throws `Illega
 is not set: they have no neutral value, a forgotten one would give another CRC. A wrong check value makes `build()`
 throw `IllegalArgumentException`.
 
+### By samples of data
+
+To find out the CRC of a device or of a file format, take samples of its data with their CRCs:
+`StandardCrc.matching(data, value)` gives the algorithms of the catalogue whose CRC of the data is the value (*2.1.0*).
+
+```java
+    Set<StandardCrc> found = StandardCrc.matching(data, 0x4B37L);                    // the algorithms that give the value
+    found.retainAll(StandardCrc.matching(frame, 0, frame.length - 2, crcOfFrame));   // another sample narrows them down
+    if (found.size() == 1) {                                                         // the algorithm of the samples
+        CrcModel model = found.iterator().next().model();
+    }
+```
+
+One sample is ambiguous: an algorithm of n bits matches random data with a probability of 2^-n, so the algorithms of
+3 to 8 bits often match by chance. Take several samples and keep the algorithms that match all of them with
+`retainAll()`. The result is a new modifiable `EnumSet` in the order of the catalogue, empty if no algorithm gives the
+value.
+
+Unlike `model.crc(value, length)` and `combine`, the value is compared as it is: a value with bits above the width of an
+algorithm does not match it, so a CRC-32 kept in an `int` is given as `crc & 0xFFFFFFFFL`. Ignoring such bits would make
+the low bits of a 16-bit value match the CRC-8 algorithms.
+
+The CRCs are calculated with the lookup tables of the library, CRC-32 and CRC-32C as well: a call with data builds the
+tables of every algorithm whose width the value fits into, about 1 MiB for all 112, and the garbage collector collects
+them afterwards unless models of the algorithms are in use (see [Memory](#memory)).
+
 ## CRC
 
 ### Calculate
@@ -143,7 +206,8 @@ throw `IllegalArgumentException`.
 ```
 
 `model.value(...)` equals `model.crc(...).value()` without creating a `CRC`; a `CRC` is needed to continue a calculation,
-to combine CRCs or to keep the length. `model.crc()` is the CRC of the empty data. A CRC is immutable, so the result of `update()` has to be used:
+to combine CRCs or to keep the length. `model.crc()` is the CRC of the empty data. A CRC is immutable, so the result of
+`update()` has to be used:
 
 ```java
     CRC crc = model.crc();
@@ -167,6 +231,42 @@ As with `java.util.zip.Checksum.update(ByteBuffer)`, the position of the buffer 
 A buffer with an accessible array is calculated in the array; a direct or read-only buffer is copied in parts of 4096
 bytes.
 
+`crc.hex()` gives the CRC value as `(width + 3) / 4` lower-case hexadecimal digits with the leading zeros, the digits
+that the catalogue writes after `0x` (*2.1.0*):
+
+```java
+    String crc32 = CrcModel.of("CRC-32").crc(data).hex();        // 8 digits: cbf43926 for "123456789"
+    String umts = CrcModel.of("CRC-12/UMTS").crc(data).hex();    // 3 digits: daf for "123456789"
+```
+
+`crc.bytes(order)` gives the CRC value as bytes in the byte order of a protocol, to send or store the CRC after the data
+(*2.1.0*): `(width + 7) / 8` bytes with the value in their low bits, so for a width that is not a multiple of 8 the
+unused high bits of the most significant byte are 0:
+
+```java
+    byte[] check = "123456789".getBytes(StandardCharsets.US_ASCII);
+    byte[] modbus = CrcModel.of("CRC-16/MODBUS").crc(check).bytes(ByteOrder.LITTLE_ENDIAN);   // 37 4b (0x4b37)
+    byte[] xmodem = CrcModel.of("CRC-16/XMODEM").crc(check).bytes(ByteOrder.BIG_ENDIAN);      // 31 c3 (0x31c3)
+    byte[] umts = CrcModel.of("CRC-12/UMTS").crc(check).bytes(ByteOrder.BIG_ENDIAN);          // 0d af (0xdaf)
+```
+
+Every call gives a new array. There is no default order, as the order belongs to the protocol: CRC-16/MODBUS and the
+frame check sequence of Ethernet (CRC-32) are sent least significant byte first, CRC-16/XMODEM and the CRC of a PNG
+chunk most significant byte first.
+
+`crc.bytes(destination, offset, order)` and `crc.bytes(buffer, order)` write the same bytes into an array or at the
+position of a `ByteBuffer`, without a new array, and return their number (*2.1.0*), for example to build a frame in
+a buffer of its own:
+
+```java
+    CRC crc = CrcModel.of("CRC-16/MODBUS").crc(frame, 0, length);
+    int end = length + crc.bytes(frame, length, ByteOrder.LITTLE_ENDIAN);   // the CRC after the data, low byte first
+    crc.bytes(buffer, ByteOrder.BIG_ENDIAN);                                // at the position, then advanced by 2
+```
+
+The byte order of the buffer is not used. Bytes outside the array, a buffer with fewer bytes remaining and a read-only
+buffer are rejected, and the array or the buffer does not change.
+
 ### Combine
 
 ```java
@@ -186,6 +286,37 @@ Both CRCs have to have the same parameters: a model and its alias are fine, othe
 cost does not depend on the size of the data: one multiplication modulo the polynomial per bit set in the length of the
 second part, with 63 values per parameter set built on the first `combine`.
 
+### Bits
+
+Some protocols calculate the CRC of bits that are not a whole number of bytes: CRC-15/CAN of a CAN frame, CRC-11/FLEXRAY
+of the header of a FlexRay frame, CRC-5/USB of a USB token. `valueOfBits` calculates the CRC value of such bits
+(*2.1.0*):
+
+```java
+    // CAN: the 19 bits before the data and the data, packed most significant bit first
+    long can = CrcModel.of("CRC-15/CAN").valueOfBits(frameBits, 19 + 8 * dlc);
+    // FlexRay: the 20 bits of the header in a long
+    long header = CrcModel.of("CRC-11/FLEXRAY").valueOfBits(headerBits, 20);
+    // USB: the 11 bits of a token, the first bit in bit 0 (refin)
+    long token = CrcModel.of("CRC-5/USB").valueOfBits(address | endpoint << 7, 11);
+```
+
+- `model.valueOfBits(data, count)` is the CRC value of the first `count` bits of a byte array, read in the order in
+  which the model reads the bits of a byte: the most significant bit first, the least significant bit first if refin.
+  So `valueOfBits(data, 8L * n)` equals `value(data, n)`, and `valueOfBits(data, 0)` is the value of the empty data.
+- `model.valueOfBits(bits, count)` is the CRC value of `count` bits of a `long`, 0 to 64, read in the same order: from
+  bit `count - 1` down to bit 0, or from bit 0 up if refin. The bits above `count` are ignored.
+- The whole bytes of an array are calculated as by `value(data, n)`, with the lookup tables or the class of the JDK of
+  the model; the rest of the bits and the bits of a `long` a bit at a time.
+- There is the value only, no `CRC`: a `CRC` keeps the length of its data in bytes, for `combine`, `crc(value, length)`
+  and `equals`.
+- The CRC value of bits followed by their CRC in the order of the model is `residue ^ xorout` for refin = refout,
+  whatever the bits and the width, so a receiver checks a frame with its CRC by one call: a CAN frame of `count` bits
+  followed by its 15 bits of CRC-15/CAN is valid if `can.valueOfBits(frame, count + 15)` is 0, the residue of
+  CRC-15/CAN XOR-ed with its xorout (see [Codewords](#codewords) for the data of whole bytes).
+- A count of an array that is negative or beyond its bits throws `ArrayIndexOutOfBoundsException`, as the length of
+  `value(data, length)` does; a count of a `long` outside 0 to 64 throws `IllegalArgumentException`.
+
 ### Resume
 
 ```java
@@ -196,6 +327,23 @@ second part, with 63 values per parameter set built on the first `combine`.
 ```
 
 The bits above the width are ignored, so a CRC-32 kept in an `int` can be passed as is.
+
+A `CrcChecksum` (see [Streams](#streams)) continues a CRC as well: `crc.checksum()` is a new checksum of the model of
+the CRC with its value and its length, the counterpart of `checksum.crc()` (*2.1.0*). With it a `CheckedOutputStream`
+appends to a file whose CRC is kept, and a `CheckedInputStream` continues a transfer after a restart:
+
+```java
+    CrcChecksum checksum = model.crc(savedValue, savedLength).checksum();
+    try (OutputStream file = Files.newOutputStream(path, StandardOpenOption.APPEND);
+         CheckedOutputStream out = new CheckedOutputStream(file, checksum)) {
+        out.write(moreData);               // after the bytes written before
+    }
+    CRC whole = checksum.crc();            // the CRC of the whole file
+```
+
+The CRC does not change, and every call gives a new checksum. `reset()` gives the checksum of the empty data, as for
+every `CrcChecksum`, not the CRC the checksum was created from. A checksum of a model of the JDK continues with the
+class of the JDK, as the CRC does.
 
 ### Streams
 
@@ -223,6 +371,23 @@ Reading is the same, the CRC of the bytes read:
         long value = in.getChecksum().getValue();
     }
 ```
+
+When only the CRC of the bytes is needed, a stream or a channel needs no loop (*2.1.0*): `model.crc(in)` and
+`crc.update(in)` read an `InputStream` to its end, until `read` returns -1, and so do `model.crc(channel)` and
+`crc.update(channel)` with a `ReadableByteChannel`, such as a `FileChannel`. The stream or the channel is read into
+a buffer of 8192 bytes and is not closed:
+
+```java
+    try (InputStream in = Files.newInputStream(path)) {
+        CRC crc = model.crc(in);                        // all the bytes of the stream
+    }
+    try (FileChannel channel = FileChannel.open(path)) {
+        CRC crc = model.crc(header).update(channel);    // the header followed by all the bytes of the channel
+    }
+```
+
+The `IOException` of the stream or of the channel is passed on. A `SelectableChannel` in non-blocking mode, which can
+read 0 bytes for ever, is rejected with `IllegalBlockingModeException` before a read, as by `Channels.newInputStream`.
 
 A `java.util.zip.Checksum` has the value only. Keep the `CrcChecksum` itself (`getChecksum()` of the stream returns a
 `Checksum`) to get the length of the bytes written as well, and the `CRC` of them, to combine it with the CRCs of other
@@ -253,9 +418,75 @@ A `CrcChecksum` can be used directly as well; unlike a `CRC` it is mutable and n
 
 `checksum.update(ByteBuffer)` works with heap, direct and read-only buffers, on Java 8 as well.
 
-For CRC-32/ISO-HDLC itself, and for CRC-32C on Java 9+, the JDK classes `java.util.zip.CRC32` and `CRC32C` are faster:
-the JVM calculates them with the CRC instructions of the CPU (about 4 times faster on 256 bytes). `CrcChecksum` is for
-the other CRCs, and for the code that has to work with any model.
+For CRC-32/ISO-HDLC, CRC-32/JAMCRC and, on Java 9+, CRC-32C the JDK classes `java.util.zip.CRC32` and `CRC32C` are
+faster: the JVM calculates them with the CRC instructions of the CPU. A model of the JDK calculates with them,
+`CrcChecksum` included, see [CRC-32 and CRC-32C of the JDK](#crc-32-and-crc-32c-of-the-jdk).
+
+### Codewords
+
+A codeword is data followed by its CRC, as a frame of a protocol or a block of a file carries them. `isValid` checks
+a codeword (*2.1.0*): it calculates the CRC of the data and compares it with the bytes after the data.
+
+```java
+    CrcModel modbus = CrcModel.of("CRC-16/MODBUS");
+    boolean valid = modbus.isValid(frame);             // the data of the frame followed by its CRC, low byte first
+    boolean inside = modbus.isValid(buffer, 4, 10);    // a codeword of 10 bytes at the offset 4 of a buffer
+    boolean received = modbus.isValid(byteBuffer);     // the remaining bytes of a ByteBuffer
+```
+
+The CRC takes `(width + 7) / 8` bytes after the data: the least significant byte first if refout, the most significant
+byte first otherwise, so the CRC of CRC-16/MODBUS comes low byte first and that of CRC-16/XMODEM high byte first. The
+check is exact for every width, reflection and polynomial; for a width that is not a multiple of 8 the unused high bits
+of the CRC bytes have to be 0. A codeword shorter than the CRC is not valid, and the CRC of the empty data alone is
+a valid codeword. The codeword of a `ByteBuffer` is its remaining bytes, and its position is advanced to its limit, as
+by `crc(ByteBuffer)`.
+
+`codeword(data)` builds the codeword of data: a new array with the data followed by its CRC in this byte order, which
+`isValid` accepts (*2.1.0*):
+
+```java
+    byte[] frame = modbus.codeword(pdu);                     // the PDU followed by its CRC, low byte first
+    byte[] block = modbus.codeword(buffer, offset, length);  // a part of an array followed by its CRC
+    boolean sent = modbus.isValid(frame);                    // true
+```
+
+This byte order is that of the model, not of a format: a format may store the CRC in the other order, and then
+`isValid` and `codeword` take the order of the format as the last argument (*2.1.0*). A PNG chunk is the length of its
+data in 4 bytes, its type in 4 bytes, the data and the CRC-32 of the type and the data, most significant byte first as
+every number of PNG. CRC-32 is refout, so `isValid` without the order expects the CRC least significant byte first and
+gives false for a chunk that is not damaged:
+
+```java
+    CrcModel crc32 = CrcModel.of("CRC-32");
+    boolean valid = crc32.isValid(chunk, 4, n + 8, ByteOrder.BIG_ENDIAN);   // the type, n bytes of data and the CRC
+    byte[] type = "IEND".getBytes(StandardCharsets.US_ASCII);
+    byte[] iend = crc32.codeword(type, ByteOrder.BIG_ENDIAN);               // 49 45 4e 44 ae 42 60 82
+```
+
+The residue of the catalogue is the register after an error-free codeword, before the final XOR: `model.residue()`,
+`description.residue()` and `StandardCrc.residue()` (*2.1.0*), for example `0xDEBB20E3` of CRC-32/ISO-HDLC and `0xF0B8`
+of CRC-16/IBM-SDLC; 36 algorithms of the catalogue have a residue other than 0. For a width that is a multiple of 8 and
+refin = refout the CRC value of every valid codeword in the byte order of the model is `residue ^ xorout`, whatever the
+data, so a codeword read as a stream is checked by the value of its checksum:
+
+```java
+    CrcModel crc32 = CrcModel.of("CRC-32");
+    long valid = crc32.residue() ^ crc32.parameters().xorout();    // 0x2144DF1C, whatever the data
+    try (CheckedInputStream in = new CheckedInputStream(Files.newInputStream(path), crc32.checksum())) {
+        byte[] buffer = new byte[8192];
+        while (in.read(buffer) >= 0) {
+            // process the buffer: the data followed by the 4 bytes of its CRC, low byte first
+        }
+        boolean ok = in.getChecksum().getValue() == valid;
+    }
+```
+
+`CrcDescription.toString()` gives the whole parameter line of the catalogue, the residue between the check value and
+the name (*2.1.0*; without the residue in 2.0.0):
+
+```text
+width=16  poly=0x8005  init=0x0000  refin=true  refout=true  xorout=0x0000  check=0xbb3d  residue=0x0000  name="CRC-16/ARC"
+```
 
 ## Names
 
@@ -267,24 +498,143 @@ the other CRCs, and for the code that has to work with any model.
     String chosen = CrcModel.of("PKZIP").crc(data).name();   // PKZIP: the name the model was chosen by
 ```
 
+A CRC keeps the name its model was chosen by, but CRCs are compared by the parameters: CRCs with the same description,
+CRC value and length are equal and have the same hash code, whatever the names or the aliases of their models, so
+`CrcModel.of("PKZIP").crc(data).equals(CrcModel.of("CRC-32").crc(data))` is `true` (*2.1.0*; in 2.0.0 the CRCs of the
+models of other names were not equal).
+
 Parameters outside the catalogue have a unique name made of the parameters and no aliases:
 `CRC-{width}/P{poly}_I{init}[_RI][_RO][_X{xorout}]`, the values hexadecimal without leading zeros, `_RI` and `_RO` for
 refin and refout, `_X` for a non-zero xorout (the format of the names of unregistered models of 1.x). `CrcModel.of()`
-accepts such a name, so `CrcModel.of(model.name())` gives the model of any model. A name made of the parameters of an
-algorithm of the catalogue gives the model with the name of the algorithm.
+accepts such a name, in any case of its letters (*2.1.0*), so `CrcModel.of(model.name())` gives the model of any model.
+A name made of the parameters of an algorithm of the catalogue gives the model with the name of the algorithm.
 
 ## Memory
 
 - There is one `CrcDescription` per parameter set, shared by all models and CRCs of the parameters, by any name.
-- The lookup tables (8 × 256 values, 16 KiB) are built on the first calculation with data, not when a model is chosen.
+- The lookup tables (8 × 256 values) are built on the first calculation with data, not when a model is chosen: 8 KiB
+  for a width up to 32 bits (ints), 16 KiB for a wider CRC (longs).
 - The descriptions are kept in a pool that refers to them weakly: when no model and no CRC of the parameters is used,
   the garbage collector collects the description with its tables. Keep the model in a field to keep the tables.
 - `-Dcom.github.sftwnd.crayfish.common.crc.retention=soft` makes the pool refer to them softly: an unused description
   is kept until the memory runs short. It helps if a model is chosen by its name for every calculation and not kept.
   The property is read once, when the pool is used first.
-- On Java 9+ the daemon thread `crayfish-crc-eviction` of a `java.lang.ref.Cleaner` removes the entries of the collected
-  descriptions from the pool; before Java 9, and with a jar without the `Multi-Release` attribute, the pool removes them
-  when it is used.
+- The pool removes the entries of the collected descriptions when it is used, on every Java version. The library starts
+  no thread that would keep its class loader: an application server that redeploys a web application with the library,
+  an OSGi framework that updates the bundle or a host that reloads a plugin can unload it (*2.1.0*; in 2.0.0 the daemon
+  thread `crayfish-crc-eviction` removed the entries on Java 9+ and kept the class loader from being collected).
+
+## Speed
+
+The speed of 2.1.0 against 1.2.0 and 2.0.0, and of its lookup tables against the classes of the JDK, measured with JMH
+on JDK 8, 21 and 25 (the median of 5 rounds per point), is on the wiki page
+[Speed of 2.1.0](https://github.com/sftwnd/crayfish-common-crc/wiki/Speed-of-2.1.0).
+
+The lookup tables are calculated by loops that the JIT compiler inlines into the calls of the calculation, such as
+`CrcModel.value`, so the speed of a CRC depends on the code compiled around the loop. In a JMH test (Intel Core
+i9-9980HK, JDK 8, 21 and 25):
+
+- CRCs of other kinds calculated through the same calls in one JVM are compiled into the same code: CRC-16 or CRC-32
+  next to CRC-64 (registers of different sizes), the lookup tables next to the classes of the JDK (see
+  [CRC-32 and CRC-32C of the JDK](#crc-32-and-crc-32c-of-the-jdk)). A model of the lookup tables calculated after one
+  of another kind got up to 20% slower or faster, and CRC-64/XZ of 64 bytes after CRC-32 of 1 KB got 1.5–1.9 times
+  slower in most runs on JDK 21 and 25, likely because the compiler optimizes the shared code for the loop that ran
+  more often.
+- The warm-up changes the speed as well, with one model only: CRC-16/ARC of 1 KB took 535 or 618 ns on JDK 8 and 543
+  or 449 ns on JDK 25, depending on the method that the loop was compiled into.
+
+Keeping the loops out of the inlining makes the speed almost independent of the other CRCs, but costs up to 30% where
+one kind is calculated alone, so the library keeps them inlined. An application that needs a steady speed more can
+keep them out with the HotSpot option
+`-XX:CompileCommand=dontinline,com/github/sftwnd/crayfish/common/crc/CrcEngine.*Blocks`; the option names internal
+methods, which may change in a later version.
+
+## CRC-32 and CRC-32C of the JDK
+
+The JDK has classes of its own for two CRCs, and the JVM calculates them with the CRC instructions of the CPU.
+A model of these CRCs can be calculated with them, with the whole API of the library: names and aliases, immutable
+CRCs, combine, resume, `CrcChecksum`, `ByteBuffer`, streams and channels, codewords, bits:
+
+| Class of the JDK | Java | Models | From |
+|---|---|---|---|
+| `java.util.zip.CRC32` | 8+ | CRC-32/ISO-HDLC and its aliases (CRC-32, PKZIP, CRC-32/XZ, …), CRC-32/JAMCRC | 64 bytes, 128 on Java 8 |
+| `java.util.zip.CRC32C` | 9+ | CRC-32/ISCSI and its aliases (CRC-32C, CRC-32/CASTAGNOLI, …) | 8 bytes |
+
+The way is chosen with the model, or the model gets the default:
+
+```java
+    CrcModel jdk = CrcModel.of("CRC-32", true);                  // java.util.zip.CRC32
+    CrcModel tables = CrcModel.of("CRC-32", false);              // the lookup tables of the library
+    CrcModel same = tables.withJdk(true);                        // the model jdk
+    boolean byJdk = jdk.isJdk();                                 // true
+    CrcModel pkzip = tables.description().model("PKZIP", true);  // PKZIP, java.util.zip.CRC32
+    CrcModel built = CrcModel.builder(32).poly(0x1EDC6F41L).init(0xFFFFFFFFL).reflected(true).xorout(0xFFFFFFFFL)
+            .jdk(true).build();                                  // CRC-32/ISCSI, java.util.zip.CRC32C on Java 9+
+    CrcModel iscsi = StandardCrc.CRC_32_ISCSI.model(true);       // the model built
+
+    CrcDescription.setJdk(true);                                 // the default of the models chosen without a choice
+    CrcModel byDefault = CrcModel.of("CRC-32C");                 // java.util.zip.CRC32C on Java 9+
+```
+
+The initial default is given by the system property
+
+```shell
+-Dcom.github.sftwnd.crayfish.common.crc.jdk=true
+```
+
+- Without the property the default is the lookup tables of the library. The property is read once, when the first
+  model is created; `CrcDescription.setJdk(boolean)` changes the default later, `CrcDescription.isJdk()` tells it.
+- The default is applied when a model is chosen without a choice: `CrcModel.of(name)`, `find(name)`,
+  `of(parameters)`, the builder without `jdk(...)`, `StandardCrc.model()`, `CrcDescription.model()` and
+  `model(name)`. The way is chosen by `CrcModel.of(name, jdk)`, `find(name, jdk)`, `of(parameters, jdk)`, the builder
+  with `jdk(...)`, `model.withJdk(jdk)`, `StandardCrc.model(jdk)`, `CrcDescription.model(jdk)` and `model(name, jdk)`.
+  A model keeps its way, and so do its CRCs and checksums: a change of the default does not change the models chosen
+  before.
+- There is one model per description, name and way, and models are compared by identity. The CRC values are the same,
+  only the speed changes: the CRCs of both ways are equal, have the same hash code and can be combined.
+- The way is a matter of the parameters, not of the name: every model of the parameters, by a name, an alias,
+  the parameters or the builder; in general a CRC 32 bits wide with refin and the polynomial of the class, whatever
+  init, refout and xorout. For other parameters the way changes nothing: `withJdk(true)` gives the model of the lookup
+  tables, and `isJdk()` tells `false`.
+- Java 8 has no `CRC32C`: there CRC-32C is calculated by the lookup tables of the library, a model of the JDK too.
+  So it is with a jar without the `Multi-Release` attribute and with the class directory of a build as well: the class
+  that knows `CRC32C` is in `META-INF/versions/9`.
+- A class of the JDK calculates the data from the length of the table on (shorter data is as fast or faster with
+  the lookup tables, JMH on x86), a direct `ByteBuffer` at its address, without a copy. Shorter data, the single bytes
+  of `CrcChecksum.update(int)` and `combine` stay with the library.
+- A checksum of the JDK cannot be given a CRC value to start from. For the CRC of data processed before (an update of
+  a CRC with data, a resumed CRC, every update of a `CrcChecksum` after the first one, every update of a checksum of
+  `crc.checksum()`) the library gives the class of the JDK the first 4 bytes of the data XOR-ed with the difference of
+  the register of the value and the initial register `0xFFFFFFFF`, and the rest of the data as it is: after 4 bytes the
+  register of a reflected CRC-32 depends only on the register XOR-ed with them. The data itself is not changed.
+- As long as no model of the JDK is chosen, nothing changes: the class of the calculation with the JDK is not even
+  loaded.
+- When models of the JDK and of the lookup tables are used in one JVM, the calls of the calculation meet both classes,
+  and the JIT compiler compiles them for both, as for CRCs of other kinds (see [Speed](#speed)). In a JMH test (a model
+  of the lookup tables after a model of `CRC32` in the same JVM) the lookup tables got 6–16% slower for CRC-64 on JDK 8,
+  6–8% slower for CRC-16 and CRC-32 of 1 KB and 9–10% faster of 256 bytes on JDK 25, and about 5% faster for CRC-16 and
+  CRC-32 of 1 KB on JDK 21; the other differences did not repeat in every pair of runs. The system property alone
+  mixes them as well, when the JDK calculates CRC-32 and the lookup tables the other models.
+
+`model.value(data)` of the lookup tables and of the JDK (JMH, Intel Core i9-9980HK, the average time of a call):
+
+| Model, JDK | 16 B | 256 B | 4 KB | 1 MB |
+|---|---|---|---|---|
+| CRC-32, JDK 25 | 13.8 → 16.0 ns | 141 → 62 ns | 2.24 → 0.20 µs | 515 → 42 µs |
+| CRC-32C, JDK 25 | 13.8 → 5.5 ns | 145 → 13 ns | 2.14 → 0.13 µs | 513 → 41 µs |
+| CRC-32, JDK 8 | 18.8 → 19.6 ns | 141 → 59 ns | 2.41 → 0.20 µs | 615 → 39 µs |
+
+A CRC continued from a value is about as fast (CRC-32 of 4 KB on JDK 25 1.98 → 0.19 µs, CRC-32C 2.08 → 0.15 µs), and
+so is a direct `ByteBuffer` (CRC-32 of 4 KB 2.21 → 0.17 µs, CRC-32C 2.34 → 0.14 µs). Below the lengths of the table
+above the lookup tables calculate, so CRC-32 of 16 bytes costs about the same with the JDK: the class of the JDK
+only adds the check of the length.
+
+The speed of `CRC32` depends on the address of the data in memory. In a JMH test on JDK 8, 21 and 25 (Intel Core
+i9-9980HK) the CRC of 64 bytes, 256 bytes and 1 KB took 15–17, 21–24 and 48–50 ns when the data started at an address
+divisible by 16, and 36–41, 49–57 and 76–86 ns at any other address; at 4 KB the difference was about 15%, at 1 MB none.
+The CRC-32 rows of the table above match the data at another address. The address of an array is chosen by the JVM (it
+is divisible by 8, and the garbage collector may move the array), so two arrays of the same length can differ in speed,
+whether the library or the application calls `CRC32`. `CRC32C` does not depend on the address.
 
 ## Supported CRC algorithms
 
@@ -397,12 +747,13 @@ module my.application {
 }
 ```
 
-The module descriptor and the Java 9 version of the eviction of the pool are in `META-INF/versions/9` of the
-multi-release jar, so Java 8 ignores them.
+The module descriptor and the class that knows `java.util.zip.CRC32C` are in `META-INF/versions/9` of the multi-release
+jar, so Java 8 ignores them. The sources jar has their sources at the same place (*2.1.0*), so a debugger on Java 9+
+shows the source of the class it runs.
 
 ## Building
 
-The project builds with the Maven Wrapper (Maven 3.9.16) on JDK 8 to 25:
+The project builds with the Maven Wrapper (Maven 3.10.0) on JDK 8 to 25:
 
 ```shell
 ./mvnw verify
@@ -410,4 +761,7 @@ The project builds with the Maven Wrapper (Maven 3.9.16) on JDK 8 to 25:
 
 The classes are compiled for Java 8 on every JDK; the module descriptor and the Java 9 classes are built on JDK 9+ only,
 so a release has to be built on JDK 9+. The integration tests (`*IT`) run with the jar, so on JDK 9+ they test the
-classes of `META-INF/versions/9`.
+classes of `META-INF/versions/9`. `-DskipTests` skips the unit tests, `-DskipITs` the integration tests.
+
+Two builds of the same sources give the same jars byte for byte (*2.1.0*): `project.build.outputTimestamp` gives their
+entries a fixed time, which `release:prepare` sets to the time of the release.

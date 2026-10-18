@@ -20,7 +20,8 @@ import java.util.zip.Checksum;
  * long value = out.getChecksum().getValue();   // the CRC value of all bytes written
  * }</pre>
  * Unlike a {@link CRC}, a checksum is mutable: an update changes it. It is not thread-safe, like
- * {@link java.util.zip.CRC32}. {@link #crc()} gives the immutable CRC of the processed data.
+ * {@link java.util.zip.CRC32}. {@link #crc()} gives the immutable CRC of the processed data, and
+ * {@link CRC#checksum()} a checksum that continues a CRC.
  *
  * @since 2.0.0
  * @author Andrey D. Shindarev
@@ -38,6 +39,14 @@ public final class CrcChecksum implements Checksum {
         this.model = model;
         this.engine = model.engine();
         this.value = this.engine.empty();
+    }
+
+    // the checksum that continues a CRC of the model: the CRC value and the length of the data processed before
+    CrcChecksum(@NonNull final CrcModel model, final long value, final long length) {
+        this.model = model;
+        this.engine = model.engine();
+        this.value = value;
+        this.length = length;
     }
 
     /**

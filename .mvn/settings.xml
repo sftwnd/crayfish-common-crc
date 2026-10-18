@@ -16,7 +16,8 @@
             <password>${env.CENTRAL_TOKEN_PASSWORD}</password>
         </server>
         <server>
-            <!-- passphrase of the signing key (maven-gpg-plugin, default passphraseServerId) -->
+            <!-- passphrase of the signing key: maven-gpg-plugin takes it with -Dgpg.bestPractices=false (its default
+                 passphraseServerId) -->
             <id>gpg.passphrase</id>
             <passphrase>${env.GPG_SIGNING_PASSPHRASE}</passphrase>
         </server>

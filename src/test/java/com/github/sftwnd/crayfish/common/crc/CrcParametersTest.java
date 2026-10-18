@@ -97,7 +97,7 @@ class CrcParametersTest {
     }
 
     @Test
-    void testParse() {
+    void testParseName() {
         Random random = new Random(64);
         for (int width = 1; width <= 64; width++) {
             long mask = CrcParameters.mask(width);
@@ -108,7 +108,7 @@ class CrcParametersTest {
                         (kind & 1) != 0, (kind & 2) != 0, xorout);
                 String name = parameters.parametricName();
                 assertTrue(name.startsWith("CRC-" + width + "/"), "The name has to start with CRC-{width}/: " + name);
-                assertEquals(parameters, CrcParameters.parse(name), "The parameters of the name " + name + " have to be parsed");
+                assertEquals(parameters, CrcParameters.parseName(name), "The parameters of the name " + name + " have to be parsed");
             }
         }
     }
@@ -124,7 +124,7 @@ class CrcParametersTest {
             "CRC-16/P8005_I0_X10000", "CRC-64/P10000000000000000_I0"
         };
         for (String name : names) {
-            assertNull(CrcParameters.parse(name), "\"" + name + "\" is not a name made of parameters");
+            assertNull(CrcParameters.parseName(name), "\"" + name + "\" is not a name made of parameters");
         }
     }
 

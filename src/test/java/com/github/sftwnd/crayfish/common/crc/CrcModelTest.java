@@ -93,7 +93,7 @@ class CrcModelTest {
 
     @Test
     void testUnknownNames() {
-        for (String name : new String[]{"CRC-32/UNKNOWN", "crc-32", "CRC-32 ", "", "CRC-16/P1234_I0_X0", "CRC-82/DARC"}) {
+        for (String name : new String[]{"CRC-32/UNKNOWN", "crc-33", "CRC-32 ", "", "CRC-16/P1234_I0_X0", "crc-16/p1234_i0_x0", "CRC-82/DARC"}) {
             assertFalse(CrcModel.find(name).isPresent(), "\"" + name + "\" has not got to be found");
             IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> CrcModel.of(name),
                     "\"" + name + "\" has to be rejected");
@@ -272,12 +272,12 @@ class CrcModelTest {
         assertEquals(crc.update(buffer), crc.update(buffer, 16), "All bytes of the buffer have to be accepted");
         ArrayIndexOutOfBoundsException beyond = assertThrows(ArrayIndexOutOfBoundsException.class, () -> model.crc(buffer, 17),
                 "More bytes than the data has to be rejected");
-        assertEquals("CRC::update - offset 0 and length 17 out of the buffer length 16", beyond.getMessage(), "Wrong message");
+        assertEquals("CrcModel::crc - offset 0 and length 17 out of the buffer length 16", beyond.getMessage(), "Wrong message");
         assertThrows(ArrayIndexOutOfBoundsException.class, () -> model.crc(buffer, -1), "A negative length has to be rejected");
         assertThrows(ArrayIndexOutOfBoundsException.class, () -> crc.update(buffer, 17), "More bytes than the buffer has to be rejected");
         assertThrows(ArrayIndexOutOfBoundsException.class, () -> crc.update(buffer, -1), "A negative length has to be rejected");
         NullPointerException nullData = assertThrows(NullPointerException.class, () -> model.crc(null, 0), "crc(null, 0) has to throw NullPointerException");
-        assertEquals("CRC::update - data is null", nullData.getMessage(), "Wrong message");
+        assertEquals("CrcModel::crc - data is null", nullData.getMessage(), "Wrong message");
         assertThrows(NullPointerException.class, () -> crc.update(null, 0), "update(null, 0) has to throw NullPointerException");
         assertEquals(model.check(), crc.value(), "A rejected update has not got to change the CRC");
     }

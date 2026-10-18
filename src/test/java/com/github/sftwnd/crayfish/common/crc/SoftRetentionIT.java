@@ -33,10 +33,6 @@ class SoftRetentionIT {
         return CrcParameters.of(48, 0x1D5BD6C9F5L, 0x200000L + RUNS.incrementAndGet(), false, true, 0x0L);
     }
 
-    private static boolean java9() {
-        return !System.getProperty("java.specification.version").startsWith("1.");
-    }
-
     // a model of the parameters used for a calculation: the probes of its description and of its lookup tables
     private static List<WeakReference<Object>> calculate(CrcParameters parameters) {
         CrcModel model = CrcModel.of(parameters);
@@ -94,11 +90,7 @@ class SoftRetentionIT {
         assertTrue(runMemoryShort() > 0, "The memory has to be allocated before it runs out");
         Gc.awaitCleared(probes.get(0), "The unused description has to be collected when the memory runs short");
         Gc.awaitCleared(probes.get(1), "The lookup tables of the unused description have to be collected with it");
-        if (java9()) {
-            Gc.await(() -> !descriptions.containsKey(parameters), "The cleaner has to remove the entry of the collected description");
-        } else {
-            Gc.await(() -> descriptions.size() >= 0 && !descriptions.containsKey(parameters), "The pool has to remove the entry of the collected description");
-        }
+        Gc.await(() -> descriptions.size() >= 0 && !descriptions.containsKey(parameters), "The pool has to remove the entry of the collected description");
         assertEquals(CrcReference.crc(parameters, CHECK), CrcModel.of(parameters).crc(CHECK).value(), "A new description of the parameters has to calculate");
     }
 

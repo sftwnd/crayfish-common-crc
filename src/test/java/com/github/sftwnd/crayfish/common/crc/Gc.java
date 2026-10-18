@@ -36,8 +36,8 @@ final class Gc {
      * @param message message of the failure
      * @throws InterruptedException if the thread is interrupted
      */
-    // the sleep is the pause between the attempts of a poll with a timeout, a wait for the collector and the cleaner,
-    // not a fixed delay for a race, so java:S2925 does not apply
+    // the sleep is the pause between the attempts of a poll with a timeout, a wait for the collector and the reference
+    // handler that queues the cleared references, not a fixed delay for a race, so java:S2925 does not apply
     @SuppressWarnings("java:S2925")
     static void await(BooleanSupplier condition, String message) throws InterruptedException {
         long start = System.nanoTime();

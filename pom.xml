@@ -4,7 +4,7 @@
 
     <groupId>com.github.sftwnd.crayfish.common</groupId>
     <artifactId>crayfish-common-crc</artifactId>
-    <version>2.0.0</version>
+    <version>2.1.0</version>
 
     <name>CrayFish :: COMMON :: Crc</name>
     <description>
@@ -33,41 +33,49 @@
         <url>https://github.com/sftwnd/crayfish-common-crc</url>
         <connection>scm:git:https://github.com/sftwnd/crayfish-common-crc.git</connection>
         <developerConnection>scm:git:git@github.com:sftwnd/crayfish-common-crc.git</developerConnection>
-        <tag>crayfish-common-crc-2.0.0</tag>
+        <tag>crayfish-common-crc-2.1.0</tag>
     </scm>
 
     <properties>
-        <java.version>1.8</java.version>
-        <maven.compiler.source>${java.version}</maven.compiler.source>
-        <maven.compiler.target>${java.version}</maven.compiler.target>
+        <maven.compiler.source>1.8</maven.compiler.source>
+        <maven.compiler.target>1.8</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!-- the time of the entries of the jars, for reproducible builds: maven-release-plugin sets the time of the
+             release at release:prepare; without the property the super POM of Maven 3.10 sets 1980-02-01 -->
+        <project.build.outputTimestamp>2026-10-18T19:04:19Z</project.build.outputTimestamp>
         <javaModuleName>com.github.sftwnd.crayfish_common_crc</javaModuleName>
         <spotbugs-annotations.version>4.10.5</spotbugs-annotations.version>
-        <junit.version>5.9.2</junit.version>
+        <!-- JUnit 6 requires Java 17: the tests run on Java 8 as well -->
+        <junit.version>5.14.4</junit.version>
         <!-- the JVM options of the tests, set by jacoco:prepare-agent; empty if JaCoCo is skipped, so that @{argLine}
              of the soft retention tests resolves -->
         <argLine />
+        <!-- the sources jar is built by maven-jar-plugin (the execution attach-sources): maven-source-plugin, which the
+             release profile of the super POM of Maven 3.9 (-DperformRelease=true, for example with the Maven of an IDE)
+             uses as well, is skipped, so that it attaches no sources jar of its own; Maven 3.10 has no such profile -->
+        <maven.source.skip>true</maven.source.skip>
         <!-- 3.11.0+: compileSourceRoots can be configured, for the module descriptor in src/main/java9 -->
-        <maven-compiler-plugin.version>3.15.0</maven-compiler-plugin.version>
-        <maven-deploy-plugin.version>3.1.4</maven-deploy-plugin.version>
-        <maven-enforcer-plugin.version>3.5.0</maven-enforcer-plugin.version>
-        <maven-gpg-plugin.version>3.0.1</maven-gpg-plugin.version>
-        <maven-jar-plugin.version>3.3.0</maven-jar-plugin.version>
-        <maven-javadoc-plugin.version>3.5.0</maven-javadoc-plugin.version>
-        <maven-release-plugin.version>2.5.3</maven-release-plugin.version>
-        <maven-source-plugin.version>3.2.1</maven-source-plugin.version>
-        <maven-surefire-plugin.version>2.22.2</maven-surefire-plugin.version>
-        <maven-failsafe-plugin.version>2.22.2</maven-failsafe-plugin.version>
-        <jacoco-maven-plugin.version>0.8.8</jacoco-maven-plugin.version>
+        <maven-compiler-plugin.version>3.16.0</maven-compiler-plugin.version>
+        <maven-deploy-plugin.version>3.2.0</maven-deploy-plugin.version>
+        <maven-enforcer-plugin.version>3.6.3</maven-enforcer-plugin.version>
+        <maven-gpg-plugin.version>3.2.8</maven-gpg-plugin.version>
+        <maven-jar-plugin.version>3.5.1</maven-jar-plugin.version>
+        <maven-javadoc-plugin.version>3.12.0</maven-javadoc-plugin.version>
+        <maven-release-plugin.version>3.3.1</maven-release-plugin.version>
+        <maven-resources-plugin.version>3.5.0</maven-resources-plugin.version>
+        <maven-source-plugin.version>3.4.0</maven-source-plugin.version>
+        <maven-surefire-plugin.version>3.6.0</maven-surefire-plugin.version>
+        <maven-failsafe-plugin.version>3.6.0</maven-failsafe-plugin.version>
+        <jacoco-maven-plugin.version>0.8.15</jacoco-maven-plugin.version>
         <!-- bnd 7 requires Java 17, the build has to run on Java 8 -->
         <bnd-maven-plugin.version>6.4.0</bnd-maven-plugin.version>
-        <central-publishing-maven-plugin.version>0.11.0</central-publishing-maven-plugin.version>
+        <central-publishing-maven-plugin.version>0.12.0</central-publishing-maven-plugin.version>
         <!-- the plugin version is the SpotBugs version plus a plugin revision; it analyzes with that SpotBugs (needs Java 11+) -->
         <spotbugs-maven-plugin.version>4.10.5.0</spotbugs-maven-plugin.version>
         <sonar-maven-plugin.version>5.8.0.7211</sonar-maven-plugin.version>
-        <!-- the server with the passphrase of the signing key: no such server, so the signing takes the passphrase
-             from gpg-agent, see the profile sign-artifacts -->
-        <gpg.serverId>gpg-agent</gpg.serverId>
+        <!-- the best practices of maven-gpg-plugin: the passphrase of the signing key comes from gpg-agent (or from
+             MAVEN_GPG_PASSPHRASE), not from a server of the settings, see the profile sign-artifacts -->
+        <gpg.bestPractices>true</gpg.bestPractices>
     </properties>
 
     <dependencies>
@@ -91,33 +99,40 @@
     </dependencies>
 
     <build>
-        <sourceDirectory>src/main/java</sourceDirectory>
-        <testSourceDirectory>src/test/java</testSourceDirectory>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <configuration>
-                    <source>${maven.compiler.source}</source>
-                    <target>${maven.compiler.target}</target>
                     <compilerArgs>
                         <arg>-Xlint:all</arg>
                         <!-- JDK 21+ reports Java 8 as an obsolete target; Java 8 stays the target of the library -->
                         <arg>-Xlint:-options</arg>
                     </compilerArgs>
-                    <showWarnings>true</showWarnings>
                 </configuration>
             </plugin>
             <plugin>
+                <!-- the sources of the sources jar, which mirrors the multi-release jar: those of src/main/java at the
+                     root, those of src/main/java9 in META-INF/versions/9 (copied in the profile release-8-on-jdk9+, which
+                     compiles them). maven-source-plugin takes the source roots of the project, and src/main/java9 is
+                     compiled by an execution of its own, not as a source root -->
                 <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-source-plugin</artifactId>
+                <artifactId>maven-resources-plugin</artifactId>
                 <executions>
                     <execution>
-                        <id>attach-sources</id>
+                        <id>copy-sources</id>
+                        <phase>prepare-package</phase>
                         <goals>
-                            <!-- jar would run the generate-sources phase a second time -->
-                            <goal>jar-no-fork</goal>
+                            <goal>copy-resources</goal>
                         </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/sources</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>${project.basedir}/src/main/java</directory>
+                                </resource>
+                            </resources>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>
@@ -125,7 +140,6 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-javadoc-plugin</artifactId>
                 <configuration>
-                    <source>${maven.compiler.source}</source>
                     <!-- an undocumented public or protected member fails the build (JDK 17+ reports it) -->
                     <failOnWarnings>true</failOnWarnings>
                 </configuration>
@@ -139,25 +153,14 @@
                 </executions>
             </plugin>
             <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <configuration>
-                    <includes>
-                        <include>**/*Test.java</include>
-                    </includes>
-                </configuration>
-            </plugin>
-            <plugin>
                 <!-- the integration tests run with the jar instead of target/classes: on Java 9+ the classes of
                      META-INF/versions/9 of the multi-release jar are used, as by the users of the library -->
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-failsafe-plugin</artifactId>
                 <configuration>
-                    <includes>
-                        <include>**/*IT.java</include>
-                    </includes>
                     <excludes>
                         <exclude>**/SoftRetentionIT.java</exclude>
+                        <exclude>**/JdkIT.java</exclude>
                     </excludes>
                 </configuration>
                 <executions>
@@ -187,6 +190,26 @@
                             <summaryFile>${project.build.directory}/failsafe-reports/failsafe-summary-soft-retention.xml</summaryFile>
                         </configuration>
                     </execution>
+                    <execution>
+                        <!-- CRC-32 and CRC-32C calculated by the classes of the JDK, in a JVM of its own: the property is
+                             read once, when the first model is created; on Java 9+ the jar gives the version of JdkCrcs
+                             that knows CRC32C -->
+                        <id>jdk</id>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                        <configuration>
+                            <includes>
+                                <include>**/JdkIT.java</include>
+                            </includes>
+                            <excludes combine.self="override" />
+                            <systemPropertyVariables>
+                                <com.github.sftwnd.crayfish.common.crc.jdk>true</com.github.sftwnd.crayfish.common.crc.jdk>
+                            </systemPropertyVariables>
+                            <summaryFile>${project.build.directory}/failsafe-reports/failsafe-summary-jdk.xml</summaryFile>
+                        </configuration>
+                    </execution>
                 </executions>
             </plugin>
             <plugin>
@@ -194,7 +217,7 @@
                 <artifactId>jacoco-maven-plugin</artifactId>
                 <configuration>
                     <excludes>
-                        <!-- the Java 9 version of Eviction has the name of the class it replaces: the report covers
+                        <!-- the Java 9 version of JdkCrcs has the name of the class it replaces: the report covers
                              the classes of target/classes -->
                         <exclude>META-INF/versions/**</exclude>
                     </excludes>
@@ -229,7 +252,7 @@ Bundle-License: BSD-3-Clause;link="https://opensource.org/licenses/BSD-3-Clause"
 Automatic-Module-Name: ${javaModuleName}
 Multi-Release: true
 # bnd 6 does not know multi-release jars and takes the classes of META-INF/versions/9 (the module descriptor and the
-# Java 9 version of Eviction) for classes in the wrong directory
+# Java 9 version of JdkCrcs) for classes in the wrong directory
 -fixupmessages: "Classes found in the wrong directory: *META-INF/versions/9/*";restrict:=error;is:=ignore
 Export-Package: com.github.sftwnd.crayfish.common.crc;version="${version;===;${Bundle-Version}}"
 -noextraheaders: true
@@ -243,19 +266,33 @@ Export-Package: com.github.sftwnd.crayfish.common.crc;version="${version;===;${B
                 <artifactId>maven-jar-plugin</artifactId>
                 <configuration>
                     <archive>
-                        <manifest>
-                            <addDefaultImplementationEntries>false</addDefaultImplementationEntries>
-                        </manifest>
                         <manifestFile>${project.build.directory}/bnd/MANIFEST.MF</manifestFile>
                     </archive>
                 </configuration>
+                <executions>
+                    <execution>
+                        <!-- the sources jar of the sources copied by maven-resources-plugin -->
+                        <id>attach-sources</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                        <configuration>
+                            <classifier>sources</classifier>
+                            <classesDirectory>${project.build.directory}/sources</classesDirectory>
+                            <!-- the default manifest, not that of the bundle -->
+                            <archive combine.self="override" />
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-release-plugin</artifactId>
                 <configuration>
                     <mavenExecutorId>forked-path</mavenExecutorId>
-                    <useReleaseProfile>false</useReleaseProfile>
+                    <!-- the release profile of the super POM is not used: useReleaseProfile (deprecated) is false by
+                         default -->
                     <releaseProfiles>sign-artifacts</releaseProfiles>
                 </configuration>
             </plugin>
@@ -278,15 +315,22 @@ Export-Package: com.github.sftwnd.crayfish.common.crc;version="${version;===;${B
                     <version>${maven-compiler-plugin.version}</version>
                 </plugin>
                 <plugin>
-                    <!-- the release profile of the super POM (-DperformRelease=true) uses it without a version -->
+                    <!-- the version of the default lifecycle, whose execution the extension of central-publishing removes,
+                         and of the release profile of the super POM of Maven 3.9 (-DperformRelease=true) -->
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-deploy-plugin</artifactId>
                     <version>${maven-deploy-plugin.version}</version>
                 </plugin>
                 <plugin>
+                    <!-- skipped (maven.source.skip); the version for the release profile of the super POM of Maven 3.9 -->
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-source-plugin</artifactId>
                     <version>${maven-source-plugin.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-resources-plugin</artifactId>
+                    <version>${maven-resources-plugin.version}</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -396,6 +440,29 @@ Export-Package: com.github.sftwnd.crayfish.common.crc;version="${version;===;${B
                             </execution>
                         </executions>
                     </plugin>
+                    <plugin>
+                        <!-- the sources of src/main/java9 in the sources jar, in META-INF/versions/9 as their classes in
+                             the jar -->
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-resources-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>copy-sources-9</id>
+                                <phase>prepare-package</phase>
+                                <goals>
+                                    <goal>copy-resources</goal>
+                                </goals>
+                                <configuration>
+                                    <outputDirectory>${project.build.directory}/sources/META-INF/versions/9</outputDirectory>
+                                    <resources>
+                                        <resource>
+                                            <directory>${project.basedir}/src/main/java9</directory>
+                                        </resource>
+                                    </resources>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
                 </plugins>
             </build>
         </profile>
@@ -411,13 +478,11 @@ Export-Package: com.github.sftwnd.crayfish.common.crc;version="${version;===;${B
                     <plugin>
                         <groupId>com.github.spotbugs</groupId>
                         <artifactId>spotbugs-maven-plugin</artifactId>
+                        <!-- a finding fails the build, and the tests are not analyzed: the defaults of failOnError and
+                             includeTests -->
                         <configuration>
                             <effort>Max</effort>
                             <threshold>Low</threshold>
-                            <!-- a finding fails the build -->
-                            <failOnError>true</failOnError>
-                            <!-- the library classes only, the tests are not analyzed -->
-                            <includeTests>false</includeTests>
                             <excludeFilterFile>${project.basedir}/spotbugs-exclude.xml</excludeFilterFile>
                         </configuration>
                         <executions>
@@ -476,15 +541,12 @@ Export-Package: com.github.sftwnd.crayfish.common.crc;version="${version;===;${B
                                 <goals>
                                     <goal>sign</goal>
                                 </goals>
-                                <configuration>
-                                    <!-- the passphrase of the key comes from gpg-agent: before the release unlock the key
-                                         with any signature of gpg outside of the batch mode, so that gpg-agent caches it.
-                                         In batch mode the plugin runs gpg with the pinentry mode "error": a locked key fails
-                                         without a prompt. -Dgpg.serverId=gpg.passphrase takes the passphrase of the server
-                                         gpg.passphrase of .mvn/settings.xml (GPG_SIGNING_PASSPHRASE) instead -->
-                                    <useAgent>true</useAgent>
-                                    <passphraseServerId>${gpg.serverId}</passphraseServerId>
-                                </configuration>
+                                <!-- the passphrase of the key comes from gpg-agent: before the release unlock the key
+                                     with any signature of gpg outside of the batch mode, so that gpg-agent caches it.
+                                     In batch mode the plugin runs gpg with the pinentry mode "error": a locked key fails
+                                     without a prompt. The best practices (gpg.bestPractices) keep the plugin from taking
+                                     the passphrase of the server gpg.passphrase of .mvn/settings.xml (GPG_SIGNING_PASSPHRASE),
+                                     its default server id: -Dgpg.bestPractices=false takes that passphrase instead -->
                             </execution>
                         </executions>
                     </plugin>
