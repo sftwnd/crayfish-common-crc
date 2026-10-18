@@ -47,6 +47,9 @@
         <!-- the JVM options of the tests, set by jacoco:prepare-agent; empty if JaCoCo is skipped, so that @{argLine}
              of the soft retention tests resolves -->
         <argLine />
+        <!-- the sources jar is built by maven-jar-plugin (the execution attach-sources): maven-source-plugin, which
+             the release profile of the super POM uses as well, is skipped, so that it attaches no sources jar of its own -->
+        <maven.source.skip>true</maven.source.skip>
         <!-- 3.11.0+: compileSourceRoots can be configured, for the module descriptor in src/main/java9 -->
         <maven-compiler-plugin.version>3.15.0</maven-compiler-plugin.version>
         <maven-deploy-plugin.version>3.1.4</maven-deploy-plugin.version>
@@ -55,6 +58,7 @@
         <maven-jar-plugin.version>3.3.0</maven-jar-plugin.version>
         <maven-javadoc-plugin.version>3.5.0</maven-javadoc-plugin.version>
         <maven-release-plugin.version>2.5.3</maven-release-plugin.version>
+        <maven-resources-plugin.version>3.4.0</maven-resources-plugin.version>
         <maven-source-plugin.version>3.2.1</maven-source-plugin.version>
         <maven-surefire-plugin.version>2.22.2</maven-surefire-plugin.version>
         <maven-failsafe-plugin.version>2.22.2</maven-failsafe-plugin.version>
@@ -109,15 +113,27 @@
                 </configuration>
             </plugin>
             <plugin>
+                <!-- the sources of the sources jar, which mirrors the multi-release jar: those of src/main/java at the
+                     root, those of src/main/java9 in META-INF/versions/9 (copied in the profile release-8-on-jdk9+, which
+                     compiles them). maven-source-plugin takes the source roots of the project, and src/main/java9 is
+                     compiled by an execution of its own, not as a source root -->
                 <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-source-plugin</artifactId>
+                <artifactId>maven-resources-plugin</artifactId>
                 <executions>
                     <execution>
-                        <id>attach-sources</id>
+                        <id>copy-sources</id>
+                        <phase>prepare-package</phase>
                         <goals>
-                            <!-- jar would run the generate-sources phase a second time -->
-                            <goal>jar-no-fork</goal>
+                            <goal>copy-resources</goal>
                         </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/sources</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>${project.basedir}/src/main/java</directory>
+                                </resource>
+                            </resources>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>
@@ -270,6 +286,22 @@ Export-Package: com.github.sftwnd.crayfish.common.crc;version="${version;===;${B
                         <manifestFile>${project.build.directory}/bnd/MANIFEST.MF</manifestFile>
                     </archive>
                 </configuration>
+                <executions>
+                    <execution>
+                        <!-- the sources jar of the sources copied by maven-resources-plugin -->
+                        <id>attach-sources</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                        <configuration>
+                            <classifier>sources</classifier>
+                            <classesDirectory>${project.build.directory}/sources</classesDirectory>
+                            <!-- the default manifest, not that of the bundle -->
+                            <archive combine.self="override" />
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -305,9 +337,15 @@ Export-Package: com.github.sftwnd.crayfish.common.crc;version="${version;===;${B
                     <version>${maven-deploy-plugin.version}</version>
                 </plugin>
                 <plugin>
+                    <!-- skipped (maven.source.skip); the version for the release profile of the super POM -->
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-source-plugin</artifactId>
                     <version>${maven-source-plugin.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-resources-plugin</artifactId>
+                    <version>${maven-resources-plugin.version}</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -413,6 +451,29 @@ Export-Package: com.github.sftwnd.crayfish.common.crc;version="${version;===;${B
                                     <compileSourceRoots>
                                         <compileSourceRoot>${project.basedir}/src/main/java9</compileSourceRoot>
                                     </compileSourceRoots>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <!-- the sources of src/main/java9 in the sources jar, in META-INF/versions/9 as their classes in
+                             the jar -->
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-resources-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>copy-sources-9</id>
+                                <phase>prepare-package</phase>
+                                <goals>
+                                    <goal>copy-resources</goal>
+                                </goals>
+                                <configuration>
+                                    <outputDirectory>${project.build.directory}/sources/META-INF/versions/9</outputDirectory>
+                                    <resources>
+                                        <resource>
+                                            <directory>${project.basedir}/src/main/java9</directory>
+                                        </resource>
+                                    </resources>
                                 </configuration>
                             </execution>
                         </executions>
