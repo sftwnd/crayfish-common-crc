@@ -36,12 +36,13 @@ the latest 1.x release; see [Versions and support](#versions-and-support) for th
   written for `CRC32` (*2.0*); the CRC of an `InputStream` or of a channel read to its end (*2.1.0*, see
   [Streams](#streams))
 - **Codewords** — build and check data followed by its CRC, in the byte order of the model or of a format such as
-  PNG, with the residues of the catalogue, and get the bytes of a CRC in the byte order of a protocol (*2.1.0*, see
-  [Codewords](#codewords) and [Calculate](#calculate))
+  PNG, with the residues of the catalogue; the bytes of a CRC in the byte order of a protocol, in a new array or in an
+  array or a buffer of the caller, and its hexadecimal digits (*2.1.0*, see [Codewords](#codewords) and
+  [Calculate](#calculate))
 - **Bits** — the CRC of data that is not a whole number of bytes, such as the frames of CAN, FlexRay and USB
   (*2.1.0*, see [Bits](#bits))
-- **Names and aliases** — a model is chosen by the name or by any alias of the catalogue, and its CRCs tell the name
-  it was chosen by; other parameters get a unique name of their own (*2.0*)
+- **Names and aliases** — a model is chosen by the name or by any alias of the catalogue, in any case of its letters
+  (*2.1.0*), and its CRCs tell the name it was chosen by; other parameters get a unique name of their own (*2.0*)
 - **Find the algorithm** — the algorithms of the catalogue that give the CRCs of samples of data, and the parameters of
   a parameter line of the catalogue (*2.1.0*, see [By samples of data](#by-samples-of-data) and
   [By parameters](#by-parameters))
@@ -505,8 +506,8 @@ models of other names were not equal).
 Parameters outside the catalogue have a unique name made of the parameters and no aliases:
 `CRC-{width}/P{poly}_I{init}[_RI][_RO][_X{xorout}]`, the values hexadecimal without leading zeros, `_RI` and `_RO` for
 refin and refout, `_X` for a non-zero xorout (the format of the names of unregistered models of 1.x). `CrcModel.of()`
-accepts such a name, so `CrcModel.of(model.name())` gives the model of any model. A name made of the parameters of an
-algorithm of the catalogue gives the model with the name of the algorithm.
+accepts such a name, in any case of its letters (*2.1.0*), so `CrcModel.of(model.name())` gives the model of any model.
+A name made of the parameters of an algorithm of the catalogue gives the model with the name of the algorithm.
 
 ## Memory
 
@@ -568,7 +569,7 @@ The way is chosen with the model, or the model gets the default:
     boolean byJdk = jdk.isJdk();                                 // true
     CrcModel pkzip = tables.description().model("PKZIP", true);  // PKZIP, java.util.zip.CRC32
     CrcModel built = CrcModel.builder(32).poly(0x1EDC6F41L).init(0xFFFFFFFFL).reflected(true).xorout(0xFFFFFFFFL)
-            .jdk(true).build();                                  // CRC-32C, java.util.zip.CRC32C on Java 9+
+            .jdk(true).build();                                  // CRC-32/ISCSI, java.util.zip.CRC32C on Java 9+
     CrcModel iscsi = StandardCrc.CRC_32_ISCSI.model(true);       // the model built
 
     CrcDescription.setJdk(true);                                 // the default of the models chosen without a choice
@@ -747,7 +748,8 @@ module my.application {
 ```
 
 The module descriptor and the class that knows `java.util.zip.CRC32C` are in `META-INF/versions/9` of the multi-release
-jar, so Java 8 ignores them.
+jar, so Java 8 ignores them. The sources jar has their sources at the same place (*2.1.0*), so a debugger on Java 9+
+shows the source of the class it runs.
 
 ## Building
 
@@ -759,4 +761,7 @@ The project builds with the Maven Wrapper (Maven 3.10.0) on JDK 8 to 25:
 
 The classes are compiled for Java 8 on every JDK; the module descriptor and the Java 9 classes are built on JDK 9+ only,
 so a release has to be built on JDK 9+. The integration tests (`*IT`) run with the jar, so on JDK 9+ they test the
-classes of `META-INF/versions/9`.
+classes of `META-INF/versions/9`. `-DskipTests` skips the unit tests, `-DskipITs` the integration tests.
+
+Two builds of the same sources give the same jars byte for byte (*2.1.0*): `project.build.outputTimestamp` gives their
+entries a fixed time, which `release:prepare` sets to the time of the release.
