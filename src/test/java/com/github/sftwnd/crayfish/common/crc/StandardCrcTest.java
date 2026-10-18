@@ -127,7 +127,7 @@ class StandardCrcTest {
                     parameters.refin(), parameters.refout(), parameters.xorout())), crc + " has to be found by equal parameters");
         }
         assertFalse(StandardCrc.find("CRC-32/UNKNOWN").isPresent(), "An unknown name has not got to be found");
-        assertFalse(StandardCrc.find("crc-32").isPresent(), "The case of a name has to matter");
+        assertEquals(Optional.of(StandardCrc.CRC_32_ISO_HDLC), StandardCrc.find("crc-32"), "The case of the letters of a name has not got to matter");
         assertFalse(StandardCrc.find("CRC-32/P4C11DB7_IFFFFFFFF_RI_RO_XFFFFFFFF").isPresent(), "A name made of the parameters is not a name of the catalogue");
         assertFalse(StandardCrc.find(CrcParameters.of(16, 0x1234L, 0x0L, false, false, 0x0L)).isPresent(), "Other parameters have not got to be found");
         assertThrows(NullPointerException.class, () -> StandardCrc.find((String) null), "find(null name) has to throw NullPointerException");

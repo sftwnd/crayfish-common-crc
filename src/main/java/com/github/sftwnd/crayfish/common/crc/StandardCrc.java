@@ -364,7 +364,8 @@ public enum StandardCrc {
     }
 
     // the algorithm and the index of every name and alias, and the algorithm of every parameter set: the names
-    // and the parameter sets of the catalogue are unique
+    // and the parameter sets of the catalogue are unique. The catalogue writes every name in upper case, and no two
+    // names differ by the case only
     private static final Map<String, Name> BY_NAME = new HashMap<>();
     private static final Map<CrcParameters, StandardCrc> BY_PARAMETERS = new HashMap<>();
 
@@ -448,18 +449,23 @@ public enum StandardCrc {
     }
 
     /**
-     * Find the algorithm by its name or by one of its aliases; the case of the name matters
+     * Find the algorithm by its name or by one of its aliases, whatever the case of its ASCII letters (since 2.1.0;
+     * before, the case mattered): {@code pkzip} finds CRC-32/ISO-HDLC
      * @param name name or alias of the algorithm
      * @return the algorithm, empty if the catalogue has no algorithm with this name
      */
     @CheckReturnValue
     public static @NonNull Optional<StandardCrc> find(@NonNull final String name) {
         Name found = name(Objects.requireNonNull(name, "StandardCrc::find - name is null"));
+        if (found == null) {
+            found = name(CrcParameters.upperCase(name));
+        }
         return found == null ? Optional.empty() : Optional.of(found.standard);
     }
 
     // the algorithm of a name with the index of the name in its names, null if the catalogue has no such name:
-    // the model of the name is found without a search in the names
+    // the model of the name is found without a search in the names. The name as the catalogue writes it: the callers
+    // look a name in another case up in upper case, as the catalogue writes every name
     static @Nullable Name name(@NonNull final String name) {
         return BY_NAME.get(name);
     }

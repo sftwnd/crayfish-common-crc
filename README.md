@@ -104,8 +104,11 @@ implementation 'com.github.sftwnd.crayfish.common:crayfish-common-crc:2.1.0'
     CrcModel modbus = StandardCrc.CRC_16_MODBUS.model();
 ```
 
-`CrcModel.of()` throws `IllegalArgumentException` for an unknown name. The case of a name matters. The constants of
-`StandardCrc` are the names of the algorithms with `_` for every character other than `A-Z` and `0-9`.
+`CrcModel.of()` throws `IllegalArgumentException` for an unknown name. The case of the letters of a name does not
+matter (*2.1.0*; in 2.0.0 it did): `CrcModel.of("crc-32c")` is the model of `CRC-32C`, whose CRCs have the name as
+the catalogue writes it. Only the ASCII letters count, so letters of other alphabets that look alike, such as the
+dotless `ı`, match nothing. The constants of `StandardCrc` are the names of the algorithms with `_` for every character
+other than `A-Z` and `0-9`.
 
 A model chosen by its name costs a lookup in the catalogue and in the pool of the descriptions (see [Memory](#memory)),
 about 15 ns. For calculations in a loop, keep the model in a field rather than choosing it for every calculation:

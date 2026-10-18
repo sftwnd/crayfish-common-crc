@@ -235,9 +235,10 @@ public final class CrcDescription {
     }
 
     /**
-     * Get the model with one of the names of the description, of the way of {@link #isJdk()}
+     * Get the model with one of the names of the description, of the way of {@link #isJdk()}, whatever the case of
+     * the ASCII letters of the name (since 2.1.0; before, the case mattered)
      * @param name name or alias of the description
-     * @return model with the name
+     * @return model with the name as the description writes it
      * @throws IllegalArgumentException if the description has no such name
      */
     public @NonNull CrcModel model(@NonNull final String name) {
@@ -258,16 +259,21 @@ public final class CrcDescription {
     }
 
     /**
-     * Get the model with one of the names of the description, calculated the way given
+     * Get the model with one of the names of the description, calculated the way given, whatever the case of the ASCII
+     * letters of the name
      * @param name name or alias of the description
      * @param jdk true for the class of the JDK, if a class of the JDK calculates the CRC; false for the lookup tables
      *            of the library
-     * @return model with the name and the way, see {@link CrcModel#withJdk(boolean)}
+     * @return model with the name as the description writes it and the way, see {@link CrcModel#withJdk(boolean)}
      * @throws IllegalArgumentException if the description has no such name
      * @since 2.1.0
      */
     public @NonNull CrcModel model(@NonNull final String name, final boolean jdk) {
         int index = this.names.indexOf(Objects.requireNonNull(name, "CrcDescription::model - name is null"));
+        if (index < 0) {
+            // the names of the catalogue and the parametric names are written in upper case
+            index = this.names.indexOf(CrcParameters.upperCase(name));
+        }
         if (index < 0) {
             throw new IllegalArgumentException("CrcDescription::model - " + name() + " has no name " + name);
         }

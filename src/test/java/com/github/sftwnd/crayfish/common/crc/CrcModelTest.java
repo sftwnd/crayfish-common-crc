@@ -93,7 +93,7 @@ class CrcModelTest {
 
     @Test
     void testUnknownNames() {
-        for (String name : new String[]{"CRC-32/UNKNOWN", "crc-32", "CRC-32 ", "", "CRC-16/P1234_I0_X0", "CRC-82/DARC"}) {
+        for (String name : new String[]{"CRC-32/UNKNOWN", "crc-33", "CRC-32 ", "", "CRC-16/P1234_I0_X0", "crc-16/p1234_i0_x0", "CRC-82/DARC"}) {
             assertFalse(CrcModel.find(name).isPresent(), "\"" + name + "\" has not got to be found");
             IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> CrcModel.of(name),
                     "\"" + name + "\" has to be rejected");
