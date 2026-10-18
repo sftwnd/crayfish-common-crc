@@ -4,7 +4,7 @@
 
     <groupId>com.github.sftwnd.crayfish.common</groupId>
     <artifactId>crayfish-common-crc</artifactId>
-    <version>2.1.0-SNAPSHOT</version>
+    <version>2.1.0</version>
 
     <name>CrayFish :: COMMON :: Crc</name>
     <description>
@@ -33,7 +33,7 @@
         <url>https://github.com/sftwnd/crayfish-common-crc</url>
         <connection>scm:git:https://github.com/sftwnd/crayfish-common-crc.git</connection>
         <developerConnection>scm:git:git@github.com:sftwnd/crayfish-common-crc.git</developerConnection>
-        <tag>HEAD</tag>
+        <tag>crayfish-common-crc-2.1.0</tag>
     </scm>
 
     <properties>
@@ -42,7 +42,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <!-- the time of the entries of the jars, for reproducible builds: maven-release-plugin sets the time of the
              release at release:prepare; without the property the super POM of Maven 3.10 sets 1980-02-01 -->
-        <project.build.outputTimestamp>2026-10-18T00:00:00Z</project.build.outputTimestamp>
+        <project.build.outputTimestamp>2026-10-18T19:04:19Z</project.build.outputTimestamp>
         <javaModuleName>com.github.sftwnd.crayfish_common_crc</javaModuleName>
         <spotbugs-annotations.version>4.10.5</spotbugs-annotations.version>
         <!-- JUnit 6 requires Java 17: the tests run on Java 8 as well -->
