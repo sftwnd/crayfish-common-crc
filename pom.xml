@@ -40,6 +40,9 @@
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!-- the time of the entries of the jars, for reproducible builds: maven-release-plugin sets the time of the
+             release at release:prepare; without the property the super POM of Maven 3.10 sets 1980-02-01 -->
+        <project.build.outputTimestamp>2026-10-18T00:00:00Z</project.build.outputTimestamp>
         <javaModuleName>com.github.sftwnd.crayfish_common_crc</javaModuleName>
         <spotbugs-annotations.version>4.10.5</spotbugs-annotations.version>
         <!-- JUnit 6 requires Java 17: the tests run on Java 8 as well -->
@@ -47,8 +50,9 @@
         <!-- the JVM options of the tests, set by jacoco:prepare-agent; empty if JaCoCo is skipped, so that @{argLine}
              of the soft retention tests resolves -->
         <argLine />
-        <!-- the sources jar is built by maven-jar-plugin (the execution attach-sources): maven-source-plugin, which
-             the release profile of the super POM uses as well, is skipped, so that it attaches no sources jar of its own -->
+        <!-- the sources jar is built by maven-jar-plugin (the execution attach-sources): maven-source-plugin, which the
+             release profile of the super POM of Maven 3.9 (-DperformRelease=true, for example with the Maven of an IDE)
+             uses as well, is skipped, so that it attaches no sources jar of its own; Maven 3.10 has no such profile -->
         <maven.source.skip>true</maven.source.skip>
         <!-- 3.11.0+: compileSourceRoots can be configured, for the module descriptor in src/main/java9 -->
         <maven-compiler-plugin.version>3.16.0</maven-compiler-plugin.version>
@@ -311,13 +315,14 @@ Export-Package: com.github.sftwnd.crayfish.common.crc;version="${version;===;${B
                     <version>${maven-compiler-plugin.version}</version>
                 </plugin>
                 <plugin>
-                    <!-- the release profile of the super POM (-DperformRelease=true) uses it without a version -->
+                    <!-- the version of the default lifecycle, whose execution the extension of central-publishing removes,
+                         and of the release profile of the super POM of Maven 3.9 (-DperformRelease=true) -->
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-deploy-plugin</artifactId>
                     <version>${maven-deploy-plugin.version}</version>
                 </plugin>
                 <plugin>
-                    <!-- skipped (maven.source.skip); the version for the release profile of the super POM -->
+                    <!-- skipped (maven.source.skip); the version for the release profile of the super POM of Maven 3.9 -->
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-source-plugin</artifactId>
                     <version>${maven-source-plugin.version}</version>
