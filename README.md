@@ -748,7 +748,7 @@ jar, so Java 8 ignores them.
 
 ## Building
 
-The project builds with the Maven Wrapper (Maven 3.9.16) on JDK 8 to 25:
+The project builds with the Maven Wrapper (Maven 3.10.0) on JDK 8 to 25:
 
 ```shell
 ./mvnw verify
