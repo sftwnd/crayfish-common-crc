@@ -242,6 +242,19 @@ Every call gives a new array. There is no default order, as the order belongs to
 frame check sequence of Ethernet (CRC-32) are sent least significant byte first, CRC-16/XMODEM and the CRC of a PNG
 chunk most significant byte first.
 
+`crc.bytes(destination, offset, order)` and `crc.bytes(buffer, order)` write the same bytes into an array or at the
+position of a `ByteBuffer`, without a new array, and return their number (*2.1.0*), for example to build a frame in
+a buffer of its own:
+
+```java
+    CRC crc = CrcModel.of("CRC-16/MODBUS").crc(frame, 0, length);
+    int end = length + crc.bytes(frame, length, ByteOrder.LITTLE_ENDIAN);   // the CRC after the data, low byte first
+    crc.bytes(buffer, ByteOrder.BIG_ENDIAN);                                // at the position, then advanced by 2
+```
+
+The byte order of the buffer is not used. Bytes outside the array, a buffer with fewer bytes remaining and a read-only
+buffer are rejected, and the array or the buffer does not change.
+
 ### Combine
 
 ```java

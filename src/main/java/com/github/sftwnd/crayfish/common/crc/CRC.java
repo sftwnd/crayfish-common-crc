@@ -10,8 +10,10 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.ReadOnlyBufferException;
 import java.nio.channels.IllegalBlockingModeException;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.SelectableChannel;
@@ -33,6 +35,8 @@ import java.util.Objects;
 public final class CRC {
 
     private static final String UPDATE_NULL_DATA = "CRC::update - data is null";
+    private static final String BYTES_NULL_ORDER = "CRC::bytes - order is null";
+    private static final String BYTES_NULL_DESTINATION = "CRC::bytes - destination is null";
     // the buffer that a stream or a channel is read into, a new one per call: the size of the buffers of
     // BufferedInputStream and of InputStream.transferTo of Java 9+
     private static final int STREAM_BUFFER = 8192;
@@ -84,7 +88,9 @@ public final class CRC {
      * {@code (width + 7) / 8} bytes with the value in their low bits, the unused high bits of the most significant
      * byte 0. The check value {@code 0xdaf} of CRC-12/UMTS is {@code 0d af} big-endian, {@code af 0d} little-endian.
      * There is no default order: the order belongs to the protocol, for example CRC-16/MODBUS is sent least significant
-     * byte first, CRC-16/XMODEM most significant byte first
+     * byte first, CRC-16/XMODEM most significant byte first. Every call gives a new array;
+     * {@link #bytes(byte[], int, ByteOrder)} and {@link #bytes(ByteBuffer, ByteOrder)} write the bytes into an array or
+     * a buffer instead
      * @param order byte order: {@link ByteOrder#BIG_ENDIAN}, the most significant byte first, or
      *              {@link ByteOrder#LITTLE_ENDIAN}, the least significant byte first
      * @return CRC value in a new array of {@code (width + 7) / 8} bytes
@@ -92,16 +98,84 @@ public final class CRC {
      */
     @CheckReturnValue
     public @NonNull byte[] bytes(@NonNull final ByteOrder order) {
-        Objects.requireNonNull(order, "CRC::bytes - order is null");
-        byte[] bytes = new byte[(this.model.parameters().width() + 7) / 8];
-        int last = bytes.length - 1;
-        boolean bigEndian = order == ByteOrder.BIG_ENDIAN;
-        // the bytes of the value from the least significant one; the value has no bits above the width, so the unused
-        // high bits of the most significant byte are 0 without a mask
-        for (int i = 0; i <= last; i++) {
-            bytes[bigEndian ? last - i : i] = (byte) (this.value >>> (8 * i));
-        }
+        Objects.requireNonNull(order, BYTES_NULL_ORDER);
+        byte[] bytes = new byte[byteCount()];
+        encode(bytes, 0, order);
         return bytes;
+    }
+
+    /**
+     * Write the CRC value as bytes in the byte order given into the array at the offset, without a new array: the bytes
+     * of {@link #bytes(ByteOrder)}, for example after the data of a frame in its buffer. The other bytes of the array
+     * do not change
+     * @param destination array
+     * @param offset offset of the bytes in the array
+     * @param order byte order: {@link ByteOrder#BIG_ENDIAN}, the most significant byte first, or
+     *              {@link ByteOrder#LITTLE_ENDIAN}, the least significant byte first
+     * @return number of the bytes, {@code (width + 7) / 8}: the offset after them is the offset plus the number
+     * @throws ArrayIndexOutOfBoundsException if the bytes are not inside the array; the array does not change then
+     * @since 2.1.0
+     */
+    public int bytes(@NonNull final byte[] destination, final int offset, @NonNull final ByteOrder order) {
+        Objects.requireNonNull(destination, BYTES_NULL_DESTINATION);
+        Objects.requireNonNull(order, BYTES_NULL_ORDER);
+        int count = byteCount();
+        if (offset < 0 || count > destination.length - offset) {
+            throw new ArrayIndexOutOfBoundsException("CRC::bytes - offset " + offset + " and length " + count
+                    + " out of the buffer length " + destination.length);
+        }
+        encode(destination, offset, order);
+        return count;
+    }
+
+    /**
+     * Write the CRC value as bytes in the byte order given into the buffer at its position, without a new array: the
+     * bytes of {@link #bytes(ByteOrder)}, heap and direct buffers. The position of the buffer is advanced by their
+     * number, the other bytes of the buffer do not change. The byte order of the buffer is not used
+     * @param destination buffer
+     * @param order byte order: {@link ByteOrder#BIG_ENDIAN}, the most significant byte first, or
+     *              {@link ByteOrder#LITTLE_ENDIAN}, the least significant byte first
+     * @return number of the bytes, {@code (width + 7) / 8}
+     * @throws ReadOnlyBufferException if the buffer is read-only; the buffer does not change then
+     * @throws BufferOverflowException if fewer bytes remain in the buffer; the buffer does not change then
+     * @since 2.1.0
+     */
+    public int bytes(@NonNull final ByteBuffer destination, @NonNull final ByteOrder order) {
+        Objects.requireNonNull(destination, BYTES_NULL_DESTINATION);
+        Objects.requireNonNull(order, BYTES_NULL_ORDER);
+        if (destination.isReadOnly()) {
+            throw new ReadOnlyBufferException();
+        }
+        int count = byteCount();
+        if (destination.remaining() < count) {
+            throw new BufferOverflowException();
+        }
+        int position = destination.position();
+        int last = count - 1;
+        boolean bigEndian = order == ByteOrder.BIG_ENDIAN;
+        // the bytes of the value from the least significant one, as by encode, at their index in the buffer: the
+        // order of the buffer is not used
+        for (int i = 0; i <= last; i++) {
+            destination.put(position + (bigEndian ? last - i : i), (byte) (this.value >>> (8 * i)));
+        }
+        destination.position(position + count);
+        return count;
+    }
+
+    // the number of the bytes of the CRC value: the bits of the width in whole bytes
+    private int byteCount() {
+        return (this.model.parameters().width() + 7) / 8;
+    }
+
+    // the bytes of the CRC value in the array at the offset, inside the array. The bytes of the value from the least
+    // significant one; the value has no bits above the width, so the unused high bits of the most significant byte are
+    // 0 without a mask
+    private void encode(@NonNull final byte[] destination, final int offset, @NonNull final ByteOrder order) {
+        int last = byteCount() - 1;
+        boolean bigEndian = order == ByteOrder.BIG_ENDIAN;
+        for (int i = 0; i <= last; i++) {
+            destination[offset + (bigEndian ? last - i : i)] = (byte) (this.value >>> (8 * i));
+        }
     }
 
     /**
