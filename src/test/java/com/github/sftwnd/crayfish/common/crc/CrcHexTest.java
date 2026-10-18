@@ -30,10 +30,11 @@ class CrcHexTest {
         new Random(154).nextBytes(DATA);
     }
 
-    // the value in (width + 3) / 4 lower-case digits with the leading zeros, as String.format gives them; %x gives the
-    // digits of a negative long without the sign, so of a CRC-64 with the highest bit set as well
+    // the value in (width + 3) / 4 lower-case digits with the leading zeros: the last ones of the 16 digits that
+    // String.format gives a long, as the value has no bits above the width; %x gives the digits of a negative long
+    // without the sign, so of a CRC-64 with the highest bit set as well
     private static String expected(long value, int width) {
-        return String.format(Locale.ROOT, "%0" + (width + 3) / 4 + "x", value);
+        return String.format(Locale.ROOT, "%016x", value).substring(16 - (width + 3) / 4);
     }
 
     @Test
