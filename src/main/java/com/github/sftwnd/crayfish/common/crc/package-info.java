@@ -19,7 +19,7 @@
  * by a name, by the parameters or with a builder, calculated by the lookup tables of the library or by a class of
  * the JDK;</li>
  * <li>{@link com.github.sftwnd.crayfish.common.crc.CRC} - the immutable CRC of data: an update or a combination
- * gives a new CRC, and its value is given as bytes in a byte order;</li>
+ * gives a new CRC, and its value is given as bytes in a byte order or as hexadecimal digits;</li>
  * <li>{@link com.github.sftwnd.crayfish.common.crc.CrcChecksum} - the mutable {@link java.util.zip.Checksum} of a model,
  * for {@link java.util.zip.CheckedOutputStream}, {@link java.util.zip.CheckedInputStream} and other code that works
  * with a {@code Checksum}.</li>

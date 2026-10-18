@@ -319,7 +319,13 @@ public final class CrcParameters {
 
     // a value of the width in the format of the catalogue: lower case, all digits of the width
     static @NonNull String hex(final long value, final int width) {
-        StringBuilder hex = new StringBuilder("0x");
+        return "0x" + digits(value, width);
+    }
+
+    // the hexadecimal digits of a value of the width: lower case, all digits of the width, with the leading zeros;
+    // the digits of a value with bits above the width as well
+    static @NonNull String digits(final long value, final int width) {
+        StringBuilder hex = new StringBuilder();
         String digits = Long.toHexString(value);
         for (int i = digits.length(); i < (width + 3) / 4; i++) {
             hex.append('0');

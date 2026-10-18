@@ -227,6 +227,14 @@ As with `java.util.zip.Checksum.update(ByteBuffer)`, the position of the buffer 
 A buffer with an accessible array is calculated in the array; a direct or read-only buffer is copied in parts of 4096
 bytes.
 
+`crc.hex()` gives the CRC value as `(width + 3) / 4` lower-case hexadecimal digits with the leading zeros, the digits
+that the catalogue writes after `0x` (*2.1.0*):
+
+```java
+    String crc32 = CrcModel.of("CRC-32").crc(data).hex();        // 8 digits: cbf43926 for "123456789"
+    String umts = CrcModel.of("CRC-12/UMTS").crc(data).hex();    // 3 digits: daf for "123456789"
+```
+
 `crc.bytes(order)` gives the CRC value as bytes in the byte order of a protocol, to send or store the CRC after the data
 (*2.1.0*): `(width + 7) / 8` bytes with the value in their low bits, so for a width that is not a multiple of 8 the
 unused high bits of the most significant byte are 0:
