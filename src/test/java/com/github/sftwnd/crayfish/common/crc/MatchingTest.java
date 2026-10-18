@@ -188,9 +188,11 @@ class MatchingTest {
     }
 
     // a model of the algorithm with a new description, without the lookup tables: the description of the earlier tests
-    // is collected first, nothing uses it
+    // is collected first, nothing uses it. The unit tests run in one JVM: a model, a CRC or a checksum of the algorithm
+    // that another test keeps, in a static field for example, keeps the description until the JVM exits
     private static CrcModel newModel(StandardCrc standard) throws InterruptedException {
-        Gc.awaitCleared(new WeakReference<>(CrcDescription.of(standard.parameters())), standard + ": the unused description has to be collected");
+        Gc.awaitCleared(new WeakReference<>(CrcDescription.of(standard.parameters())), standard + ": the description of the earlier tests"
+                + " has to be collected, no other test may keep a model, a CRC or a checksum of the algorithm, in a static field for example");
         return standard.model();
     }
 
@@ -215,8 +217,9 @@ class MatchingTest {
         boolean saved = CrcDescription.isJdk();
         CrcDescription.setJdk(true);
         try {
-            // java.util.zip.CRC32 calculates the 1000 bytes of the data without the lookup tables
-            WeakReference<CrcTables> tables = matchWithModelOfTheJdk(StandardCrc.CRC_32_ISO_HDLC);
+            // java.util.zip.CRC32 calculates the 1000 bytes of the data without the lookup tables; CRC-32/JAMCRC rather
+            // than CRC-32/ISO-HDLC, which a test is much more likely to keep a model of
+            WeakReference<CrcTables> tables = matchWithModelOfTheJdk(StandardCrc.CRC_32_JAMCRC);
             Gc.awaitCleared(tables, "The lookup tables built by matching have to be collected when no model of the algorithm is used");
         } finally {
             CrcDescription.setJdk(saved);
