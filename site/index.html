@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crayfish Common CRC — fast, zero-dependency CRC library for Java 8+</title>
+<meta name="description" content="Fast, zero-dependency CRC library for Java 8+: the 112 algorithms of the RevEng catalogue from CRC-3 to CRC-64 (CRC-32, CRC-32C, CRC-16/MODBUS…) and any custom CRC.">
+<meta name="keywords" content="CRC, Java, CRC-32, CRC-32C, CRC-16, CRC-16/MODBUS, CRC-16/CCITT-FALSE, CRC-8, CRC-64, checksum, cyclic redundancy check, slicing-by-8, RevEng">
+<meta name="author" content="Andrey D. Shindarev">
+<link rel="canonical" href="https://sftwnd.github.io/crayfish-common-crc/">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Crayfish Common CRC">
+<meta property="og:url" content="https://sftwnd.github.io/crayfish-common-crc/">
+<meta property="og:title" content="Crayfish Common CRC — fast, zero-dependency CRC library for Java 8+">
+<meta property="og:description" content="Every CRC from CRC-3 to CRC-64 of the RevEng catalogue — CRC-32, CRC-32C, CRC-16/MODBUS, CRC-64/XZ and 108 more — and any custom one. Slicing-by-8, immutable CRCs, combine and resume, streams, codewords.">
+<meta property="og:image" content="https://sftwnd.github.io/crayfish-common-crc/social-card.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Crayfish Common CRC: fast, zero-dependency CRC library for Java 8+. CrcModel.of(&quot;CRC-16/MODBUS&quot;).value(data) gives 0x4B37.">
+<meta property="og:locale" content="en_US">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Crayfish Common CRC — fast, zero-dependency CRC library for Java 8+">
+<meta name="twitter:description" content="Every CRC from CRC-3 to CRC-64 of the RevEng catalogue — and any custom one. Slicing-by-8, immutable CRCs, combine and resume, streams, codewords.">
+<meta name="twitter:image" content="https://sftwnd.github.io/crayfish-common-crc/social-card.png">
+<meta name="twitter:image:alt" content="Crayfish Common CRC: fast, zero-dependency CRC library for Java 8+. CrcModel.of(&quot;CRC-16/MODBUS&quot;).value(data) gives 0x4B37.">
+
+<meta name="theme-color" content="#faf8f5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0b1020" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
+<link rel="icon" href="logo.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="style.css">
+<script>
+  // the theme chosen with the button, before the first paint
+  try {
+    var theme = localStorage.getItem('theme');
+    if (theme === 'light' || theme === 'dark') document.documentElement.setAttribute('data-theme', theme);
+  } catch (e) { /* no storage: the theme of the system */ }
+  document.documentElement.classList.add('js');
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareSourceCode",
+  "name": "Crayfish Common CRC",
+  "description": "Fast, zero-dependency CRC library for Java 8+: the 112 algorithms of the RevEng catalogue from CRC-3 to CRC-64 and any custom CRC up to 64 bits.",
+  "url": "https://sftwnd.github.io/crayfish-common-crc/",
+  "codeRepository": "https://github.com/sftwnd/crayfish-common-crc",
+  "programmingLanguage": "Java",
+  "runtimePlatform": "Java 8+",
+  "license": "https://opensource.org/licenses/BSD-3-Clause",
+  "author": { "@type": "Person", "name": "Andrey D. Shindarev" }
+}
+</script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to the content</a>
+
+<header class="top">
+  <div class="wrap top-row">
+    <a class="brand" href="#top" aria-label="Crayfish Common CRC, to the top">
+      <img src="logo.svg" width="32" height="32" alt="">
+      <span>Crayfish Common <b>CRC</b></span>
+    </a>
+    <nav aria-label="Sections">
+      <a href="#install">Install</a>
+      <a href="#features">Features</a>
+      <a href="#examples">Examples</a>
+      <a href="#algorithms">Algorithms</a>
+      <a href="#speed">Speed</a>
+    </nav>
+    <div class="top-actions">
+      <a class="icon-link" href="https://github.com/sftwnd/crayfish-common-crc" aria-label="The project on GitHub">
+        <svg viewBox="0 0 16 16" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+      </a>
+      <button class="icon-link" id="theme-toggle" type="button" aria-label="Switch between the light and the dark theme" hidden>
+        <svg class="sun" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="12" cy="12" r="4.200" fill="currentColor"/><path stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M12 2.500v2.200M12 19.300v2.200M2.500 12h2.200M19.300 12h2.200M5.300 5.300l1.550 1.550M17.150 17.150l1.550 1.550M5.300 18.700l1.550-1.550M17.150 6.850l1.550-1.550"/></svg>
+        <svg class="moon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M20.300 14.600A8.600 8.600 0 0 1 9.400 3.700a.700.700 0 0 0-.900-.850A9.600 9.600 0 1 0 21.150 15.500a.700.700 0 0 0-.850-.900Z"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+
+<section class="hero" id="top">
+  <div class="hero-texture" aria-hidden="true">00000000 77073096 EE0E612C 990951BA 076DC419 706AF48F E963A535 9E6495A3 0EDB8832 79DCB8A4 E0D5E91E 97D2D988 09B64C2B 7EB17CBD E7B82D07 90BF1D91 1DB71064 6AB020F2 F3B97148 84BE41DE 1ADAD47D 6DDDE4EB F4D4B551 83D385C7 136C9856 646BA8C0 FD62F97A 8A65C9EC 14015C4F 63066CD9 FA0F3D63 8D080DF5 3B6E20C8 4C69105E D56041E4 A2677172 3C03E4D1 4B04D447 D20D85FD A50AB56B 35B5A8FA 42B2986C DBBBC9D6 ACBCF940 32D86CE3 45DF5C75 DCD60DCF ABD13D59 26D930AC 51DE003A C8D75180 BFD06116 21B4F4B5 56B3C423 CFBA9599 B8BDA50F 2802B89E 5F058808 C60CD9B2 B10BE924 2F6F7C87 58684C11 C1611DAB B6662D3D 76DC4190 01DB7106 98D220BC EFD5102A 71B18589 06B6B51F 9FBFE4A5 E8B8D433 7807C9A2 0F00F934 9609A88E E10E9818 7F6A0DBB 086D3D2D 91646C97 E6635C01 6B6B51F4 1C6C6162 856530D8 F262004E 6C0695ED 1B01A57B 8208F4C1 F50FC457 65B0D9C6 12B7E950 8BBEB8EA FCB9887C 62DD1DDF 15DA2D49 8CD37CF3 FBD44C65 4DB26158 3AB551CE A3BC0074 D4BB30E2 4ADFA541 3DD895D7 A4D1C46D D3D6F4FB 4369E96A 346ED9FC AD678846 DA60B8D0 44042D73 33031DE5 AA0A4C5F DD0D7CC9 5005713C 270241AA BE0B1010 C90C2086 5768B525 206F85B3 B966D409 CE61E49F 5EDEF90E 29D9C998 B0D09822 C7D7A8B4 59B33D17 2EB40D81 B7BD5C3B C0BA6CAD EDB88320 9ABFB3B6 03B6E20C 74B1D29A EAD54739 9DD277AF 04DB2615 73DC1683 E3630B12 94643B84 0D6D6A3E 7A6A5AA8 E40ECF0B 9309FF9D 0A00AE27 7D079EB1 F00F9344 8708A3D2 1E01F268 6906C2FE F762575D 806567CB 196C3671 6E6B06E7 FED41B76 89D32BE0 10DA7A5A 67DD4ACC F9B9DF6F 8EBEEFF9 17B7BE43 60B08ED5 D6D6A3E8 A1D1937E 38D8C2C4 4FDFF252 D1BB67F1 A6BC5767 3FB506DD 48B2364B D80D2BDA AF0A1B4C 36034AF6 41047A60 DF60EFC3 A867DF55 316E8EEF 4669BE79 CB61B38C BC66831A 256FD2A0 5268E236 CC0C7795 BB0B4703 220216B9 5505262F C5BA3BBE B2BD0B28 2BB45A92 5CB36A04 C2D7FFA7 B5D0CF31 2CD99E8B 5BDEAE1D 9B64C2B0 EC63F226 756AA39C 026D930A 9C0906A9 EB0E363F 72076785 05005713 95BF4A82 E2B87A14 7BB12BAE 0CB61B38 92D28E9B E5D5BE0D 7CDCEFB7 0BDBDF21 86D3D2D4 F1D4E242 68DDB3F8 1FDA836E 81BE16CD F6B9265B 6FB077E1 18B74777 88085AE6 FF0F6A70 66063BCA 11010B5C 8F659EFF F862AE69 616BFFD3 166CCF45 A00AE278 D70DD2EE 4E048354 3903B3C2 A7672661 D06016F7 4969474D 3E6E77DB AED16A4A D9D65ADC 40DF0B66 37D83BF0 A9BCAE53 DEBB9EC5 47B2CF7F 30B5FFE9 BDBDF21C CABAC28A 53B39330 24B4A3A6 BAD03605 CDD70693 54DE5729 23D967BF B3667A2E C4614AB8 5D681B02 2A6F2B94 B40BBE37 C30C8EA1 5A05DF1B 2D02EF8D</div>
+  <div class="wrap hero-inner">
+    <p class="eyebrow"><a href="https://github.com/sftwnd/crayfish-common-crc/releases">Release 2.1.0</a><span>Java 8+</span><span>BSD 3-Clause</span></p>
+    <h1>Fast, zero-dependency <span class="accent">CRC</span> library for Java</h1>
+    <p class="lead">Every CRC from CRC-3 to CRC-64 of the
+      <a href="https://reveng.sourceforge.io/crc-catalogue/all.htm">RevEng catalogue</a> — <span class="nw">CRC-32</span>,
+      <span class="nw">CRC-32C</span>, <span class="nw">CRC-16/MODBUS</span>, <span class="nw">CRC-64/XZ</span> and 108 more —
+      and any custom one up to 64 bits.</p>
+    <p class="cta">
+      <a class="button primary" href="#install">Get started</a>
+      <a class="button" href="https://github.com/sftwnd/crayfish-common-crc">GitHub</a>
+      <a class="button" href="https://javadoc.io/doc/com.github.sftwnd.crayfish.common/crayfish-common-crc/latest/com/github/sftwnd/crayfish/common/crc/package-summary.html">Javadoc</a>
+    </p>
+
+    <figure class="code-window hero-code">
+      <figcaption><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="file">QuickStart.java</span></figcaption>
+<pre><code class="language-java">byte[] data = "123456789".getBytes(StandardCharsets.US_ASCII);
+
+long modbus = CrcModel.of("CRC-16/MODBUS").value(data);   // 0x4B37
+long crc32c = CrcModel.of("CRC-32C").value(data);         // 0xE3069283
+long xz     = CrcModel.of("CRC-64/XZ").value(data);       // 0x995DC9BBDF1939FA</code></pre>
+    </figure>
+
+    <dl class="stats">
+      <div><dt>112</dt><dd>algorithms of the catalogue</dd></div>
+      <div><dt>186</dt><dd>names with aliases</dd></div>
+      <div><dt>3…64</dt><dd>bits, 21 widths predefined</dd></div>
+      <div><dt>0</dt><dd>runtime dependencies</dd></div>
+      <div><dt>8…25</dt><dd>JDK versions built and tested</dd></div>
+    </dl>
+  </div>
+</section>
+
+<section id="install" class="band">
+  <div class="wrap narrow">
+    <h2>Install</h2>
+    <p class="section-lead">The library is on
+      <a href="https://central.sonatype.com/artifact/com.github.sftwnd.crayfish.common/crayfish-common-crc">Maven Central</a>:
+      one jar under 70 KB, no dependencies at run time.</p>
+    <div class="tabs" data-tabs>
+      <div class="tablist" role="tablist" aria-label="Build tool">
+        <button role="tab" type="button" id="tab-maven" aria-controls="panel-maven" aria-selected="true">Maven</button>
+        <button role="tab" type="button" id="tab-gradle" aria-controls="panel-gradle" aria-selected="false">Gradle</button>
+        <button role="tab" type="button" id="tab-kotlin" aria-controls="panel-kotlin" aria-selected="false">Gradle (Kotlin)</button>
+      </div>
+      <div role="tabpanel" id="panel-maven" aria-labelledby="tab-maven">
+<pre><code class="language-xml">&lt;dependency&gt;
+    &lt;groupId&gt;com.github.sftwnd.crayfish.common&lt;/groupId&gt;
+    &lt;artifactId&gt;crayfish-common-crc&lt;/artifactId&gt;
+    &lt;version&gt;2.1.0&lt;/version&gt;
+&lt;/dependency&gt;</code></pre>
+      </div>
+      <div role="tabpanel" id="panel-gradle" aria-labelledby="tab-gradle">
+<pre><code class="language-groovy">implementation 'com.github.sftwnd.crayfish.common:crayfish-common-crc:2.1.0'</code></pre>
+      </div>
+      <div role="tabpanel" id="panel-kotlin" aria-labelledby="tab-kotlin">
+<pre><code class="language-kotlin">implementation("com.github.sftwnd.crayfish.common:crayfish-common-crc:2.1.0")</code></pre>
+      </div>
+    </div>
+    <p class="note">On Java 9+ the jar is the named module <code>com.github.sftwnd.crayfish_common_crc</code>; OSGi bundle
+      headers are included. Coming from 1.x? See
+      <a href="https://github.com/sftwnd/crayfish-common-crc#migrating-from-1x">Migrating from 1.x</a>.</p>
+  </div>
+</section>
+
+<section id="features">
+  <div class="wrap">
+    <h2>What it does</h2>
+    <p class="section-lead">More than a table of polynomials: a CRC is a value you can keep, combine, resume and send.</p>
+    <ul class="cards">
+      <li>
+        <h3>Fast by default</h3>
+        <p>Table-driven slicing-by-8 for every model, not only for CRC-32: 8 bytes per step, 2–4 times faster than
+          one byte per step on buffers from 256 bytes. A CRC up to 32 bits wide is calculated in an
+          <code>int</code> register.</p>
+      </li>
+      <li>
+        <h3>CPU instructions on request</h3>
+        <p>CRC-32, CRC-32/JAMCRC and CRC-32C can be calculated by <code>java.util.zip.CRC32</code> and
+          <code>CRC32C</code>, which the JVM runs on the CRC instructions of the CPU — with the whole API of
+          the library.</p>
+      </li>
+      <li>
+        <h3>Immutable CRCs</h3>
+        <p>A CRC is a value: an update or a combination gives a new CRC, so a CRC can be shared between threads
+          and kept as the state of a calculation.</p>
+      </li>
+      <li>
+        <h3>Combine and resume</h3>
+        <p>Join the CRCs of parts calculated in parallel threads or on other nodes, like zlib
+          <code>crc32_combine</code>. Continue from a saved value and length, also of 2 GiB and more.</p>
+      </li>
+      <li>
+        <h3>Streams</h3>
+        <p>A <code>java.util.zip.Checksum</code> of any model for <code>CheckedInputStream</code>,
+          <code>CheckedOutputStream</code> and other code written for <code>CRC32</code>; the CRC of
+          an <code>InputStream</code> or a channel read to its end.</p>
+      </li>
+      <li>
+        <h3>Codewords</h3>
+        <p>Build and check data followed by its CRC, in the byte order of the model or of a format such as PNG.
+          The bytes of a CRC in the byte order of a protocol, and its hexadecimal digits.</p>
+      </li>
+      <li>
+        <h3>CRCs of bits</h3>
+        <p>The CRC of data that is not a whole number of bytes, such as the frames of CAN, FlexRay and USB.</p>
+      </li>
+      <li>
+        <h3>Find the algorithm</h3>
+        <p>Give samples of data with their CRCs and get the algorithms of the catalogue that produce them — to
+          find out the CRC of a device or of a file format.</p>
+      </li>
+      <li>
+        <h3>Names and aliases</h3>
+        <p>A model is chosen by the name or by any alias of the catalogue, in any case of its letters:
+          <code>CRC-32</code>, <code>PKZIP</code> and <code>CRC-32/XZ</code> are one model.</p>
+      </li>
+      <li>
+        <h3>Any CRC up to 64 bits</h3>
+        <p>Width 1…64, any poly, init, refin, refout and xorout: by the parameters, with a builder or from
+          a parameter line of the catalogue.</p>
+      </li>
+      <li>
+        <h3>Memory on demand</h3>
+        <p>Lookup tables are built on the first calculation and collected when no model uses them any more.
+          No thread of its own, so the library is unloaded with a redeployed application.</p>
+      </li>
+      <li>
+        <h3>Java 8+ and modular</h3>
+        <p>Runs on Java 8; on Java 9+ it is a named JPMS module of a multi-release jar, with OSGi bundle headers.
+          Two builds of the same sources give the same jar byte for byte.</p>
+      </li>
+    </ul>
+    <p class="verified"><strong>Verified.</strong> Every predefined model is tested against its RevEng check value
+      and residue and against a bit-by-bit reference implementation.</p>
+  </div>
+</section>
+
+<section id="examples" class="band">
+  <div class="wrap">
+    <h2>In code</h2>
+    <p class="section-lead">The whole API is a model, a CRC and a checksum. The examples are those of the
+      <a href="https://github.com/sftwnd/crayfish-common-crc#readme">README</a>, which explains every one of them.</p>
+    <div class="tabs" data-tabs>
+      <div class="tablist" role="tablist" aria-label="Examples">
+        <button role="tab" type="button" id="tab-calculate" aria-controls="panel-calculate" aria-selected="true">Calculate</button>
+        <button role="tab" type="button" id="tab-combine" aria-controls="panel-combine" aria-selected="false">Combine</button>
+        <button role="tab" type="button" id="tab-resume" aria-controls="panel-resume" aria-selected="false">Resume</button>
+        <button role="tab" type="button" id="tab-streams" aria-controls="panel-streams" aria-selected="false">Streams</button>
+        <button role="tab" type="button" id="tab-codewords" aria-controls="panel-codewords" aria-selected="false">Codewords</button>
+        <button role="tab" type="button" id="tab-bits" aria-controls="panel-bits" aria-selected="false">Bits</button>
+        <button role="tab" type="button" id="tab-custom" aria-controls="panel-custom" aria-selected="false">Custom CRC</button>
+        <button role="tab" type="button" id="tab-find" aria-controls="panel-find" aria-selected="false">Find the algorithm</button>
+        <button role="tab" type="button" id="tab-jdk" aria-controls="panel-jdk" aria-selected="false">CPU instructions</button>
+      </div>
+
+      <div role="tabpanel" id="panel-calculate" aria-labelledby="tab-calculate">
+        <p>The value of a CRC, an immutable <code>CRC</code> to continue or to combine, its hexadecimal digits and
+          its bytes in the byte order of a protocol.
+          <a href="https://github.com/sftwnd/crayfish-common-crc#calculate">More</a></p>
+<pre><code class="language-java">CrcModel model = CrcModel.of("CRC-16/ARC");
+long value = model.value(data);                                  // the CRC value only, no CRC object
+long part = model.value(data, offset, length);                   // a part of the data
+CRC crc = model.crc().update(part1).update(part2, length2);      // part1 followed by the first length2 bytes of part2
+
+String crc32 = CrcModel.of("CRC-32").crc(data).hex();            // cbf43926 for "123456789"
+byte[] modbus = CrcModel.of("CRC-16/MODBUS").crc(data).bytes(ByteOrder.LITTLE_ENDIAN);   // 37 4b (0x4b37)</code></pre>
+      </div>
+
+      <div role="tabpanel" id="panel-combine" aria-labelledby="tab-combine">
+        <p>The CRC of parts calculated independently. The cost does not depend on the size of the data.
+          <a href="https://github.com/sftwnd/crayfish-common-crc#combine">More</a></p>
+<pre><code class="language-java">CRC first = model.crc(part1);        // calculated independently,
+CRC second = model.crc(part2);       // for example in parallel threads
+CRC both = first.combine(second);    // the CRC of part1 followed by part2
+
+// only the values are kept, like zlib crc32_combine(crc1, crc2, len2):
+long value = model.combine(first.value(), second.value(), second.length());</code></pre>
+      </div>
+
+      <div role="tabpanel" id="panel-resume" aria-labelledby="tab-resume">
+        <p>Continue a calculation from a saved CRC value and length, as a <code>CRC</code> or as
+          a <code>java.util.zip.Checksum</code>.
+          <a href="https://github.com/sftwnd/crayfish-common-crc#resume">More</a></p>
+<pre><code class="language-java">long savedValue = crc.value();
+long savedLength = crc.length();
+// later, also in another process
+CRC resumed = model.crc(savedValue, savedLength).update(moreData);
+
+// append to a file whose CRC is kept
+CrcChecksum checksum = model.crc(savedValue, savedLength).checksum();
+try (OutputStream file = Files.newOutputStream(path, StandardOpenOption.APPEND);
+     CheckedOutputStream out = new CheckedOutputStream(file, checksum)) {
+    out.write(moreData);               // after the bytes written before
+}
+CRC whole = checksum.crc();            // the CRC of the whole file</code></pre>
+      </div>
+
+      <div role="tabpanel" id="panel-streams" aria-labelledby="tab-streams">
+        <p>Any CRC works with the JDK classes made for <code>CRC32</code>; a stream or a channel needs no loop.
+          <a href="https://github.com/sftwnd/crayfish-common-crc#streams">More</a></p>
+<pre><code class="language-java">CrcModel model = CrcModel.of("CRC-32C");
+try (CheckedOutputStream out = new CheckedOutputStream(Files.newOutputStream(path), model.checksum())) {
+    out.write(header);                 // the parts in the order they are written
+    out.write(body, 0, bodyLength);
+    long value = out.getChecksum().getValue();   // the CRC value of all bytes written
+}
+
+try (InputStream in = Files.newInputStream(path)) {
+    CRC crc = model.crc(in);                        // all the bytes of the stream
+}
+try (FileChannel channel = FileChannel.open(path)) {
+    CRC crc = model.crc(header).update(channel);    // the header followed by all the bytes of the channel
+}</code></pre>
+      </div>
+
+      <div role="tabpanel" id="panel-codewords" aria-labelledby="tab-codewords">
+        <p>A codeword is data followed by its CRC, as a frame of a protocol or a block of a file carries them.
+          <a href="https://github.com/sftwnd/crayfish-common-crc#codewords">More</a></p>
+<pre><code class="language-java">CrcModel modbus = CrcModel.of("CRC-16/MODBUS");
+byte[] frame = modbus.codeword(pdu);               // the PDU followed by its CRC, low byte first
+boolean valid = modbus.isValid(frame);             // true
+boolean inside = modbus.isValid(buffer, 4, 10);    // a codeword of 10 bytes at the offset 4 of a buffer
+
+// PNG stores the CRC-32 of a chunk most significant byte first
+CrcModel crc32 = CrcModel.of("CRC-32");
+byte[] type = "IEND".getBytes(StandardCharsets.US_ASCII);
+byte[] iend = crc32.codeword(type, ByteOrder.BIG_ENDIAN);               // 49 45 4e 44 ae 42 60 82
+boolean chunk = crc32.isValid(data, 4, n + 8, ByteOrder.BIG_ENDIAN);    // the type, n bytes of data and the CRC</code></pre>
+      </div>
+
+      <div role="tabpanel" id="panel-bits" aria-labelledby="tab-bits">
+        <p>Some protocols calculate the CRC of bits that are not a whole number of bytes.
+          <a href="https://github.com/sftwnd/crayfish-common-crc#bits">More</a></p>
+<pre><code class="language-java">// CAN: the 19 bits before the data and the data, packed most significant bit first
+long can = CrcModel.of("CRC-15/CAN").valueOfBits(frameBits, 19 + 8 * dlc);
+// FlexRay: the 20 bits of the header in a long
+long header = CrcModel.of("CRC-11/FLEXRAY").valueOfBits(headerBits, 20);
+// USB: the 11 bits of a token, the first bit in bit 0 (refin)
+long token = CrcModel.of("CRC-5/USB").valueOfBits(address | endpoint &lt;&lt; 7, 11);</code></pre>
+      </div>
+
+      <div role="tabpanel" id="panel-custom" aria-labelledby="tab-custom">
+        <p>A CRC outside the catalogue: by its parameters, with a builder or from a parameter line.
+          <a href="https://github.com/sftwnd/crayfish-common-crc#models">More</a></p>
+<pre><code class="language-java">CrcModel other = CrcModel.of(16, 0x1234, 0x0, true, true, 0x0);    // CRC-16/P1234_I0_RI_RO
+
+CrcModel crc32 = CrcModel.builder(32)   // the width
+        .poly(0x04C11DB7L)              // required
+        .reflected(true)                // required: refin and refout, or refin(...) and refout(...)
+        .init(0xFFFFFFFFL)              // 0 if not set
+        .xorout(0xFFFFFFFFL)            // 0 if not set
+        .check(0xCBF43926L)             // optional: build() verifies it
+        .build();                       // CRC-32/ISO-HDLC
+
+CrcParameters arc = CrcParameters.parse("width=16 poly=0x8005 init=0x0000 refin=true refout=true xorout=0x0000");</code></pre>
+      </div>
+
+      <div role="tabpanel" id="panel-find" aria-labelledby="tab-find">
+        <p>Which CRC does a device or a file format use? Take samples of its data with their CRCs.
+          <a href="https://github.com/sftwnd/crayfish-common-crc#by-samples-of-data">More</a></p>
+<pre><code class="language-java">Set&lt;StandardCrc&gt; found = StandardCrc.matching(data, 0x4B37L);                    // the algorithms that give the value
+found.retainAll(StandardCrc.matching(frame, 0, frame.length - 2, crcOfFrame));   // another sample narrows them down
+if (found.size() == 1) {                                                         // the algorithm of the samples
+    CrcModel model = found.iterator().next().model();
+}</code></pre>
+      </div>
+
+      <div role="tabpanel" id="panel-jdk" aria-labelledby="tab-jdk">
+        <p>CRC-32 and CRC-32C on the CRC instructions of the CPU, chosen per model or by a default:
+          <code>-Dcom.github.sftwnd.crayfish.common.crc.jdk=true</code>.
+          <a href="https://github.com/sftwnd/crayfish-common-crc#crc-32-and-crc-32c-of-the-jdk">More</a></p>
+<pre><code class="language-java">CrcModel jdk = CrcModel.of("CRC-32", true);                  // java.util.zip.CRC32
+CrcModel tables = CrcModel.of("CRC-32", false);              // the lookup tables of the library
+CrcModel same = tables.withJdk(true);                        // the model jdk
+
+CrcDescription.setJdk(true);                                 // the default of the models chosen without a choice
+CrcModel byDefault = CrcModel.of("CRC-32C");                 // java.util.zip.CRC32C on Java 9+</code></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="algorithms">
+  <div class="wrap">
+    <h2>The catalogue, by name</h2>
+    <p class="section-lead">112 algorithms of 21 widths. Every name and alias is accepted by
+      <code>CrcModel.of()</code>. <span class="js-only">Pick one to see its parameters and to calculate a CRC right here.</span></p>
+
+    <div class="try">
+      <form class="calc js-only" id="calc" autocomplete="off">
+        <div class="field">
+          <div class="field-head">
+            <label for="calc-input">Data</label>
+            <div class="segmented" role="group" aria-label="The format of the data">
+              <button type="button" data-mode="text" aria-pressed="true">Text</button>
+              <button type="button" data-mode="hex" aria-pressed="false">Hex</button>
+            </div>
+          </div>
+          <textarea id="calc-input" rows="2" spellcheck="false" aria-describedby="calc-hint">123456789</textarea>
+          <p class="hint" id="calc-hint">The bytes of the text in UTF-8</p>
+        </div>
+        <div class="field">
+          <label for="calc-model">Algorithm</label>
+          <select id="calc-model"></select>
+        </div>
+        <div class="result" aria-live="polite">
+          <p class="result-label"><span id="calc-name">CRC-16/MODBUS</span> of <span id="calc-length">9 bytes</span></p>
+          <p class="result-value"><output id="calc-value" for="calc-input calc-model">0x4B37</output></p>
+          <p class="aliases" id="calc-aliases"></p>
+          <dl class="params" id="calc-params"></dl>
+<pre><code class="language-java" id="calc-code">long crc = CrcModel.of("CRC-16/MODBUS")
+        .value(data);</code></pre>
+        </div>
+        <p class="hint">Calculated in your browser, bit by bit, from the parameters of the catalogue. The library
+          gives the same values with its lookup tables.</p>
+      </form>
+
+      <div class="catalogue">
+        <div class="filter js-only">
+          <label class="visually-hidden" for="filter">Filter the algorithms by a name or an alias</label>
+          <input type="search" id="filter" placeholder="Filter: modbus, ccitt, 32c, xz…" spellcheck="false">
+          <span id="filter-count" aria-live="polite">112 algorithms</span>
+        </div>
+        <section class="width" data-width="3">
+          <h3>CRC-3 <span>2</span></h3>
+          <ul>
+            <li><button type="button" class="alg" data-params="3 3 0 0 0 7 4 2">CRC-3/GSM</button></li>
+            <li><button type="button" class="alg" data-params="3 3 7 1 1 0 6 0">CRC-3/ROHC</button></li>
+          </ul>
+        </section>
+        <section class="width" data-width="4">
+          <h3>CRC-4 <span>2</span></h3>
+          <ul>
+            <li><button type="button" class="alg" data-params="4 3 0 1 1 0 7 0" data-aliases="CRC-4/ITU" title="CRC-4/ITU">CRC-4/G-704</button></li>
+            <li><button type="button" class="alg" data-params="4 3 f 0 0 f b 2">CRC-4/INTERLAKEN</button></li>
+          </ul>
+        </section>
+        <section class="width" data-width="5">
+          <h3>CRC-5 <span>3</span></h3>
+          <ul>
+            <li><button type="button" class="alg" data-params="5 09 09 0 0 00 00 00" data-aliases="CRC-5/EPC" title="CRC-5/EPC">CRC-5/EPC-C1G2</button></li>
+            <li><button type="button" class="alg" data-params="5 15 00 1 1 00 07 00" data-aliases="CRC-5/ITU" title="CRC-5/ITU">CRC-5/G-704</button></li>
+            <li><button type="button" class="alg" data-params="5 05 1f 1 1 1f 19 06">CRC-5/USB</button></li>
+          </ul>
+        </section>
+        <section class="width" data-width="6">
+          <h3>CRC-6 <span>5</span></h3>
+          <ul>
+            <li><button type="button" class="alg" data-params="6 27 3f 0 0 00 0d 00">CRC-6/CDMA2000-A</button></li>
+            <li><button type="button" class="alg" data-params="6 07 3f 0 0 00 3b 00">CRC-6/CDMA2000-B</button></li>
+            <li><button type="button" class="alg" data-params="6 19 00 1 1 00 26 00">CRC-6/DARC</button></li>
+            <li><button type="button" class="alg" data-params="6 03 00 1 1 00 06 00" data-aliases="CRC-6/ITU" title="CRC-6/ITU">CRC-6/G-704</button></li>
+            <li><button type="button" class="alg" data-params="6 2f 00 0 0 3f 13 3a">CRC-6/GSM</button></li>
+          </ul>
+        </section>
+        <section class="width" data-width="7">
+          <h3>CRC-7 <span>3</span></h3>
+          <ul>
+            <li><button type="button" class="alg" data-params="7 09 00 0 0 00 75 00" data-aliases="CRC-7" title="CRC-7">CRC-7/MMC</button></li>
+            <li><button type="button" class="alg" data-params="7 4f 7f 1 1 00 53 00">CRC-7/ROHC</button></li>
+            <li><button type="button" class="alg" data-params="7 45 00 0 0 00 61 00">CRC-7/UMTS</button></li>
+          </ul>
+        </section>
+        <section class="width" data-width="8">
+          <h3>CRC-8 <span>20</span></h3>
+          <ul>
+            <li><button type="button" class="alg" data-params="8 2f ff 0 0 ff df 42">CRC-8/AUTOSAR</button></li>
+            <li><button type="button" class="alg" data-params="8 a7 00 1 1 00 26 00">CRC-8/BLUETOOTH</button></li>
+            <li><button type="button" class="alg" data-params="8 9b ff 0 0 00 da 00">CRC-8/CDMA2000</button></li>
+            <li><button type="button" class="alg" data-params="8 39 00 1 1 00 15 00">CRC-8/DARC</button></li>
+            <li><button type="button" class="alg" data-params="8 d5 00 0 0 00 bc 00">CRC-8/DVB-S2</button></li>
+            <li><button type="button" class="alg" data-params="8 1d 00 0 0 00 37 00">CRC-8/GSM-A</button></li>
+            <li><button type="button" class="alg" data-params="8 49 00 0 0 ff 94 53">CRC-8/GSM-B</button></li>
+            <li><button type="button" class="alg" data-params="8 1d ff 0 0 00 b4 00">CRC-8/HITAG</button></li>
+            <li><button type="button" class="alg" data-params="8 07 00 0 0 55 a1 ac" data-aliases="CRC-8/ITU" title="CRC-8/ITU">CRC-8/I-432-1</button></li>
+            <li><button type="button" class="alg" data-params="8 1d fd 0 0 00 7e 00">CRC-8/I-CODE</button></li>
+            <li><button type="button" class="alg" data-params="8 9b 00 0 0 00 ea 00">CRC-8/LTE</button></li>
+            <li><button type="button" class="alg" data-params="8 31 00 1 1 00 a1 00" data-aliases="CRC-8/MAXIM DOW-CRC" title="CRC-8/MAXIM, DOW-CRC">CRC-8/MAXIM-DOW</button></li>
+            <li><button type="button" class="alg" data-params="8 1d c7 0 0 00 99 00">CRC-8/MIFARE-MAD</button></li>
+            <li><button type="button" class="alg" data-params="8 31 ff 0 0 00 f7 00">CRC-8/NRSC-5</button></li>
+            <li><button type="button" class="alg" data-params="8 2f 00 0 0 00 3e 00">CRC-8/OPENSAFETY</button></li>
+            <li><button type="button" class="alg" data-params="8 07 ff 1 1 00 d0 00">CRC-8/ROHC</button></li>
+            <li><button type="button" class="alg" data-params="8 1d ff 0 0 ff 4b c4">CRC-8/SAE-J1850</button></li>
+            <li><button type="button" class="alg" data-params="8 07 00 0 0 00 f4 00" data-aliases="CRC-8" title="CRC-8">CRC-8/SMBUS</button></li>
+            <li><button type="button" class="alg" data-params="8 1d ff 1 1 00 97 00" data-aliases="CRC-8/AES CRC-8/EBU" title="CRC-8/AES, CRC-8/EBU">CRC-8/TECH-3250</button></li>
+            <li><button type="button" class="alg" data-params="8 9b 00 1 1 00 25 00">CRC-8/WCDMA</button></li>
+          </ul>
+        </section>
+        <section class="width" data-width="10">
+          <h3>CRC-10 <span>3</span></h3>
+          <ul>
+            <li><button type="button" class="alg" data-params="10 233 000 0 0 000 199 000" data-aliases="CRC-10 CRC-10/I-610" title="CRC-10, CRC-10/I-610">CRC-10/ATM</button></li>
+            <li><button type="button" class="alg" data-params="10 3d9 3ff 0 0 000 233 000">CRC-10/CDMA2000</button></li>
+            <li><button type="button" class="alg" data-params="10 175 000 0 0 3ff 12a 0c6">CRC-10/GSM</button></li>
+          </ul>
+        </section>
+        <section class="width" data-width="11">
+          <h3>CRC-11 <span>2</span></h3>
+          <ul>
+            <li><button type="button" class="alg" data-params="11 385 01a 0 0 000 5a3 000" data-aliases="CRC-11" title="CRC-11">CRC-11/FLEXRAY</button></li>
+            <li><button type="button" class="alg" data-params="11 307 000 0 0 000 061 000">CRC-11/UMTS</button></li>
+          </ul>
+        </section>
+        <section class="width" data-width="12">
+          <h3>CRC-12 <span>4</span></h3>
+          <ul>
+            <li><button type="button" class="alg" data-params="12 f13 fff 0 0 000 d4d 000">CRC-12/CDMA2000</button></li>
+            <li><button type="button" class="alg" data-params="12 80f 000 0 0 000 f5b 000" data-aliases="X-CRC-12" title="X-CRC-12">CRC-12/DECT</button></li>
+            <li><button type="button" class="alg" data-params="12 d31 000 0 0 fff b34 178">CRC-12/GSM</button></li>
+            <li><button type="button" class="alg" data-params="12 80f 000 0 1 000 daf 000" data-aliases="CRC-12/3GPP" title="CRC-12/3GPP">CRC-12/UMTS</button></li>
+          </ul>
+        </section>
+        <section class="width" data-width="13">
+          <h3>CRC-13 <span>1</span></h3>
+          <ul>
+            <li><button type="button" class="alg" data-params="13 1cf5 0000 0 0 0000 04fa 0000">CRC-13/BBC</button></li>
+          </ul>
+        </section>
+        <section class="width" data-width="14">
+          <h3>CRC-14 <span>2</span></h3>
+          <ul>
+            <li><button type="button" class="alg" data-params="14 0805 0000 1 1 0000 082d 0000">CRC-14/DARC</button></li>
+            <li><button type="button" class="alg" data-params="14 202d 0000 0 0 3fff 30ae 031e">CRC-14/GSM</button></li>
+          </ul>
+        </section>
+        <section class="width" data-width="15">
+          <h3>CRC-15 <span>2</span></h3>
+          <ul>
+            <li><button type="button" class="alg" data-params="15 4599 0000 0 0 0000 059e 0000" data-aliases="CRC-15" title="CRC-15">CRC-15/CAN</button></li>
+            <li><button type="button" class="alg" data-params="15 6815 0000 0 0 0001 2566 6815">CRC-15/MPT1327</button></li>
+          </ul>
+        </section>
+        <section class="width" data-width="16">
+          <h3>CRC-16 <span>31</span></h3>
+          <ul>
+            <li><button type="button" class="alg" data-params="16 8005 0000 1 1 0000 bb3d 0000" data-aliases="ARC CRC-16 CRC-16/LHA CRC-IBM" title="ARC, CRC-16, CRC-16/LHA, CRC-IBM">CRC-16/ARC</button></li>
+            <li><button type="button" class="alg" data-params="16 c867 ffff 0 0 0000 4c06 0000">CRC-16/CDMA2000</button></li>
+            <li><button type="button" class="alg" data-params="16 8005 ffff 0 0 0000 aee7 0000">CRC-16/CMS</button></li>
+            <li><button type="button" class="alg" data-params="16 8005 800d 0 0 0000 9ecf 0000">CRC-16/DDS-110</button></li>
+            <li><button type="button" class="alg" data-params="16 0589 0000 0 0 0001 007e 0589" data-aliases="R-CRC-16" title="R-CRC-16">CRC-16/DECT-R</button></li>
+            <li><button type="button" class="alg" data-params="16 0589 0000 0 0 0000 007f 0000" data-aliases="X-CRC-16" title="X-CRC-16">CRC-16/DECT-X</button></li>
+            <li><button type="button" class="alg" data-params="16 3d65 0000 1 1 ffff ea82 66c5">CRC-16/DNP</button></li>
+            <li><button type="button" class="alg" data-params="16 3d65 0000 0 0 ffff c2b7 a366">CRC-16/EN-13757</button></li>
+            <li><button type="button" class="alg" data-params="16 1021 ffff 0 0 ffff d64e 1d0f" data-aliases="CRC-16/DARC CRC-16/EPC CRC-16/EPC-C1G2 CRC-16/I-CODE" title="CRC-16/DARC, CRC-16/EPC, CRC-16/EPC-C1G2, CRC-16/I-CODE">CRC-16/GENIBUS</button></li>
+            <li><button type="button" class="alg" data-params="16 1021 0000 0 0 ffff ce3c 1d0f">CRC-16/GSM</button></li>
+            <li><button type="button" class="alg" data-params="16 1021 ffff 0 0 0000 29b1 0000" data-aliases="CRC-16/AUTOSAR CRC-16/CCITT-FALSE" title="CRC-16/AUTOSAR, CRC-16/CCITT-FALSE">CRC-16/IBM-3740</button></li>
+            <li><button type="button" class="alg" data-params="16 1021 ffff 1 1 ffff 906e f0b8" data-aliases="CRC-16/ISO-HDLC CRC-16/ISO-IEC-14443-3-B CRC-16/X-25 CRC-B X-25" title="CRC-16/ISO-HDLC, CRC-16/ISO-IEC-14443-3-B, CRC-16/X-25, CRC-B, X-25">CRC-16/IBM-SDLC</button></li>
+            <li><button type="button" class="alg" data-params="16 1021 c6c6 1 1 0000 bf05 0000" data-aliases="CRC-A" title="CRC-A">CRC-16/ISO-IEC-14443-3-A</button></li>
+            <li><button type="button" class="alg" data-params="16 1021 0000 1 1 0000 2189 0000" data-aliases="CRC-16/BLUETOOTH CRC-16/CCITT CRC-16/CCITT-TRUE CRC-16/V-41-LSB CRC-CCITT KERMIT" title="CRC-16/BLUETOOTH, CRC-16/CCITT, CRC-16/CCITT-TRUE, CRC-16/V-41-LSB, CRC-CCITT, KERMIT">CRC-16/KERMIT</button></li>
+            <li><button type="button" class="alg" data-params="16 6f63 0000 0 0 0000 bdf4 0000">CRC-16/LJ1200</button></li>
+            <li><button type="button" class="alg" data-params="16 5935 ffff 0 0 0000 772b 0000">CRC-16/M17</button></li>
+            <li><button type="button" class="alg" data-params="16 8005 0000 1 1 ffff 44c2 b001" data-aliases="CRC-16/MAXIM" title="CRC-16/MAXIM">CRC-16/MAXIM-DOW</button></li>
+            <li><button type="button" class="alg" data-params="16 1021 ffff 1 1 0000 6f91 0000">CRC-16/MCRF4XX</button></li>
+            <li><button type="button" class="alg" data-params="16 8005 ffff 1 1 0000 4b37 0000" data-aliases="MODBUS" title="MODBUS">CRC-16/MODBUS</button></li>
+            <li><button type="button" class="alg" data-params="16 080b ffff 1 1 0000 a066 0000">CRC-16/NRSC-5</button></li>
+            <li><button type="button" class="alg" data-params="16 5935 0000 0 0 0000 5d38 0000">CRC-16/OPENSAFETY-A</button></li>
+            <li><button type="button" class="alg" data-params="16 755b 0000 0 0 0000 20fe 0000">CRC-16/OPENSAFETY-B</button></li>
+            <li><button type="button" class="alg" data-params="16 1dcf ffff 0 0 ffff a819 e394" data-aliases="CRC-16/IEC-61158-2" title="CRC-16/IEC-61158-2">CRC-16/PROFIBUS</button></li>
+            <li><button type="button" class="alg" data-params="16 1021 b2aa 1 1 0000 63d0 0000">CRC-16/RIELLO</button></li>
+            <li><button type="button" class="alg" data-params="16 1021 1d0f 0 0 0000 e5cc 0000" data-aliases="CRC-16/AUG-CCITT" title="CRC-16/AUG-CCITT">CRC-16/SPI-FUJITSU</button></li>
+            <li><button type="button" class="alg" data-params="16 8bb7 0000 0 0 0000 d0db 0000">CRC-16/T10-DIF</button></li>
+            <li><button type="button" class="alg" data-params="16 a097 0000 0 0 0000 0fb3 0000">CRC-16/TELEDISK</button></li>
+            <li><button type="button" class="alg" data-params="16 1021 89ec 1 1 0000 26b1 0000">CRC-16/TMS37157</button></li>
+            <li><button type="button" class="alg" data-params="16 8005 0000 0 0 0000 fee8 0000" data-aliases="CRC-16/BUYPASS CRC-16/VERIFONE" title="CRC-16/BUYPASS, CRC-16/VERIFONE">CRC-16/UMTS</button></li>
+            <li><button type="button" class="alg" data-params="16 8005 ffff 1 1 ffff b4c8 b001">CRC-16/USB</button></li>
+            <li><button type="button" class="alg" data-params="16 1021 0000 0 0 0000 31c3 0000" data-aliases="CRC-16/ACORN CRC-16/LTE CRC-16/V-41-MSB XMODEM ZMODEM" title="CRC-16/ACORN, CRC-16/LTE, CRC-16/V-41-MSB, XMODEM, ZMODEM">CRC-16/XMODEM</button></li>
+          </ul>
+        </section>
+        <section class="width" data-width="17">
+          <h3>CRC-17 <span>1</span></h3>
+          <ul>
+            <li><button type="button" class="alg" data-params="17 1685b 00000 0 0 00000 04f03 00000">CRC-17/CAN-FD</button></li>
+          </ul>
+        </section>
+        <section class="width" data-width="21">
+          <h3>CRC-21 <span>1</span></h3>
+          <ul>
+            <li><button type="button" class="alg" data-params="21 102899 000000 0 0 000000 0ed841 000000">CRC-21/CAN-FD</button></li>
+          </ul>
+        </section>
+        <section class="width" data-width="24">
+          <h3>CRC-24 <span>8</span></h3>
+          <ul>
+            <li><button type="button" class="alg" data-params="24 00065b 555555 1 1 000000 c25a56 000000">CRC-24/BLE</button></li>
+            <li><button type="button" class="alg" data-params="24 5d6dcb fedcba 0 0 000000 7979bd 000000">CRC-24/FLEXRAY-A</button></li>
+            <li><button type="button" class="alg" data-params="24 5d6dcb abcdef 0 0 000000 1f23b8 000000">CRC-24/FLEXRAY-B</button></li>
+            <li><button type="button" class="alg" data-params="24 328b63 ffffff 0 0 ffffff b4f3e6 144e63">CRC-24/INTERLAKEN</button></li>
+            <li><button type="button" class="alg" data-params="24 864cfb 000000 0 0 000000 cde703 000000">CRC-24/LTE-A</button></li>
+            <li><button type="button" class="alg" data-params="24 800063 000000 0 0 000000 23ef52 000000">CRC-24/LTE-B</button></li>
+            <li><button type="button" class="alg" data-params="24 864cfb b704ce 0 0 000000 21cf02 000000" data-aliases="CRC-24" title="CRC-24">CRC-24/OPENPGP</button></li>
+            <li><button type="button" class="alg" data-params="24 800063 ffffff 0 0 ffffff 200fa5 800fe3">CRC-24/OS-9</button></li>
+          </ul>
+        </section>
+        <section class="width" data-width="30">
+          <h3>CRC-30 <span>1</span></h3>
+          <ul>
+            <li><button type="button" class="alg" data-params="30 2030b9c7 3fffffff 0 0 3fffffff 04c34abf 34efa55a">CRC-30/CDMA</button></li>
+          </ul>
+        </section>
+        <section class="width" data-width="31">
+          <h3>CRC-31 <span>1</span></h3>
+          <ul>
+            <li><button type="button" class="alg" data-params="31 04c11db7 7fffffff 0 0 7fffffff 0ce9e46c 4eaf26f1">CRC-31/PHILIPS</button></li>
+          </ul>
+        </section>
+        <section class="width" data-width="32">
+          <h3>CRC-32 <span>12</span></h3>
+          <ul>
+            <li><button type="button" class="alg" data-params="32 814141ab 00000000 0 0 00000000 3010bf7f 00000000" data-aliases="CRC-32Q" title="CRC-32Q">CRC-32/AIXM</button></li>
+            <li><button type="button" class="alg" data-params="32 f4acfb13 ffffffff 1 1 ffffffff 1697d06a 904cddbf">CRC-32/AUTOSAR</button></li>
+            <li><button type="button" class="alg" data-params="32 a833982b ffffffff 1 1 ffffffff 87315576 45270551" data-aliases="CRC-32D" title="CRC-32D">CRC-32/BASE91-D</button></li>
+            <li><button type="button" class="alg" data-params="32 04c11db7 ffffffff 0 0 ffffffff fc891918 c704dd7b" data-aliases="CRC-32/AAL5 CRC-32/DECT-B B-CRC-32" title="CRC-32/AAL5, CRC-32/DECT-B, B-CRC-32">CRC-32/BZIP2</button></li>
+            <li><button type="button" class="alg" data-params="32 8001801b 00000000 1 1 00000000 6ec2edc4 00000000">CRC-32/CD-ROM-EDC</button></li>
+            <li><button type="button" class="alg" data-params="32 04c11db7 00000000 0 0 ffffffff 765e7680 c704dd7b" data-aliases="CKSUM CRC-32/POSIX" title="CKSUM, CRC-32/POSIX">CRC-32/CKSUM</button></li>
+            <li><button type="button" class="alg" data-params="32 1edc6f41 ffffffff 1 1 ffffffff e3069283 b798b438" data-aliases="CRC-32/BASE91-C CRC-32/CASTAGNOLI CRC-32/INTERLAKEN CRC-32C CRC-32/NVME" title="CRC-32/BASE91-C, CRC-32/CASTAGNOLI, CRC-32/INTERLAKEN, CRC-32C, CRC-32/NVME">CRC-32/ISCSI</button></li>
+            <li><button type="button" class="alg" data-params="32 04c11db7 ffffffff 1 1 ffffffff cbf43926 debb20e3" data-aliases="CRC-32 CRC-32/ADCCP CRC-32/V-42 CRC-32/XZ PKZIP" title="CRC-32, CRC-32/ADCCP, CRC-32/V-42, CRC-32/XZ, PKZIP">CRC-32/ISO-HDLC</button></li>
+            <li><button type="button" class="alg" data-params="32 04c11db7 ffffffff 1 1 00000000 340bc6d9 00000000" data-aliases="JAMCRC" title="JAMCRC">CRC-32/JAMCRC</button></li>
+            <li><button type="button" class="alg" data-params="32 741b8cd7 ffffffff 1 1 00000000 d2c22f51 00000000">CRC-32/MEF</button></li>
+            <li><button type="button" class="alg" data-params="32 04c11db7 ffffffff 0 0 00000000 0376e6e7 00000000">CRC-32/MPEG-2</button></li>
+            <li><button type="button" class="alg" data-params="32 000000af 00000000 0 0 00000000 bd0be338 00000000" data-aliases="XFER" title="XFER">CRC-32/XFER</button></li>
+          </ul>
+        </section>
+        <section class="width" data-width="40">
+          <h3>CRC-40 <span>1</span></h3>
+          <ul>
+            <li><button type="button" class="alg" data-params="40 0004820009 0000000000 0 0 ffffffffff d4164fc646 c4ff8071ff">CRC-40/GSM</button></li>
+          </ul>
+        </section>
+        <section class="width" data-width="64">
+          <h3>CRC-64 <span>7</span></h3>
+          <ul>
+            <li><button type="button" class="alg" data-params="64 42f0e1eba9ea3693 0000000000000000 0 0 0000000000000000 6c40df5f0b497347 0000000000000000" data-aliases="CRC-64" title="CRC-64">CRC-64/ECMA-182</button></li>
+            <li><button type="button" class="alg" data-params="64 000000000000001b ffffffffffffffff 1 1 ffffffffffffffff b90956c775a41001 5300000000000000">CRC-64/GO-ISO</button></li>
+            <li><button type="button" class="alg" data-params="64 259c84cba6426349 ffffffffffffffff 1 1 0000000000000000 75d4b74f024eceea 0000000000000000">CRC-64/MS</button></li>
+            <li><button type="button" class="alg" data-params="64 ad93d23594c93659 ffffffffffffffff 1 1 ffffffffffffffff ae8b14860a799888 f310303b2b6f6e42">CRC-64/NVME</button></li>
+            <li><button type="button" class="alg" data-params="64 ad93d23594c935a9 0000000000000000 1 1 0000000000000000 e9c6d914c4b8d9ca 0000000000000000">CRC-64/REDIS</button></li>
+            <li><button type="button" class="alg" data-params="64 42f0e1eba9ea3693 ffffffffffffffff 0 0 ffffffffffffffff 62ec59e3f1a4f00a fcacbebd5931a992">CRC-64/WE</button></li>
+            <li><button type="button" class="alg" data-params="64 42f0e1eba9ea3693 ffffffffffffffff 1 1 ffffffffffffffff 995dc9bbdf1939fa 49958c9abd7d353f" data-aliases="CRC-64/GO-ECMA" title="CRC-64/GO-ECMA">CRC-64/XZ</button></li>
+          </ul>
+        </section>
+        <p class="note">CRC-82/DARC of the catalogue is not predefined: a CRC value is a <code>long</code>, the width
+          is limited to 64 bits.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="speed" class="band">
+  <div class="wrap">
+    <h2>Speed</h2>
+    <p class="section-lead">Measured with JMH. The full comparison with 1.2.0 and 2.0.0 on JDK 8, 21 and 25 is on the wiki page
+      <a href="https://github.com/sftwnd/crayfish-common-crc/wiki/Speed-of-2.1.0">Speed of 2.1.0</a>.</p>
+    <ul class="figures">
+      <li><b>2–4×</b><span>slicing-by-8 against one byte per step, on buffers from 256 bytes</span></li>
+      <li><b>1.1–1.7×</b><span>2.1.0 against 2.0 for CRCs up to 32 bits wide: the register of an <code>int</code></span></li>
+      <li><b>16×</b><span>CRC-32C of 4 KB on CPU instructions through the JDK: 0.13 µs instead of 2.14 µs</span></li>
+    </ul>
+    <div class="table-scroll">
+      <table>
+        <caption>The average time of <code>model.value(data)</code>: the lookup tables of the library → the class of the JDK
+          (Intel Core i9-9980HK)</caption>
+        <thead>
+          <tr><th scope="col">Model, JDK</th><th scope="col">16 B</th><th scope="col">256 B</th><th scope="col">4 KB</th><th scope="col">1 MB</th></tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">CRC-32, JDK 25</th><td>13.8 → 16.0 ns</td><td>141 → 62 ns</td><td>2.24 → 0.20 µs</td><td>515 → 42 µs</td></tr>
+          <tr><th scope="row">CRC-32C, JDK 25</th><td>13.8 → 5.5 ns</td><td>145 → 13 ns</td><td>2.14 → 0.13 µs</td><td>513 → 41 µs</td></tr>
+          <tr><th scope="row">CRC-32, JDK 8</th><td>18.8 → 19.6 ns</td><td>141 → 59 ns</td><td>2.41 → 0.20 µs</td><td>615 → 39 µs</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">The lookup tables are the default; the classes of the JDK are chosen per model or by a system property.
+      The details, and what the speed depends on, are in the README:
+      <a href="https://github.com/sftwnd/crayfish-common-crc#speed">Speed</a> and
+      <a href="https://github.com/sftwnd/crayfish-common-crc#crc-32-and-crc-32c-of-the-jdk">CRC-32 and CRC-32C of the JDK</a>.</p>
+  </div>
+</section>
+
+<section class="closing">
+  <div class="wrap narrow">
+    <h2>Add it to your build</h2>
+<pre><code>com.github.sftwnd.crayfish.common:crayfish-common-crc:2.1.0</code></pre>
+    <p class="cta">
+      <a class="button primary" href="https://javadoc.io/doc/com.github.sftwnd.crayfish.common/crayfish-common-crc/latest/com/github/sftwnd/crayfish/common/crc/package-summary.html">Read the documentation</a>
+      <a class="button" href="https://github.com/sftwnd/crayfish-common-crc#readme">README</a>
+      <a class="button" href="https://github.com/sftwnd/crayfish-common-crc/issues">Report an issue</a>
+    </p>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap footer-row">
+    <p><img src="logo.svg" width="20" height="20" alt=""> Crayfish Common CRC · <a href="https://github.com/sftwnd/crayfish-common-crc/blob/master/LICENSE">BSD 3-Clause</a> · © Andrey D. Shindarev</p>
+    <ul>
+      <li><a href="https://github.com/sftwnd/crayfish-common-crc">GitHub</a></li>
+      <li><a href="https://central.sonatype.com/artifact/com.github.sftwnd.crayfish.common/crayfish-common-crc">Maven Central</a></li>
+      <li><a href="https://javadoc.io/doc/com.github.sftwnd.crayfish.common/crayfish-common-crc/latest/com/github/sftwnd/crayfish/common/crc/package-summary.html">Javadoc</a></li>
+      <li><a href="https://github.com/sftwnd/crayfish-common-crc/releases">Releases</a></li>
+      <li><a href="https://reveng.sourceforge.io/crc-catalogue/all.htm">RevEng catalogue</a></li>
+    </ul>
+  </div>
+</footer>
+
+<script src="app.js" defer></script>
+</body>
+</html>
