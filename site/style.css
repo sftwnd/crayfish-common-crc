@@ -430,6 +430,7 @@ html:not(.js) .try { grid-template-columns: minmax(0, 1fr); }
   position: sticky;
   top: 80px;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   padding: 22px;
   border: 1px solid var(--border);
@@ -484,12 +485,12 @@ textarea:focus, select:focus, input[type="search"]:focus { outline: 2px solid va
 .aliases:empty { display: none; }
 .params {
   display: grid;
-  grid-template-columns: repeat(4, auto);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px 14px;
-  justify-content: start;
   font: 12.5px/1.4 var(--mono);
 }
-.params div { display: flex; flex-direction: column; }
+.params div { display: flex; flex-direction: column; min-width: 0; }
+.params dd { overflow-wrap: anywhere; }
 .params dt { color: var(--muted); font-size: 11px; }
 .result pre { padding: 12px 14px; font-size: 12.5px; }
 .result .copy { display: none; }
@@ -571,7 +572,6 @@ footer a:hover { color: var(--text); }
   .hero-code pre { padding: 16px; }
   .width { grid-template-columns: minmax(0, 1fr); }
   .cards { grid-template-columns: minmax(0, 1fr); }
-  .params { grid-template-columns: repeat(3, auto); }
 }
 
 @media (max-width: 360px) {
